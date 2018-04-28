@@ -1,0 +1,436 @@
+#!/usr/bin/env python2
+# Scrip that does two things periodically (RUN_INTERVAL):
+# 1) Logs into equipment and refreshes the database used for hostname discovery
+# 2) Configures equipment when a machine has been installed
+# Uses /etc/provision.yaml for configuration
+
+import json
+import hvac
+import netsnmp
+import os
+import pysphere
+import redis
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import syslog
+import tempfile
+import threading
+import time
+import traceback
+import yaml
+
+from lib import c7000
+from lib import esxi
+from lib import snmp
+
+RUN_INTERVAL = 7
+
+# If we discover an unconfigured vCenter, create the following DC/cluster/DVS
+DEFAULT_DATACENTER = 'Event'
+DEFAULT_CLUSTER = 'POP'
+DEFAULT_DVS = 'DVS-POP'
+
+REDIS_HOST = None
+REDIS_PASSWORD = None
+VAULT_HOST = None
+VAULT_MOUNT = None
+
+DB_FILE = '/etc/ipplan.db'
+
+
+def host_to_ip(hostname):
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute('SELECT ipv4_addr_txt FROM host WHERE name = ?', (hostname, ))
+  res = c.fetchone()
+  return res[0] if res else None
+
+
+def get_vlan(hostname):
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute('SELECT n.name, vlan '
+            'FROM host h, network n WHERE h.network_id = n.node_id '
+            'AND h.name = ?', (hostname, ))
+  res = c.fetchone()
+  return res if res else (None, None)
+
+
+def all_vlans_in_same_domain(hostname):
+  my_net, _ = get_vlan(hostname)
+  my_domain, _ = my_net.split('@', 1)
+
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute('SELECT name, vlan FROM network ORDER BY vlan')
+  for network, vlan in c:
+    if vlan == 0:
+      continue
+    if network.startswith(my_domain + '@'):
+      yield network, vlan
+
+
+class Backend(object):
+  def __init__(self, config):
+    self.manager = config['domain']
+    self.redis = None
+    self.host = config['host']
+    self.fqdn = config['fqdn']
+    self.username = config['username']
+    self.password = config['password']
+    self.thread = threading.Thread(target=self.run)
+    self.thread.daemon = True
+
+  def is_alive(self):
+    with open(os.devnull, 'w') as null:
+      return subprocess.call(
+          ['ping', '-c' , '1', self.host], stdout=null) == 0
+
+  def start(self):
+    self.thread.start()
+
+  def vault(self):
+    fqdn = socket.getfqdn()
+    cert = '/var/lib/puppet/ssl/certs/%s.pem' % fqdn
+    key = '/var/lib/puppet/ssl/private_keys/%s.pem' % fqdn
+    client = hvac.Client(url=VAULT_HOST, cert=(cert, key))
+    client.auth_tls()
+    return client
+
+  def save_secret(self, secret, **kwargs):
+    path = '%s/%s' % (VAULT_MOUNT, secret)
+    self.vault().write(path, **kwargs)
+
+  def read_secret(self, secret):
+    path = '%s/%s' % (VAULT_MOUNT, secret)
+    data = self.vault().read(path)
+    return data.get('data', None) if data else None
+
+  def run(self):
+    while True:
+      if not self.is_alive():
+        syslog.syslog(syslog.LOG_INFO,
+                      'Skipping host %s, it is not alive' % self.host)
+        continue
+      # Reconnect every run to handle connection problems
+      try:
+        self.redis = redis.StrictRedis(host=REDIS_HOST, password=REDIS_PASSWORD)
+        self.execute()
+      except:
+        syslog.syslog(syslog.LOG_ERR,
+                      'Uncaught exception: %s' % traceback.format_exc())
+        print 'Uncaught exception: %s' % traceback.format_exc()
+      time.sleep(RUN_INTERVAL)
+
+  def execute(self):
+    pass
+
+
+class Esxi(Backend):
+  def __init__(self, config):
+    super(Esxi, self).__init__(config)
+    self.deploy_vlan = config['deploy-vlan']
+    self.esxi_cache = None
+
+  def vcenter_deploy(self, host):
+    # vCenter uses its own ISO with deploy appliance, use that instead
+    syslog.syslog(syslog.LOG_INFO,
+                  'Preparing vCenter installation VM %s' % host['name'])
+
+    ip = host['ipv4']['address']
+    prefix = str(host['ipv4']['prefix'])
+    gateway = host['ipv4']['gateway']
+    vlan = host['ipv4']['vlan']
+    domain = '.'.join(host['name'].split('.')[1:])
+
+    password = subprocess.check_output([
+      '/usr/bin/apg', '-M', 'SNCL', '-n', '1', '-m', '16', '-x', '20']).strip()
+
+    config = esxi.generate_vcenter_install_config(
+      self.server, host['name'], vlan, ip, prefix, gateway, password,
+      host['datastore'], domain)
+
+    syslog.syslog(syslog.LOG_INFO,
+                  'Starting vCenter installation VM %s' % host['name'])
+    mount = tempfile.mkdtemp()
+    subprocess.check_call([
+      '/bin/mount', '-o', 'loop', '/srv/vmware-vcenter.iso', mount])
+
+    def deploy():
+      try:
+        with tempfile.NamedTemporaryFile() as f:
+          f.write(config)
+          f.flush()
+          exe = os.path.join(
+              mount, 'vcsa-cli-installer', 'lin64', 'vcsa-deploy')
+          subprocess.check_call([
+              exe, 'install', '--no-esx-ssl-verify', '--accept-eula', f.name])
+          self.save_secret(
+              host['name'], username='administrator@%s' % domain,
+              password=password)
+          vm = self.server.get_vm_by_name(host['name'])
+          syslog.syslog(syslog.LOG_INFO,
+                        'Created new vCenter VM %s' % host['name'])
+      except:
+        syslog.syslog(syslog.LOG_ERR,
+                      'Failed to create vCenter VM %s' % host['name'])
+      finally:
+        subprocess.check_call([ '/bin/umount', mount])
+    # Start this in a seperate thread as it will be running for long
+    threading.Thread(target=deploy).start()
+
+  def configure(self):
+    # TODO(bluecmd): Configure stuff in vCenter:
+    # - add esxi host to vcenter
+    for key in self.redis.keys('configure-vcenter-*'):
+      request = json.loads(self.redis.get(key))
+      if request['manager'] != self.manager:
+        continue
+
+      secrets = self.read_secret(request['name'])
+      target = pysphere.VIServer()
+      target.connect(
+          host_to_ip(request['name']), secrets['username'], secrets['password'])
+      datacenter = esxi.get_or_create_datacenter(
+          self.server, DEFAULT_DATACENTER)
+
+      if request['operation'] == 'add-esxi-server':
+        cluster = esxi.get_or_create_cluster(self.server, datacenter,
+            DEFAULT_CLUSTER)
+        esxi.add_esxi_to_vcenter(self.server, target, cluster)
+        syslog.syslog(syslog.LOG_INFO,
+                      'Added ESXi %s to vCenter %s' % (
+                        request['name'], self.host))
+      elif request['operation'] == 'add-host-to-dvs':
+        esxi.add_host_to_dvs(self.server, esxi.get_server_ip(target),
+            datacenter, DEFAULT_DVS, request['interface'])
+        syslog.syslog(syslog.LOG_INFO, 'Added host %s to DVS' % request['name'])
+      else:
+        # Unknown option
+        pass
+      # Delete request since we're done.
+      # If anything above failed, we will retry
+      self.redis.delete(key)
+
+  def create(self):
+    """Create new VM if we have a request to do so."""
+    # Do not run if we haven't been able to fetch the VMs yet
+    if self.esxi_cache == None:
+      return
+    for key in self.redis.keys('create-vm-*'):
+      host = json.loads(self.redis.get(key))
+      if host['manager'] != self.manager:
+        continue
+
+      # Verify that the VM doesn't exist already
+      known_names = [name for (name, _) in self.esxi_cache.values()]
+      if host['name'] in known_names:
+        syslog.syslog(syslog.LOG_ERR,
+                      'Tried to create already existing VM %s' % host['name'])
+      elif host['os'] == 'vcenter':
+        self.vcenter_deploy(host)
+      else:
+        syslog.syslog(syslog.LOG_INFO,
+                  'Creating new VM using configuration %s' % (
+                      ', '.join(k + '=' + str(v) for k, v in host.items())))
+        vm = esxi.create_vm(
+            self.server, host['name'], self.deploy_vlan, host['datastore'],
+            disk_size=host['disk'], num_cpus=host['cpus'],
+            memory=host['memory'], os=host['os'])
+        esxi.power_on(self.server, vm)
+        syslog.syslog(syslog.LOG_INFO, 'Created new VM %s' % host['name'])
+      # Delete request since we're done.
+      # If anything above failed, we will retry
+      self.redis.delete(key)
+
+  def scrape(self):
+    """Go throught all registered VMs in an ESXi server and register in Redis.
+
+    If the VM is already known (i.e. in 'esxi_cache') we will still add it to
+    Redis to allow flushes of the database. We will however not
+    call 'get_vm_by_path' since that would clutter up the logs in the ESXi host.
+    """
+    visited_keys = set()
+    # If this fails it will hopefully throw an exception
+    vms = self.server.get_registered_vms()
+    # Assume the call succeeded and initialize esxi_cache if needed
+    if self.esxi_cache is None:
+      self.esxi_cache = {}
+    for path in self.server.get_registered_vms():
+      if path not in self.esxi_cache:
+        vm = self.server.get_vm_by_path(path)
+        name = vm.properties.name
+        uuid = vm.properties.config.uuid.lower()
+        self.esxi_cache[path] = (name, uuid)
+        syslog.syslog(syslog.LOG_INFO, 'Found new VM %s' % path)
+      else:
+        name, uuid = self.esxi_cache[path]
+      visited_keys.add(path)
+      metadata = {'name': name, 'manager': self.manager, 'fqdn': self.fqdn}
+      self.redis.setex(
+              'vmware-' + self.manager + '-' + uuid, 600, json.dumps(metadata))
+
+    removed_keys = set(self.esxi_cache.keys()) - visited_keys
+    for key in removed_keys:
+      syslog.syslog(syslog.LOG_INFO, 'Forgot VM %s' % key)
+      del self.esxi_cache[key]
+
+  def provision(self):
+    """Go through all host objects and provision those that are installed."""
+    for key in self.redis.keys('host-*'):
+      try:
+        host = json.loads(self.redis.get(key))
+        if not host['installed'] or host['provisioned']:
+          continue
+      except Exception:
+        # Ignore malformed entries
+        continue
+
+      for path, (name, uuid) in self.esxi_cache.iteritems():
+        if uuid == host['uuid'].lower():
+          break
+      else:
+        # Not our VM
+        continue
+
+      vm = esxi.get_vm_by_path(self.server, path)
+      # To avoid loops, consider the VM provisioned even thought we're
+      # not done yet.
+      host['provisioned'] = True
+      self.redis.setex(key, 3600, json.dumps(host))
+
+      # If we have no network configuration for the VM, we cannot configure
+      if not host['network']:
+        syslog.syslog(syslog.LOG_ERR, 'VM %s lacking network config' % path)
+        continue
+      vlan = host['network']['vlan']
+
+      try:
+        esxi.provision_vm(self.server, vm, vlan)
+        syslog.syslog(syslog.LOG_INFO,
+                      'Provisioned VLAN %d on VM %s' % (vlan, name))
+      except esxi.Error, e:
+        syslog.syslog(syslog.LOG_ERR, 'Failed to provision VM %s: %s' % (
+          name, e.message))
+
+  def setup_vcenter(self):
+    syslog.syslog(syslog.LOG_INFO, 'Discovered new vCenter %s, setting up' % (
+      self.host))
+    datacenter = esxi.get_or_create_datacenter(self.server, DEFAULT_DATACENTER)
+    esxi.get_or_create_cluster(self.server, datacenter, DEFAULT_CLUSTER)
+    esxi.create_dvswitch(self.server, datacenter, DEFAULT_DVS)
+    # Create all portgroups, one per network from ipplan
+    vlan_map = {'0: Untagged Deploy': 0}
+    for network, vlan in all_vlans_in_same_domain(self.fqdn):
+      name = '%s: %s' % (vlan, network.split('@', 1)[1])
+      vlan_map[name] = vlan
+    esxi.create_dvs_portgroup(self.server, datacenter, DEFAULT_DVS, vlan_map)
+    syslog.syslog(syslog.LOG_INFO, 'Setup for vCenter %s done' % self.host)
+
+  def execute(self):
+    self.server = pysphere.VIServer()
+    self.server.connect(self.host, self.username, self.password)
+
+    # Set up the vCenter installation if it's not already
+    if 'vCenter' in self.server.get_server_type():
+      if not self.server.get_datacenters():
+        self.setup_vcenter()
+
+    self.scrape()
+    self.create()
+    self.configure()
+    self.provision()
+
+    self.server.disconnect()
+
+
+class C7000(Backend):
+  def __init__(self, config):
+    super(C7000, self).__init__(config)
+    self.community = config['community']
+
+  def execute(self):
+    session = snmp.session_v2(self.host, self.community)
+    bays = {}
+    serials = {}
+    for oid, result in snmp.walk(
+        session, '.1.3.6.1.4.1.232.22.2.4.1.1.1.16').iteritems():
+      _, bay = oid.rsplit('.', 1)
+      sn = 'Unknown'
+      try:
+        result.value.decode('utf-8')
+        sn = result.value.strip()
+      except UnicodeDecodeError:
+        pass
+      if sn == 'Unknown':
+        bays[bay] = None
+      else:
+        bays[bay] = {'serial': sn}
+        serials[sn] = bay
+    self.redis.setex('bays-' + self.manager, 600, json.dumps(bays))
+
+    # Provision machines
+    for sn, bay in serials.iteritems():
+      install = self.redis.get('install-' + sn)
+      if not install:
+        continue
+
+      install = json.loads(install)
+      if install.get('initialized', True):
+        continue
+      # c7000 needs different power-on types depending on the current state
+      power_state = snmp.get(
+              session, '.1.3.6.1.4.1.232.22.2.4.1.1.1.25.%s' % bay)
+      if power_state == '2':
+        # Blade is ON, do cold boot
+        power_type = c7000.COLD_BOOT
+      elif power_state == '3':
+        # Blade is OFF, do momentary press
+        power_type = c7000.MOMENTARY_PRESS
+      else:
+        # Unknown state, fail
+        syslog.syslog(syslog.LOG_ERR,
+                      'C7000 bay %d has unknown power-state %s' % (
+                          bay, power_state))
+        continue
+      session = c7000.login(self.host, self.username, self.password)
+      c7000.setup_boot_order(session, install['bay'])
+      c7000.netboot(session, install['bay'])
+      c7000.power_on(session, install['bay'], power_type)
+
+      install['initialized'] = True
+      self.redis.setex('install-' + sn, 3600, json.dumps(install))
+
+
+if __name__ == '__main__':
+  # SSL verification hack until pySphere get their stuff together
+  # https://www.python.org/dev/peps/pep-0476/#opting-out
+  import ssl
+
+  try:
+    _create_unverified_https_context = ssl._create_unverified_context
+  except AttributeError:
+    # Legacy Python that doesn't verify HTTPS certificates by default
+    pass
+  else:
+    # Handle target environment that doesn't support HTTPS verification
+    ssl._create_default_https_context = _create_unverified_https_context
+  # End SSL hack
+
+  # Teach requests to trust our CAs (used by hvac)
+  os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
+  config = yaml.safe_load(file('/etc/provision.yaml'))
+
+  VAULT_HOST = config['vault']['host']
+  VAULT_MOUNT = config['vault']['mount']
+  REDIS_HOST = config['redis']['host']
+  REDIS_PASSWORD = config['redis']['password']
+  for c in config.get('esxi', None) or []:
+    Esxi(c).start()
+  for c in config.get('c7000', None) or []:
+    C7000(c).start()
+  while True:
+    signal.pause()

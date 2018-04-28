@@ -1,0 +1,210 @@
+#!/bin/bash
+
+# This part is run by busybox sh - be careful with the syntax
+if [ "x$1" = "x" ]; then
+  mount --bind /proc /target/proc
+  mount --bind /sys /target/sys
+  mount -t devpts none /target/dev/pts
+  cp $0 /target/tmp/
+  cp /tmp/crypto.pass /target/tmp/
+  chroot /target/ //bin/bash /tmp/`basename $0` inside \
+    > /target/var/tmp/post-install.log \
+    2> /target/var/tmp/post-install.err
+
+  chmod 400 /target/var/tmp/post-install.log
+  chmod 400 /target/var/tmp/post-install.err
+  exit 0
+fi
+
+set +x
+set +e
+
+export HOME=/root
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+# iptables rules for protecting the machine prior to initial puppet run after first boot.
+cat << _EOF_ > /etc/iptables/rules.v4
+# Created by Dreamhack post-install, should be overwritten by puppet
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m comment --comment "post-install v4 accept related established rules" -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -i lo -m comment --comment "post-install v4 accept all to lo interface" -j ACCEPT
+-A INPUT -p icmp -m comment --comment "post-install v4 accept all icmp" -j ACCEPT
+-A INPUT -s 77.80.254.132/32 -p tcp -m multiport --dports 22 -m comment --comment "post-install v4 ssh from jumpgate1.tech.dreamhack.se" -j ACCEPT
+-A INPUT -s 77.80.255.4/32 -p tcp -m multiport --dports 22 -m comment --comment "post-install v4 ssh from jumpgate2.tech.dreamhack.se" -j ACCEPT
+-A INPUT -s 77.80.231.135/32 -p tcp -m multiport --dports 22 -m comment --comment "post-install v4 ssh from jumpgate1.event.dreamhack.se" -j ACCEPT
+-A INPUT -s 77.80.231.136/32 -p tcp -m multiport --dports 22 -m comment --comment "post-install v4 ssh from jumpgate2.event.dreamhack.se" -j ACCEPT
+COMMIT
+_EOF_
+
+# ip6tables rules for protecting the machine prior to initial puppet run after first boot.
+cat << _EOF_ > /etc/iptables/rules.v6
+# Created by Dreamhack post-install, should be overwritten by puppet
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m comment --comment "post-install v6 accept related established rules" -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -i lo -m comment --comment "post-install v6 accept all to lo interface" -j ACCEPT
+-A INPUT -p icmpv6 -m comment --comment "post-install v6 accept all icmpv6" -j ACCEPT
+-A INPUT -s 2a02:4b00:1337:778::132/128 -p tcp -m multiport --dports 22 -m comment --comment "post-install v6 ssh from jumpgate1.tech.dreamhack.se" -j ACCEPT
+-A INPUT -s 2a05:2240:5000:300::4/128 -p tcp -m multiport --dports 22 -m comment --comment "post-install v6 ssh from jumpgate2.tech.dreamhack.se" -j ACCEPT
+-A INPUT -s 2a05:2242:926::135/128 -p tcp -m multiport --dports 22 -m comment --comment "post-install v6 ssh from jumpgate1.event.dreamhack.se" -j ACCEPT
+-A INPUT -s 2a05:2242:926::136/128 -p tcp -m multiport --dports 22 -m comment --comment "post-install v6 ssh from jumpgate2.event.dreamhack.se" -j ACCEPT
+COMMIT
+_EOF_
+
+cat << _EOF_ >> /etc/ssl/ca.crt
+-----BEGIN CERTIFICATE-----
+MIIDFjCCAn+gAwIBAgIJAJmU3g3xZuZEMA0GCSqGSIb3DQEBBQUAMGYxCzAJBgNV
+BAYTAlNFMRAwDgYDVQQIEwdTbWFsYW5kMRIwEAYDVQQHEwlKb25rb3BpbmcxEjAQ
+BgNVBAoTCURyZWFtaGFjazEQMA4GA1UECxMHTmV0d29yazELMAkGA1UEAxMCY2Ew
+HhcNMTExMTA2MDAwMTQ1WhcNMjExMTAzMDAwMTQ1WjBmMQswCQYDVQQGEwJTRTEQ
+MA4GA1UECBMHU21hbGFuZDESMBAGA1UEBxMJSm9ua29waW5nMRIwEAYDVQQKEwlE
+cmVhbWhhY2sxEDAOBgNVBAsTB05ldHdvcmsxCzAJBgNVBAMTAmNhMIGfMA0GCSqG
+SIb3DQEBAQUAA4GNADCBiQKBgQC60thKBzqaYY9JC5mGhU24yV4wGc4K/+W9S2/9
+qGiXHw9KTZUiYlCgHCXcVodk5Krq2dcdMek4D+2+TROoS5bLSaycwqdCmpP+l6Pv
+j5iwOKhQd9ebhC1alypVZkaEYtPLFV7xXpnyZ/UB1MXeuQcAXJVFHcMBPeD5/5YR
+43jZZwIDAQABo4HLMIHIMB0GA1UdDgQWBBRu5z0y6OYjAW+/ZGdPZh7l63xZKzCB
+mAYDVR0jBIGQMIGNgBRu5z0y6OYjAW+/ZGdPZh7l63xZK6FqpGgwZjELMAkGA1UE
+BhMCU0UxEDAOBgNVBAgTB1NtYWxhbmQxEjAQBgNVBAcTCUpvbmtvcGluZzESMBAG
+A1UEChMJRHJlYW1oYWNrMRAwDgYDVQQLEwdOZXR3b3JrMQswCQYDVQQDEwJjYYIJ
+AJmU3g3xZuZEMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEFBQADgYEAA+pMWtit
+bybIrAx7Vt+Aw0QiZf5d03udthjUNeQ2B5V23KRSUwgSftdA0N2htnB3iZf7hQiV
+9n6+f8si5Ru24vwWbGSzjgvMtwxT2QQIHKwCLc3b3BZH2gyh2El+9fWxXogsUeIh
+5M2ofx2Jpb8ULINJSNcDJ7LbwgC3yVzuM4Q=
+-----END CERTIFICATE-----
+_EOF_
+
+cat /etc/ssl/ca.crt > /usr/share/ca-certificates/dhtech-ca.crt
+echo "dhtech-ca.crt" >> /etc/ca-certificates.conf
+update-ca-certificates
+
+echo 'APT::Install-Recommends "0";' >> /etc/apt/apt.conf.d/70debconf
+
+cat << _EOF_ > /root/.vimrc
+" Cheat sheet
+" zz / zt - scroll to top / middle relative to position
+" gt / gT / :newtab - tab
+" Ctrl+O / Ctrl-I / :jumps - jump
+" gU / gu  - make lower / uppercase
+" ga - show ascii
+" :normal dd - special execute dd 
+" gd - go to definition
+" gf - open file
+" gV - reselect visual
+set nobackup
+set nocompatible
+set shiftwidth=2
+set tabstop=2
+set expandtab
+set softtabstop=2
+set showcmd
+set background=dark
+set nowrap
+set ruler
+set scrolloff=3
+
+noremap <Space> <PageDown>
+
+filetype on
+filetype plugin on
+filetype indent on
+
+syntax on
+_EOF_
+echo "net.ipv6.conf.all.autoconf=0" >> /etc/sysctl.conf
+
+sed -i 's/Port 22/Port 2022/' /etc/ssh/sshd_config
+
+cat << _EOF_ > /etc/puppet/puppet.conf
+[main]
+server=puppet.tech.dreamhack.se
+logdir=/var/log/puppet
+vardir=/var/lib/puppet
+ssldir=/var/lib/puppet/ssl
+rundir=/var/run/puppet
+factpath=$vardir/lib/facter
+
+[master]
+ssl_client_header = SSL_CLIENT_S_DN
+ssl_client_verify_header = SSL_CLIENT_VERIFY
+
+[agent]
+runinterval=10m
+_EOF_
+
+# puppet agent is disabled by default on Jessie.
+puppet agent --enable
+systemctl enable puppet
+
+# Update interfaces from ipplan
+ifs=$(ls /sys/class/net/ | grep -v lo | grep -vF '.' | sort | tr '\n' ',')
+wget -qO - "https://deploy.tech.dreamhack.se/interfaces.py?ifs=${ifs}" \
+  > /etc/network/interfaces
+
+# Prevent debian-installer from overwriting our nice configuration files
+chattr +i /etc/network/interfaces
+
+if [ -d /etc/resolvconf/ ]; then
+  echo 'nameserver 8.8.8.8' > /etc/resolvconf/resolv.conf.d/tail
+fi
+
+# Output GRUB to both serial and console
+sed -i '/^GRUB_TERMINAL/d' /etc/default/grub
+echo 'GRUB_TERMINAL="console serial"' >> /etc/default/grub
+update-grub
+
+# Write automatic LUKS unlock
+if [ -f '/tmp/crypto.pass' ]; then
+  PASSPHRASE=$(cat /tmp/crypto.pass)
+  touch /usr/local/sbin/dh-unlock-disk
+  chmod 0500 /usr/local/sbin/dh-unlock-disk
+  cat << _EOF_ > /usr/local/sbin/dh-unlock-disk
+#!/bin/sh
+echo -n "$PASSPHRASE"
+_EOF_
+
+  # Nothing good comes out of removing this file, protect it
+  chattr +i /usr/local/sbin/dh-unlock-disk
+
+  # Write a backup to root's home directory as well
+  touch /root/.dh-luks-pw
+  chmod 0400 /root/.dh-luks-pw
+  echo "$PASSPHRASE" > /root/.dh-luks-pw
+  chattr +i /root/.dh-luks-pw
+
+  cat << _EOF_ > /usr/local/sbin/dh-kill-disk
+#!/bin/bash
+set -e
+echo -n 'WARNING! Self-destruct in 5 seconds.'
+sleep 1
+echo -en '\rWARNING! Self-destruct in 4 seconds.'
+sleep 1
+echo -en '\rWARNING! Self-destruct in 3 seconds.'
+sleep 1
+echo -en '\rWARNING! Self-destruct in 2 seconds.'
+sleep 1
+echo -en '\rWARNING! Self-destruct in 1 seconds.'
+sleep 1
+echo -e '\rSelf-destructing, wiping crypto keys ..'
+
+name=\$(awk '{print \$1}' /etc/crypttab)
+device=\$(/sbin/cryptsetup status \$name | grep device | awk '{print \$2}')
+/sbin/cryptsetup erase -q \$device
+echo 'Done. System will be unusable on next boot.'
+echo 'Have a nice day :-)'
+_EOF_
+  chmod +x /usr/local/sbin/dh-kill-disk
+
+  # Enable unlocking script and re-generate initramfs to include it
+  sed -i 's/none luks/none luks,keyscript=\/usr\/local\/sbin\/dh-unlock-disk/' \
+    /etc/crypttab
+  update-initramfs -k all -u
+fi
+
+# Trigger the pending provision using the inventory information we provided
+# in pre-install. This will make the next iPXEs from us default to disk.
+wget -qO - https://deploy.tech.dreamhack.se/provision.py

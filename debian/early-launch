@@ -1,0 +1,67 @@
+#!/bin/sh
+set -x
+
+# Installer likes to run this script twice, which we do not want
+if [ -f /tmp/early-lunch.mark ]; then exit 0
+fi
+
+touch /tmp/early-lunch.mark
+
+for i in /firmware/firmware-bnx2*_all.deb
+do
+  udpkg -i $i
+done
+
+for var in $(cat /proc/cmdline)
+do
+  key=$(echo $var | cut -f 1 -d '=')
+  value=$(echo $var | cut -f 2 -d '=')
+  if [ "$key" = "netcfg/vlan_id" ]; then
+    vlan="$value"
+  fi
+  if [ "$key" = "netcfg/get_ipaddress" ]; then
+    ip="$value"
+  fi
+  if [ "$key" = "netcfg/get_netmask" ]; then
+    netmask="$value"
+  fi
+  if [ "$key" = "netcfg/get_gateway" ]; then
+    gateway="$value"
+  fi
+  if [ "$key" = "netcfg/get_nameservers" ]; then
+    ns="$value"
+  fi
+done
+
+dev=$(ls /sys/class/net | head -n1)
+vconfig add "$dev" "$vlan"
+
+ln -sf /bin/busybox /ip
+rm -f /sbin/ip
+cat << _EOF_ > /sbin/ip
+#!/bin/sh
+
+# We need this wrapper to work around that Debian installer
+# treats eth0 as an independent interface from eth0.$vlan
+# and downs it when setting up interfaces, causing the
+# vlan interface to go down as well
+/ip link set up dev $dev
+/ip "\$@"
+
+# Some network ports are very slow (STP or otherwise), so give plenty of time
+# for the command to take effect
+sleep 5
+_EOF_
+chmod +x /sbin/ip
+
+echo "I am $ip/$netmask, DNS $ns, using $dev.$vlan" > /dev/console
+
+echo "d-i netcfg/choose_interface select $dev.$vlan" > conf.input
+debconf-set-selections conf.input
+rm conf.input
+
+ip addr add "$ip/$netmask" dev $dev."$vlan"
+ip route add default via "$gateway"
+echo "nameserver $ns" > /etc/resolv.conf
+
+exec /start-preinstall $1

@@ -1,0 +1,26 @@
+#!/bin/sh
+set -x
+
+for file in /proc/sys/net/ipv6/conf/*/autoconf
+do
+  echo 0 > $file
+done
+if [ ! -f /ip ]; then
+  # Debian has a hacked IP, so mirror it for Ubuntu
+  ln -sf /sbin/ip /ip
+fi
+
+for iface in $(ls /sys/class/net | grep -v lo)
+do
+  /ip -6 addr flush dev $iface
+done
+
+# This generates a *shell* script, not a python script
+echo "Fetching pre-install script from https://$1/pre-install.py" > /dev/console
+while ! wget -O pre-install https://$1/pre-install.py 2> /dev/console
+do
+  echo "Failed to fetch pre-install, retrying in 10 sec ..." > /dev/console
+  sleep 10
+done
+chmod +x ./pre-install
+exec ./pre-install $1

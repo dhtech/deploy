@@ -1,0 +1,69 @@
+# Locale
+tzsetup-udeb time/zone select Europe/Stockholm
+d-i clock-setup/utc boolean true
+d-i localechooser/languagelist en
+
+d-i console-setup/ask_detect boolean false
+d-i keyboard-configuration/xkb-keymap select se
+d-i keyboard-configuration/layoutcode string se
+
+# Mirror settings
+d-i mirror/country string manual
+d-i mirror/protocol string http
+d-i mirror/http/directory string /debian
+
+# Rojter catches *.debian.org for a local apt-cache
+d-i mirror/http/hostname string ftp.se.debian.org
+
+d-i mirror/http/proxy string
+d-i mirror/suite string testing
+
+# Disk
+# d-i partman-auto/method is preseeded in pre-install
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-auto/choose_recipe select atomic
+d-i partman/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
+d-i partman-md/confirm boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+
+# No sysop
+user-setup-udeb passwd/shadow boolean true
+user-setup-udeb passwd/make-user  boolean false
+
+# Ask for root password
+# d-i passwd/root-password is preseeded in pre-install
+d-i user-setup/allow-password-weak boolean true
+d-i popularity-contest/participate boolean false
+
+# Add puppet repositories
+# TODO(bluecmd): Try using puppet from debian
+#d-i apt-setup/local0/repository string http://apt.puppetlabs.com jessie PC1
+#d-i apt-setup/local0/key string http://pool.sks-keyservers.net:11371/pks/lookup?op=get&search=0x7F438280EF8D349F
+
+# Add programs
+tasksel tasksel/first multiselect none
+d-i pkgsel/include string less vlan ifenslave vim screen tmux tcpdump strace ldap-utils puppet ca-certificates openssh-server iptables-persistent xz-utils lsof dnsutils curl console-data wget
+
+# iptables-persistent asks a couple of questions
+d-i iptables-persistent/autosave_v4 boolean false
+d-i iptables-persistent/autosave_v6 boolean false
+
+# console-data asks if it is allowed to touch the keymap
+console-data console-data/keymap/policy select Don't touch keymap
+
+# Run post setup
+d-i preseed/late_command string wget https://deploy.tech.dreamhack.se/post-install && sh ./post-install
+
+# Grub in MBR
+grub-installer grub-installer/only_debian boolean true
+# ... additional grub configuration needed by jessie
+d-i grub-installer/bootdev string default
+
+# Automatic reboot
+d-i finish-install/reboot_in_progress note

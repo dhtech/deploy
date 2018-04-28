@@ -1,0 +1,42 @@
+#!ipxe
+
+# Step 0. Use temporary DHCP
+# Use a temporary DHCP-served network to be able to execute step 1 and 2.
+dhcp
+prompt --key 0x02 --timeout 2000 Press Ctrl-B for the iPXE command line... && shell ||
+
+:retry
+
+# Step 1. Get hostname
+# Using UUID, Serial and Manufacturer we should be able to find the install order.
+# If we do not find one, this step will block asking the user to enter a FQDN.
+chain https://deploy.tech.dreamhack.se/ipxe-inventory.py?uuid=${uuid}&serial=${serial}&manufacturer=${manufacturer} || goto retry
+
+# Step 2. Set up network
+# This step will use the hostname retrieved in the last step to set up
+# the production network and disable DHCP used above.
+# After this step we will be using VLAN tagged data on our assigned network
+
+# HACK(bluecmd): Since bnx2 iPXE doesn't like VLAN, we need to provide a way to
+# override IP in order to not screw the whole design up.
+chain https://deploy.tech.dreamhack.se/ipxe-network.py?hostname=${hostname}&noset=1 || goto retry
+
+# Step 3. Register
+# This will register our metadata with the installation record.
+# This is used to track the installation, make platform dependent choices,
+# and provide debug information.
+# If you want access to some cool metadata about the machine, this is the
+# place to register it.
+chain https://deploy.tech.dreamhack.se/ipxe-register.py?uuid=${uuid}&serial=${serial}&manufacturer=${manufacturer}&product=${product}&hack_ip=${v4_address} || goto fail
+
+# Step 4. Boot the installer
+chain https://deploy.tech.dreamhack.se/ipxe.py?mac=${net0/mac}&hack_ip=${v4_address} || goto fail
+
+# If we fail step 3 or step 4, reboot.
+# The reason for this is that these steps set or depend on the state before, so
+# it's better to reboot.
+:fail
+echo "Partial failure while loading deploy system!"
+echo "Will reboot in 5 seconds"
+sleep 5
+reboot

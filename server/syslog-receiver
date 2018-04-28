@@ -1,0 +1,37 @@
+#!/usr/bin/python2
+
+import SocketServer
+import redis
+import sqlite3
+import yaml
+
+
+config = yaml.safe_load(file('/etc/deploy.yaml'))
+r = redis.StrictRedis(
+        host=config['redis']['host'],
+        password=config['redis']['password'])
+
+
+class SyslogUDPHandler(SocketServer.BaseRequestHandler):
+
+  def handle(self):
+    conn = sqlite3.connect('/etc/ipplan.db')
+
+    data = bytes.decode(self.request[0], 'utf-8').strip().split(' ', 4)[-1]
+    client = self.client_address[0]
+
+    c = conn.cursor()
+    c.execute('SELECT name FROM host WHERE ipv4_addr_txt = ?', (client,))
+
+    res = c.fetchone()
+    hostname = res[0] if res else None
+
+    r.setex('last-log-' + hostname, 3600, data)
+
+
+if __name__ == "__main__":
+  try:
+    server = SocketServer.UDPServer(('', 514), SyslogUDPHandler)
+    server.serve_forever()
+  except KeyboardInterrupt:
+    print ("Crtl+C Pressed. Shutting down.")

@@ -1,0 +1,178 @@
+#!/usr/bin/env python2
+# Script that simply writes a creation order to redis
+# for provisiond daemons to consume.
+# Note: Needs /etc/deploy.yaml to contain redis information
+
+import argparse
+import json
+import redis
+import sqlite3
+import sys
+import time
+import uuid
+import yaml
+
+_config = yaml.safe_load(file('/etc/deploy.yaml'))
+REDIS_HOST = _config['redis']['host']
+REDIS_PASSWORD = _config['redis']['password']
+
+
+def dehumanize(string):
+  string = string.upper()
+  # Treat everything as MiB / GiB etc.
+  if string.endswith('IB'):
+    string = string[:-2]
+
+  suffix_map = {'T': 40, 'G': 30, 'M': 20, 'K': 10}
+  suffix = string[-1]
+  if suffix not in suffix_map:
+    print >>sys.stderr, 'Unknown suffix: %s' % suffix
+    sys.exit(1)
+
+  return int(string[:-1]) * (2 ** suffix_map[suffix])
+
+
+def create_vm(args):
+  disk = dehumanize(args.disk)
+  memory = dehumanize(args.memory)
+  cpus = int(args.cpus)
+
+  # See if we know about this host
+  conn = sqlite3.connect('/etc/ipplan.db')
+  c = conn.cursor()
+  c.execute('SELECT name FROM host WHERE name = ?', (args.hostname,))
+  if not c.fetchone():
+    print >>sys.stderr, 'No host %s found in ipplan' % (args.hostname)
+    sys.exit(1)
+
+  # Grab network settings for vCenter
+  c.execute(
+    'SELECT h.ipv4_addr_txt, n.ipv4_gateway_txt, n.ipv4_netmask_dec, n.vlan '
+    'FROM network n, host h WHERE h.name = ? AND n.node_id == h.network_id',
+    (args.hostname,))
+  ipv4_address, ipv4_gateway, ipv4_prefix, vlan = c.fetchone()
+
+  # See if the host has a specific OS in ipplan.
+  c.execute(
+    'SELECT option.value FROM host, option '
+    'WHERE host.node_id = option.node_id '
+    'AND option.name = "os" '
+    'AND host.name = ?' , (args.hostname,))
+
+  os_query = c.fetchone()
+
+  # We default to debian if no specific OS is set.
+  os = os_query[0] if os_query else 'debian'
+
+  # Do some sanity checks
+  success = False
+  if memory < 1024*1024*128:
+    print >>sys.stderr, 'Memory must be at least 128 MiB'
+  elif memory > 1024*1024*1024*64:
+    print >>sys.stderr, 'Memory must be no more than 64 GiB'
+  elif disk < 1024*1024*1024*10:
+    print >>sys.stderr, 'Disk must be at least 10 GiB'
+  elif disk > 1024*1024*1024*1024*2:
+    print >>sys.stderr, 'Disk must be no more than 2 TiB'
+  elif cpus < 1:
+    print >>sys.stderr, 'Number of CPUs must be at least 1'
+  elif cpus > 16:
+    print >>sys.stderr, 'Number of CPUs must be no more than 16'
+  else:
+    success = True
+
+  if not success:
+    sys.exit(1)
+
+  creation = {
+      'manager': args.provisioner,
+      'name': args.hostname,
+      'cpus': cpus,
+      'disk': disk,
+      'memory': memory,
+      'datastore': args.datastore,
+      'os': os,
+      'ipv4': {
+        'vlan': vlan,
+        'address': ipv4_address,
+        'prefix': ipv4_prefix,
+        'gateway': ipv4_gateway
+      }
+  }
+
+  create_key = 'create-vm-%s' % uuid.uuid1()
+  return creation, create_key
+
+
+def configure(args):
+  configure = {
+      'manager': args.provisioner,
+      'name': args.hostname,
+  }
+
+  if args.add_esxi:
+    configure.update({
+        'operation': 'add-esxi-server',
+    })
+  elif args.add_to_dvs:
+    configure.update({
+        'operation': 'add-host-to-dvs',
+        'interface': args.add_to_dvs
+    })
+  config_key = 'configure-vcenter-%s' % uuid.uuid1()
+  return configure, config_key
+
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser()
+  parser.add_argument('hostname',
+      help='Hostname of the new VM to create')
+  parser.add_argument('provisioner',
+      help='Which provisioner to use (e.g. sto2/bogal/event)')
+
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument('--add-esxi', action='store_true',
+      help='Register ESXi to host (should be a vCenter)')
+  group.add_argument('--add-to-dvs', type=str,
+      help='Register interface to DVS')
+  create_group = parser.add_argument_group('creation')
+  create_group.add_argument('--disk', default='16G',
+      help='How much disk to use, humanized (default: 16G)')
+  create_group.add_argument('--memory', default='1G',
+      help='How much memory to use, humanized (default: 1G)')
+  create_group.add_argument('--cpus', default=2,
+      help='How many CPU cores to use (default: 2)')
+  create_group.add_argument('--datastore', default=None,
+      help='Explicit datastore to use (default: use the one with most space)')
+
+  args = parser.parse_args()
+
+  if args.add_esxi or args.add_to_dvs:
+    creation, create_key = configure(args)
+  else:
+    creation, create_key = create_vm(args)
+  r = redis.StrictRedis(host=REDIS_HOST, password=REDIS_PASSWORD)
+
+  # Purge old provision records for this host
+  for key in r.keys('host-*'):
+    host = json.loads(r.get(key))
+    if 'client' in host and host['client']['hostname'] == args.hostname:
+      r.delete(key)
+      print 'Purged old deploy record for', args.hostname
+
+  r.setex(create_key, 3600, json.dumps(creation))
+
+  print 'Waiting for provisioner to pick up creation ..'
+  try:
+    while r.exists(create_key):
+      time.sleep(1)
+  except KeyboardInterrupt:
+    r.delete(create_key)
+    print '\nCaught keyboard interrupt, removed creation request'
+    sys.exit(1)
+  if args.add_esxi:
+    print 'Done! Server should now be managed by the vCenter server.'
+  elif args.add_to_dvs:
+    print 'Done! Interface should now be part of the default DVS.'
+  else:
+    print 'Done! VM should now be created and powered on.'

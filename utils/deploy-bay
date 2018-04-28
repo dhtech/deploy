@@ -1,0 +1,108 @@
+#!/usr/bin/env python2
+# Script that simply writes a creation order to redis
+# for provisiond daemons to consume.
+# Note: Needs /etc/deploy.yaml to contain redis information
+
+import argparse
+import json
+import redis
+import sqlite3
+import sys
+import time
+import uuid
+import yaml
+
+_config = yaml.safe_load(file('/etc/deploy.yaml'))
+REDIS_HOST = _config['redis']['host']
+REDIS_PASSWORD = _config['redis']['password']
+
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser()
+  parser.add_argument('hostname',
+      help='Hostname of the new VM to create ('' to clear)')
+  parser.add_argument('provisioner',
+      help='Which provisioner to use (e.g. c7000-1)')
+  parser.add_argument('bay',
+      help='Which bay to use (e.g. 7)')
+
+  args = parser.parse_args()
+
+  os = None
+  if args.hostname != '':
+    # See if we know about this host
+    conn = sqlite3.connect('/etc/ipplan.db')
+    c = conn.cursor()
+    c.execute('SELECT name FROM host WHERE name = ?', (args.hostname,))
+    if not c.fetchone():
+      print >>sys.stderr, 'No host %s found in ipplan' % (args.hostname)
+      sys.exit(1)
+
+    # See if the host has a specific OS in ipplan.
+    c.execute(
+      'SELECT option.value FROM host, option '
+      'WHERE host.node_id = option.node_id '
+      'AND option.name = "os" '
+      'AND host.name = ?' , (args.hostname,))
+
+    os_query = c.fetchone()
+
+    # We default to debian if no specific OS is set.
+    os = os_query[0] if os_query else 'debian'
+
+  # Find serial for this bay
+  r = redis.StrictRedis(host=REDIS_HOST, password=REDIS_PASSWORD)
+
+  bays = r.get('bays-' + args.provisioner)
+  if bays is None:
+    print 'No bay information for provisioner %s' % args.provisioner
+    sys.exit(1)
+
+  bays = json.loads(bays)
+
+  if not args.bay in bays:
+    print 'Found bays for provisioner %s, but bay %s is unkown' % (
+        args.provisioner, args.bay)
+    sys.exit(1)
+
+  if bays[args.bay] is None:
+    print 'Bay is empty'
+    sys.exit(1)
+
+  if not bays[args.bay]['serial']:
+    print 'Bay has no serial number, unable to reference it'
+    sys.exit(1)
+
+  serial = bays[args.bay]['serial']
+  print 'Using serial: %s' % serial
+
+  create_key = 'install-%s' % serial
+
+  # Purge old provision records for this host
+  for key in r.keys('host-*'):
+    host = json.loads(r.get(key))
+    if 'client' in host and host['client']['hostname'] == args.hostname:
+      r.delete(key)
+      print 'Purged old deploy record for', args.hostname
+
+  if args.hostname == '':
+    r.delete(create_key)
+    print 'Cleared host configuration'
+  else:
+    creation = {
+        'manager': args.provisioner,
+        'name': args.hostname,
+        'bay': args.bay,
+        'initialized': False
+    }
+    r.setex(create_key, 3600, json.dumps(creation))
+    print 'Waiting for provisioner to pick up creation ..'
+    try:
+      while not json.loads(r.get(create_key))['initialized']:
+        time.sleep(1)
+    except KeyboardInterrupt:
+      r.delete(create_key)
+      print '\nCaught keyboard interrupt, removed creation request'
+      sys.exit(1)
+    else:
+      print 'Done! Bay should be powering up shortly'

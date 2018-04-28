@@ -1,0 +1,21 @@
+vault:
+  host: 'https://vault-server'
+  mount: 'dhw15-services'
+redis:
+  host: 'localhost'
+  password: 'hello'
+esxi:
+  - host: '1.2.3.4'
+    domain: 'event'
+    fqdn: 'esxi.event.dreamhack.local'
+    username: 'username'
+    password: 'secret'
+    deploy-vlan: 509
+c7000:
+  - host: '172.16.0.30'
+    domain: 'event'
+    fqdn: 'ammc1.event.dreamhack.local'
+    community: 'public'
+    username: 'Administrator'
+    password: 'admin'
+
