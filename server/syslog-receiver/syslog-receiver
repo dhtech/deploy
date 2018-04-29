@@ -6,16 +6,14 @@ import sqlite3
 import yaml
 
 
-config = yaml.safe_load(file('/etc/deploy.yaml'))
-r = redis.StrictRedis(
-        host=config['redis']['host'],
-        password=config['redis']['password'])
+config = yaml.safe_load(file('/etc/deploy/deploy.yaml'))
+r = redis.StrictRedis(**config['redis'])
 
 
 class SyslogUDPHandler(SocketServer.BaseRequestHandler):
 
   def handle(self):
-    conn = sqlite3.connect('/etc/ipplan.db')
+    conn = sqlite3.connect('/etc/ipplan/ipplan.db')
 
     data = bytes.decode(self.request[0], 'utf-8').strip().split(' ', 4)[-1]
     client = self.client_address[0]
