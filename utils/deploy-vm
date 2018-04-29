@@ -12,10 +12,6 @@ import time
 import uuid
 import yaml
 
-_config = yaml.safe_load(file('/etc/deploy.yaml'))
-REDIS_HOST = _config['redis']['host']
-REDIS_PASSWORD = _config['redis']['password']
-
 
 def dehumanize(string):
   string = string.upper()
@@ -151,7 +147,9 @@ if __name__ == '__main__':
     creation, create_key = configure(args)
   else:
     creation, create_key = create_vm(args)
-  r = redis.StrictRedis(host=REDIS_HOST, password=REDIS_PASSWORD)
+
+  config = yaml.safe_load(file('/etc/deploy.yaml'))
+  r = redis.StrictRedis(**config['redis'])
 
   # Purge old provision records for this host
   for key in r.keys('host-*'):

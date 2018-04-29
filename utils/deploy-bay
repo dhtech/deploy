@@ -12,10 +12,6 @@ import time
 import uuid
 import yaml
 
-_config = yaml.safe_load(file('/etc/deploy.yaml'))
-REDIS_HOST = _config['redis']['host']
-REDIS_PASSWORD = _config['redis']['password']
-
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -50,9 +46,10 @@ if __name__ == '__main__':
     # We default to debian if no specific OS is set.
     os = os_query[0] if os_query else 'debian'
 
-  # Find serial for this bay
-  r = redis.StrictRedis(host=REDIS_HOST, password=REDIS_PASSWORD)
+  config = yaml.safe_load(file('/etc/deploy.yaml'))
+  r = redis.StrictRedis(**config['redis'])
 
+  # Find serial for this bay
   bays = r.get('bays-' + args.provisioner)
   if bays is None:
     print 'No bay information for provisioner %s' % args.provisioner
