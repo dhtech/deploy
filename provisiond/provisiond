@@ -389,6 +389,7 @@ def new_vault_client(**kwargs):
 
 
 if __name__ == '__main__':
+  logging.basicConfig(level=logging.INFO)
   # SSL verification hack until pySphere get their stuff together
   # https://www.python.org/dev/peps/pep-0476/#opting-out
   import ssl
