@@ -20,3 +20,21 @@ central deployment system. It uses a busy loop to poll for new changes.
 
 Finally, after a VM has been installed it supports executing actions such
 as moving the VM to another network.
+
+# Deployment
+
+By default `provisiond` will deploy a VM to PXE boot from a trunked network.
+When the installer starts, it will switch to use VLAN tagged interface and
+install from its real production network.
+
+After deployment `provisiond` will move the VM to a untagged VLAN network
+for use during the life of the VM.
+
+## vCenter
+
+`provisiond` supports deploying vCenter. For this you need two things:
+
+ * VMware vCenter ISO file location set in `VMWARE_VCENTER_ISO`
+ * Permissions for `provisiond` to mount ISO files
+
+When installing, `provisiond` will write the generated password to Vault.

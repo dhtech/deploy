@@ -11,5 +11,6 @@ COPY provisiond /usr/local/bin/
 COPY config.yaml.sample /etc/provision/config.yaml
 
 ENV VAULT_MOUNT dummy
+ENV VMWARE_VCENTER_ISO /srv/vmware-vcenter.iso
 
 CMD ["/usr/local/bin/provisiond"]

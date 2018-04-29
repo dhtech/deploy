@@ -146,7 +146,7 @@ class Esxi(Backend):
                   'Starting vCenter installation VM %s' % host['name'])
     mount = tempfile.mkdtemp()
     subprocess.check_call([
-      '/bin/mount', '-o', 'loop', '/srv/vmware-vcenter.iso', mount])
+      '/bin/mount', '-o', 'loop', os.environ['VMWARE_VCENTER_ISO'], mount])
 
     def deploy():
       try:
