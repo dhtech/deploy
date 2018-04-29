@@ -1,0 +1,14 @@
+#!/bin/bash -xe
+
+cd $(dirname $0)
+
+IPXE_CONFIG="$PWD/ipxe/ipxe-config.h"
+CA="$PWD/ca.crt"
+
+apt-get install -y build-essential git liblzma-dev
+
+test -d ipxe-git || git clone git://git.ipxe.org/ipxe.git ipxe-git
+cp -v ${IPXE_CONFIG} ipxe-git/src/config/local/general.h
+make -C ipxe-git/src bin/undionly.kpxe EMBED=$PWD/ipxe/dhtech.ipxe CERT=$CA TRUST=$CA
+cp -v ipxe-git/src/bin/undionly.kpxe /data/ipxe.bin
+

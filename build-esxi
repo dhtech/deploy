@@ -1,0 +1,18 @@
+#!/bin/bash -xe
+
+cd $(dirname $0)
+ESXI_ISO="$PWD/vmware-esxi.iso"
+
+apt-get install -y p7zip-full rename
+
+mkdir -p /data/esxi/
+cd /data/esxi
+
+7z x "${ESXI_ISO}"
+# Files are mapped to uppercase using 7z, so rename them
+# to lowercase which is what the ESXi installer wants.
+find . -depth -exec rename 's/(.*)\/([^\/]*)/$1\/\L$2/' {} \;
+
+sed -e "s#/##g" -e "3s#^#prefix=https://deploy.tech.dreamhack.se/data/esxi/\n#" -i /data/esxi/boot.cfg
+sed -i '/kernelopt=/d' /data/esxi/boot.cfg
+echo 'kernelopt=runweasel ks=https://deploy.tech.dreamhack.se/esxi/ks.py' >> /data/esxi/boot.cfg
