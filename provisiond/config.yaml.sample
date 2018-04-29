@@ -1,8 +1,9 @@
 vault:
-  host: 'https://vault-server'
-  mount: 'dhw15-services'
+  url: 'https://vault-server'
 redis:
-  host: 'localhost'
+  host: 'deploy-db.tech.dreamhack.se'
+  port: 1338
+  ssl: True
   password: 'hello'
 esxi:
   - host: '1.2.3.4'

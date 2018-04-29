@@ -22,9 +22,9 @@ import time
 import traceback
 import yaml
 
-from lib import c7000
-from lib import esxi
-from lib import snmp
+from provision import c7000
+from provision import esxi
+from provision import snmp
 
 RUN_INTERVAL = 7
 
@@ -33,10 +33,7 @@ DEFAULT_DATACENTER = 'Event'
 DEFAULT_CLUSTER = 'POP'
 DEFAULT_DVS = 'DVS-POP'
 
-REDIS_HOST = None
-REDIS_PASSWORD = None
-VAULT_HOST = None
-VAULT_MOUNT = None
+VAULT_MOUNT = os.environ['VAULT_MOUNT']
 
 DB_FILE = '/etc/ipplan.db'
 
@@ -74,9 +71,10 @@ def all_vlans_in_same_domain(hostname):
 
 
 class Backend(object):
-  def __init__(self, config):
+  def __init__(self, config, vault, redis):
     self.manager = config['domain']
-    self.redis = None
+    self.vault = vault
+    self.redis = redis
     self.host = config['host']
     self.fqdn = config['fqdn']
     self.username = config['username']
@@ -92,21 +90,13 @@ class Backend(object):
   def start(self):
     self.thread.start()
 
-  def vault(self):
-    fqdn = socket.getfqdn()
-    cert = '/var/lib/puppet/ssl/certs/%s.pem' % fqdn
-    key = '/var/lib/puppet/ssl/private_keys/%s.pem' % fqdn
-    client = hvac.Client(url=VAULT_HOST, cert=(cert, key))
-    client.auth_tls()
-    return client
-
   def save_secret(self, secret, **kwargs):
     path = '%s/%s' % (VAULT_MOUNT, secret)
-    self.vault().write(path, **kwargs)
+    self.vault.write(path, **kwargs)
 
   def read_secret(self, secret):
     path = '%s/%s' % (VAULT_MOUNT, secret)
-    data = self.vault().read(path)
+    data = self.vault.read(path)
     return data.get('data', None) if data else None
 
   def run(self):
@@ -115,9 +105,8 @@ class Backend(object):
         syslog.syslog(syslog.LOG_INFO,
                       'Skipping host %s, it is not alive' % self.host)
         continue
-      # Reconnect every run to handle connection problems
+
       try:
-        self.redis = redis.StrictRedis(host=REDIS_HOST, password=REDIS_PASSWORD)
         self.execute()
       except:
         syslog.syslog(syslog.LOG_ERR,
@@ -405,6 +394,14 @@ class C7000(Backend):
       self.redis.setex('install-' + sn, 3600, json.dumps(install))
 
 
+def new_vault_client(**kwargs):
+  cert = os.environ.get('VAULT_CERT', None)
+  key = os.environ.get('VAULT_KEY', None)
+  client = hvac.Client(cert=(cert, key), **kwargs)
+  client.auth_tls()
+  return client
+
+
 if __name__ == '__main__':
   # SSL verification hack until pySphere get their stuff together
   # https://www.python.org/dev/peps/pep-0476/#opting-out
@@ -422,15 +419,13 @@ if __name__ == '__main__':
 
   # Teach requests to trust our CAs (used by hvac)
   os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
-  config = yaml.safe_load(file('/etc/provision.yaml'))
+  config = yaml.safe_load(file('/etc/provision/config.yaml'))
+  vault = new_vault_client(**config['vault'])
+  redis = redis.StrictRedis(**config['redis'])
 
-  VAULT_HOST = config['vault']['host']
-  VAULT_MOUNT = config['vault']['mount']
-  REDIS_HOST = config['redis']['host']
-  REDIS_PASSWORD = config['redis']['password']
   for c in config.get('esxi', None) or []:
-    Esxi(c).start()
+    Esxi(c, vault, redis).start()
   for c in config.get('c7000', None) or []:
-    C7000(c).start()
+    C7000(c, vault, redis).start()
   while True:
     signal.pause()
