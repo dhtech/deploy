@@ -6,8 +6,8 @@ import base64
 import collections
 import hashlib
 import json
+import logging
 import pysphere
-import syslog
 from pysphere.resources import VimService_services as VI
 
 # WARNING(2014-10-18): If you set this higher than 8 the
@@ -270,8 +270,8 @@ def find_datastore(target_config, datastore=None, brackets=True):
   for d in target_config.Datastore:
     if not d.Datastore.Accessible:
       continue
-    syslog.syslog(syslog.LOG_INFO, 'Considering datastore %s with %s free' % (
-        d.Datastore.Name, d.Datastore.FreeSpace))
+    logging.info('Considering datastore %s with %s free',
+            d.Datastore.Name, d.Datastore.FreeSpace)
     datastores[d.Datastore.Name] = (
             d.Datastore.Datastore, d.Datastore.FreeSpace)
 
@@ -279,13 +279,11 @@ def find_datastore(target_config, datastore=None, brackets=True):
     if datastore not in datastores:
       raise DatastoreNotFoundError('Datastore %s does not appear to exist' %
                datastore)
-    syslog.syslog(syslog.LOG_INFO, 'Selected datastore %s (user provided)' % (
-        datastore))
+    logging.info('Selected datastore %s (user provided)', datastore)
   else:
     # Use the datastore with most free space
     datastore = max(datastores.iteritems(), key=lambda x: int(x[1][1]))[0]
-    syslog.syslog(syslog.LOG_INFO, 'Selected datastore %s (max free)' % (
-        datastore))
+    logging.info('Selected datastore %s (max free)', datastore)
 
   ds, _ = datastores[datastore]
   return '[%s]' % datastore if brackets else datastore, ds

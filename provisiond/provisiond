@@ -6,6 +6,7 @@
 
 import json
 import hvac
+import logging
 import netsnmp
 import os
 import pysphere
@@ -15,7 +16,6 @@ import socket
 import sqlite3
 import subprocess
 import sys
-import syslog
 import tempfile
 import threading
 import time
@@ -102,16 +102,13 @@ class Backend(object):
   def run(self):
     while True:
       if not self.is_alive():
-        syslog.syslog(syslog.LOG_INFO,
-                      'Skipping host %s, it is not alive' % self.host)
+        logging.info('Skipping host %s, it is not alive', self.host)
         continue
 
       try:
         self.execute()
       except:
-        syslog.syslog(syslog.LOG_ERR,
-                      'Uncaught exception: %s' % traceback.format_exc())
-        print 'Uncaught exception: %s' % traceback.format_exc()
+        logging.exception('Exception while executing')
       time.sleep(RUN_INTERVAL)
 
   def execute(self):
@@ -119,15 +116,14 @@ class Backend(object):
 
 
 class Esxi(Backend):
-  def __init__(self, config):
-    super(Esxi, self).__init__(config)
+  def __init__(self, config, vault, redis):
+    super(Esxi, self).__init__(config, vault, redis)
     self.deploy_vlan = config['deploy-vlan']
     self.esxi_cache = None
 
   def vcenter_deploy(self, host):
     # vCenter uses its own ISO with deploy appliance, use that instead
-    syslog.syslog(syslog.LOG_INFO,
-                  'Preparing vCenter installation VM %s' % host['name'])
+    logging.info('Preparing vCenter installation VM %s', host['name'])
 
     ip = host['ipv4']['address']
     prefix = str(host['ipv4']['prefix'])
@@ -142,8 +138,7 @@ class Esxi(Backend):
       self.server, host['name'], vlan, ip, prefix, gateway, password,
       host['datastore'], domain)
 
-    syslog.syslog(syslog.LOG_INFO,
-                  'Starting vCenter installation VM %s' % host['name'])
+    logging.info('Starting vCenter installation VM %s', host['name'])
     mount = tempfile.mkdtemp()
     subprocess.check_call([
       '/bin/mount', '-o', 'loop', os.environ['VMWARE_VCENTER_ISO'], mount])
@@ -161,11 +156,9 @@ class Esxi(Backend):
               host['name'], username='administrator@%s' % domain,
               password=password)
           vm = self.server.get_vm_by_name(host['name'])
-          syslog.syslog(syslog.LOG_INFO,
-                        'Created new vCenter VM %s' % host['name'])
+          logging.info('Created new vCenter VM %s', host['name'])
       except:
-        syslog.syslog(syslog.LOG_ERR,
-                      'Failed to create vCenter VM %s' % host['name'])
+        logging.error('Failed to create vCenter VM %s', host['name'])
       finally:
         subprocess.check_call([ '/bin/umount', mount])
     # Start this in a seperate thread as it will be running for long
@@ -190,13 +183,12 @@ class Esxi(Backend):
         cluster = esxi.get_or_create_cluster(self.server, datacenter,
             DEFAULT_CLUSTER)
         esxi.add_esxi_to_vcenter(self.server, target, cluster)
-        syslog.syslog(syslog.LOG_INFO,
-                      'Added ESXi %s to vCenter %s' % (
-                        request['name'], self.host))
+        logging.info('Added ESXi %s to vCenter %s',
+                request['name'], self.host)
       elif request['operation'] == 'add-host-to-dvs':
         esxi.add_host_to_dvs(self.server, esxi.get_server_ip(target),
             datacenter, DEFAULT_DVS, request['interface'])
-        syslog.syslog(syslog.LOG_INFO, 'Added host %s to DVS' % request['name'])
+        logging.info('Added host %s to DVS', request['name'])
       else:
         # Unknown option
         pass
@@ -217,20 +209,18 @@ class Esxi(Backend):
       # Verify that the VM doesn't exist already
       known_names = [name for (name, _) in self.esxi_cache.values()]
       if host['name'] in known_names:
-        syslog.syslog(syslog.LOG_ERR,
-                      'Tried to create already existing VM %s' % host['name'])
+        logging.error('Tried to create already existing VM %s', host['name'])
       elif host['os'] == 'vcenter':
         self.vcenter_deploy(host)
       else:
-        syslog.syslog(syslog.LOG_INFO,
-                  'Creating new VM using configuration %s' % (
-                      ', '.join(k + '=' + str(v) for k, v in host.items())))
+        logging.info('Creating new VM using configuration %s', 
+                ', '.join(k + '=' + str(v) for k, v in host.items()))
         vm = esxi.create_vm(
             self.server, host['name'], self.deploy_vlan, host['datastore'],
             disk_size=host['disk'], num_cpus=host['cpus'],
             memory=host['memory'], os=host['os'])
         esxi.power_on(self.server, vm)
-        syslog.syslog(syslog.LOG_INFO, 'Created new VM %s' % host['name'])
+        logging.info('Created new VM %s', host['name'])
       # Delete request since we're done.
       # If anything above failed, we will retry
       self.redis.delete(key)
@@ -254,7 +244,7 @@ class Esxi(Backend):
         name = vm.properties.name
         uuid = vm.properties.config.uuid.lower()
         self.esxi_cache[path] = (name, uuid)
-        syslog.syslog(syslog.LOG_INFO, 'Found new VM %s' % path)
+        logging.info('Found new VM %s', path)
       else:
         name, uuid = self.esxi_cache[path]
       visited_keys.add(path)
@@ -264,7 +254,7 @@ class Esxi(Backend):
 
     removed_keys = set(self.esxi_cache.keys()) - visited_keys
     for key in removed_keys:
-      syslog.syslog(syslog.LOG_INFO, 'Forgot VM %s' % key)
+      logging.info('Forgot VM %s', key)
       del self.esxi_cache[key]
 
   def provision(self):
@@ -293,21 +283,18 @@ class Esxi(Backend):
 
       # If we have no network configuration for the VM, we cannot configure
       if not host['network']:
-        syslog.syslog(syslog.LOG_ERR, 'VM %s lacking network config' % path)
+        logging.error('VM %s lacking network config', path)
         continue
       vlan = host['network']['vlan']
 
       try:
         esxi.provision_vm(self.server, vm, vlan)
-        syslog.syslog(syslog.LOG_INFO,
-                      'Provisioned VLAN %d on VM %s' % (vlan, name))
+        logging.info('Provisioned VLAN %d on VM %s', vlan, name)
       except esxi.Error, e:
-        syslog.syslog(syslog.LOG_ERR, 'Failed to provision VM %s: %s' % (
-          name, e.message))
+        logging.error('Failed to provision VM %s: %s', name, e.message)
 
   def setup_vcenter(self):
-    syslog.syslog(syslog.LOG_INFO, 'Discovered new vCenter %s, setting up' % (
-      self.host))
+    logging.info('Discovered new vCenter %s, setting up', self.host)
     datacenter = esxi.get_or_create_datacenter(self.server, DEFAULT_DATACENTER)
     esxi.get_or_create_cluster(self.server, datacenter, DEFAULT_CLUSTER)
     esxi.create_dvswitch(self.server, datacenter, DEFAULT_DVS)
@@ -317,7 +304,7 @@ class Esxi(Backend):
       name = '%s: %s' % (vlan, network.split('@', 1)[1])
       vlan_map[name] = vlan
     esxi.create_dvs_portgroup(self.server, datacenter, DEFAULT_DVS, vlan_map)
-    syslog.syslog(syslog.LOG_INFO, 'Setup for vCenter %s done' % self.host)
+    logging.info('Setup for vCenter %s done', self.host)
 
   def execute(self):
     self.server = pysphere.VIServer()
@@ -338,7 +325,7 @@ class Esxi(Backend):
 
 class C7000(Backend):
   def __init__(self, config):
-    super(C7000, self).__init__(config)
+    super(C7000, self).__init__(config, vault, redis)
     self.community = config['community']
 
   def execute(self):
@@ -381,9 +368,8 @@ class C7000(Backend):
         power_type = c7000.MOMENTARY_PRESS
       else:
         # Unknown state, fail
-        syslog.syslog(syslog.LOG_ERR,
-                      'C7000 bay %d has unknown power-state %s' % (
-                          bay, power_state))
+        logging.error('C7000 bay %d has unknown power-state %s',
+                bay, power_state)
         continue
       session = c7000.login(self.host, self.username, self.password)
       c7000.setup_boot_order(session, install['bay'])
