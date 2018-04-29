@@ -16,13 +16,12 @@ Network = collections.namedtuple('Network', (
 
 
 def connection():
-  config = yaml.safe_load(file('/etc/deploy.yaml'))
-  return redis.StrictRedis(
-      host=config['redis']['host'], password=config['redis']['password'])
+  config = yaml.safe_load(file('/etc/deploy/deploy.yaml'))
+  return redis.StrictRedis(**config['redis'])
 
 
 def _get_os(hostname):
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute(
       'SELECT option.value FROM host '
@@ -33,7 +32,7 @@ def _get_os(hostname):
 
 
 def lookup_ip(ip):
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute('SELECT name FROM host WHERE ipv4_addr_txt = ?', (ip,))
   res = c.fetchone()
@@ -100,7 +99,7 @@ def find(ip, first_if=None):
 def network(client, cm):
   interface = client.interface
   bonded = interface.startswith('bond')
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute('SELECT h.ipv4_addr_txt, ipv4_netmask_txt, ipv4_gateway_txt, '
             'h.ipv6_addr_txt, ipv6_netmask_txt, ipv6_gateway_txt, vlan '
@@ -120,7 +119,7 @@ def network(client, cm):
 
 def installation_network(hostname):
   # Simplified getter for installation network
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute('SELECT h.ipv4_addr_txt, ipv4_netmask_txt, ipv4_gateway_txt, '
             'vlan FROM host h, network n WHERE h.network_id = n.node_id '
@@ -140,7 +139,7 @@ def update(client, cm):
 
 
 def get_deploy(hostname):
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute(
       'SELECT option.value FROM host '
@@ -151,7 +150,7 @@ def get_deploy(hostname):
 
 
 def get_vlan(hostname):
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute('SELECT n.name, vlan '
             'FROM host h, network n WHERE h.network_id = n.node_id '
@@ -164,7 +163,7 @@ def all_vlans_in_same_domain(hostname):
   my_net, _ = get_vlan(hostname)
   my_domain, _ = my_net.split('@', 1)
 
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute('SELECT name, vlan FROM network ORDER BY vlan')
   for network, vlan in c:
@@ -174,7 +173,7 @@ def all_vlans_in_same_domain(hostname):
       yield network, vlan
 
 def get_current_event():
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect('/etc/ipplan/ipplan.db')
   c = conn.cursor()
   c.execute(
     'SELECT value FROM meta_data WHERE name = "current_event"')

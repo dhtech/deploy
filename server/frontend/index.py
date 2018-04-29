@@ -2,7 +2,7 @@
 import collections
 import json
 
-from lib import metadata
+from dhdeploy import metadata
 
 
 store = metadata.connection()
