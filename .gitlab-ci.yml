@@ -1,0 +1,15 @@
+services:
+- docker:dind
+
+build:
+  stage: build
+  image: docker:git
+  tags:
+    - docker
+  script:
+    - apk add --no-cache git-lfs || true
+    - git checkout remotes/origin/proprietary '*'
+    - ls
+    - docker build -t registry.tech.dreamhack.se/tech/deploy/deploy:latest .
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.tech.dreamhack.se
+    - docker push registry.tech.dreamhack.se/tech/deploy/deploy:latest
