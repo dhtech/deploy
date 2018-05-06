@@ -70,7 +70,9 @@ client, _ = metadata.find(os.environ['REMOTE_ADDR'])
 is_event = client.domain == 'EVENT'
 crypto = is_event
 auto_unlock = True
-root_pw = base64.b64encode(os.urandom(8))
+
+blacklist = '01liIoO='
+root_pw = base64.b64encode(os.urandom(11)).translate(None, blacklist)
 
 if is_event:
   vault_path = 'services-{event}/login:{hostname}'
