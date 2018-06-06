@@ -324,7 +324,7 @@ class Esxi(Backend):
 
 
 class C7000(Backend):
-  def __init__(self, config):
+  def __init__(self, config, vault, redis):
     super(C7000, self).__init__(config, vault, redis)
     self.community = config['community']
 
