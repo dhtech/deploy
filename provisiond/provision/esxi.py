@@ -29,7 +29,7 @@ DistributedSwitchPort = collections.namedtuple('DistributedSwitchPort',
 
 # Map OS -> Hardware configurations
 SYSTEM_CONFIGURATION_MAP = {
-  'debian': SysConf(osid='debian6_64Guest', scsi='paravirtual'),
+  'debian': SysConf(osid='debian10_64Guest', scsi='paravirtual'),
   'ubuntu': SysConf(osid='ubuntu64Guest', scsi='paravirtual'),
   'openbsd': SysConf(osid='otherGuest64', scsi='lsi_sas'),
   'coreos': SysConf(osid='otherGuest64', scsi='paravirtual')
