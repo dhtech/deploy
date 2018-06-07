@@ -12,8 +12,8 @@ from pysphere.resources import VimService_services as VI
 
 # WARNING(2014-10-18): If you set this higher than 8 the
 # vSphere client will not allow you to modify the VMs
-ESXI_HW_VERSION = 'vmx-09'
-VCENTER_HW_VERSION = 'vmx-09'
+ESXI_HW_VERSION = 'vmx-13'
+VCENTER_HW_VERSION = 'vmx-13'
 
 # This value can be overridden by setting an 'os' option in ipplan.
 DEFAULT_OS = 'debian'
