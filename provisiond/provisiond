@@ -243,6 +243,15 @@ class Esxi(Backend):
         vm = self.server.get_vm_by_path(path)
         name = vm.properties.name
         uuid = vm.properties.config.uuid.lower()
+        # vmx-12 and forward has problem with endian conv
+        # this reverses in step of 2 the first 3 strings in the uuid
+        # AABBCCDD -> DDCCBBAA
+        luuid = uuid.split('-')
+        l = []
+        for u in luuid[0:3]:
+          l.append(''.join([u[i:i + 2] for i in range(0, len(u), 2)][::-1]))
+        uuid = '{0}-{1}'.format('-'.join(l),'-'.join(luuid[3:]))
+
         self.esxi_cache[path] = (name, uuid)
         logging.info('Found new VM %s', path)
       else:
