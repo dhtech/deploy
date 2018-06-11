@@ -186,7 +186,7 @@ class Esxi(Backend):
         logging.info('Added ESXi %s to vCenter %s',
                 request['name'], self.host)
       elif request['operation'] == 'add-host-to-dvs':
-        esxi.add_host_to_dvs(self.server, esxi.get_server_ip(target),
+        esxi.add_host_to_dvs(self.server, esxi.get_server_fqdn(target),
             datacenter, DEFAULT_DVS, request['interface'])
         logging.info('Added host %s to DVS', request['name'])
       else:

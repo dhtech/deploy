@@ -229,6 +229,16 @@ def get_server_ip(server):
   return prop.config.network.vnic[0].spec.ip.ipAddress
 
 
+def get_server_fqdn(server):
+  """Extract server's configured fqdn."""
+  host = next(server.get_hosts().iterkeys())
+  prop = pysphere.VIProperty(server, host)
+  # Prop is a "HostSystem"
+  # http://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.HostSystem.html
+  dnsconfig = prop.config.network.dnsConfig
+  return dnsconfig.hostName + '.' + dnsconfig.domainName
+
+
 def provision_vm(server, vm, vlan):
 
   # Set VMs first NIC to the correct label
@@ -483,7 +493,7 @@ def add_esxi_to_vcenter(vcenter, esxi, cluster):
   request.AsConnected = True
   spec = request.new_spec()
   spec.Force = True
-  spec.HostName = get_server_ip(esxi)
+  spec.HostName = get_server_fqdn(esxi)
   spec.UserName = esxi._VIServer__user
   spec.Password = esxi._VIServer__password
   spec.SslThumbprint = get_ssl_thumbprint(esxi)
