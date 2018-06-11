@@ -580,6 +580,8 @@ def create_dvs_portgroup(server, datacenter, switch, name_vlan_map):
 
   specs = []
   for name, vlan_id in name_vlan_map.iteritems():
+    if vlan_id is None:
+      continue
     spec = request.new_spec()
     spec.Name = name
     spec.Type = 'earlyBinding'
