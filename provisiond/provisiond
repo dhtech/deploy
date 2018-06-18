@@ -22,6 +22,9 @@ import time
 import traceback
 import yaml
 
+import pyghmi.ipmi.command
+import pyghmi.exceptions
+
 from provision import c7000
 from provision import esxi
 from provision import snmp
@@ -75,14 +78,16 @@ class Backend(object):
     self.manager = config['domain']
     self.vault = vault
     self.redis = redis
-    self.host = config['host']
-    self.fqdn = config['fqdn']
+    self.host = config.get('host', None)
+    self.fqdn = config.get('fqdn', None)
     self.username = config['username']
     self.password = config['password']
     self.thread = threading.Thread(target=self.run)
     self.thread.daemon = True
 
   def is_alive(self):
+    if self.host is None:
+      return True
     with open(os.devnull, 'w') as null:
       return subprocess.call(
           ['ping', '-c' , '1', self.host], stdout=null) == 0
@@ -389,6 +394,42 @@ class C7000(Backend):
       self.redis.setex('install-' + sn, 3600, json.dumps(install))
 
 
+class OCP(Backend):
+  def __init__(self, config, vault, redis):
+    super(OCP, self).__init__(config, vault, redis)
+    self.machines = config['machines']
+
+  def execute(self):
+    bays = {}
+    for name, entry in self.machines.iteritems():
+      # Using mac as serial to be able to re-use deploy-bay
+      mac = entry['mac']
+      bays[name] = {'mac': mac, 'serial': mac, 'ip': entry['ip']}
+    self.redis.setex('bays-' + self.manager, 600, json.dumps(bays))
+
+    # Provision machines
+    for bay_id, bay in bays.iteritems():
+      install = self.redis.get('install-' + bay['mac'])
+      if not install:
+        continue
+
+      install = json.loads(install)
+      if install.get('initialized', True):
+        continue
+
+      try:
+        impi = pyghmi.ipmi.command.Command(
+                bay['ip'], self.username, self.password)
+        impi.set_bootdev('network', uefiboot=True)
+        impi.set_power('boot')
+      except pyghmi.exceptions.IpmiException:
+        logging.exception('OCP failed to IPMI node %s', bay_id)
+        continue
+
+      install['initialized'] = True
+      self.redis.setex('install-' + bay['mac'], 3600, json.dumps(install))
+
+
 def new_vault_client(**kwargs):
   cert = os.environ.get('VAULT_CERT', None)
   key = os.environ.get('VAULT_KEY', None)
@@ -423,5 +464,7 @@ if __name__ == '__main__':
     Esxi(c, vault, redis).start()
   for c in config.get('c7000', None) or []:
     C7000(c, vault, redis).start()
+  for c in config.get('ocp', None) or []:
+    OCP(c, vault, redis).start()
   while True:
     signal.pause()
