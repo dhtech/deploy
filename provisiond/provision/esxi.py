@@ -93,6 +93,12 @@ class SwitchPortNotFoundError(Error):
 class NoHostsInClusterError(Error):
   """Tried to create VM in cluster without any ESXi servers."""
 
+class NoHostsInDatacenterError(Error):
+  """Datacenter has no hosts."""
+
+class DatacenterNotFoundError(Error):
+  """The specificed datacenter was not found."""
+
 
 def _get_datacenter_props(server, datacenter):
   if datacenter is None:
@@ -100,8 +106,8 @@ def _get_datacenter_props(server, datacenter):
   for k, v in server.get_datacenters().iteritems():
     if v == datacenter:
       return pysphere.VIProperty(server, k)
-  logging.error('Found no datacenter matching "%s"', datacenter)
-  return None
+  raise DatacenterNotFoundError(
+          'Found no datacenter named "%s"' % datacenter)
 
 
 def _vlan_to_network(server, vlan, datacenter):
@@ -110,7 +116,9 @@ def _vlan_to_network(server, vlan, datacenter):
   hosts = server._retrieve_properties_traversal(
       property_names=('name', ), obj_type='HostSystem',
       from_node=datacenter.hostFolder._obj)
-  host = next(p.Val for p in hosts.PropSet if p.Name == 'name')
+  if not hosts:
+    raise NoHostsInClusterError('Datacenter %s has no hosts' % datacenter.name)
+  host = next(p.Val for p in next(hosts).PropSet if p.Name == 'name')
   prop = pysphere.VIProperty(server, host)
 
   network_info = prop.configManager.networkSystem.networkInfo
