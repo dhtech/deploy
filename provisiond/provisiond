@@ -228,7 +228,7 @@ class Esxi(Backend):
           esxi.power_on(self.server, vm)
           logging.info('Created new VM %s', host['name'])
       except Exception as e:
-        host['error'] = str(e)
+        host['error'] = '{}: {}'.format(e.__class__.__name__, e.message)
         ttl = self.redis.ttl(key)
         self.redis.setex(key, ttl, json.dumps(host))
         raise
@@ -314,7 +314,7 @@ class Esxi(Backend):
         esxi.provision_vm(self.server, vm, vlan, dc)
         logging.info('Provisioned VLAN %d on VM %s', vlan, name)
       except Exception as e:
-        host['error'] = str(e)
+        host['error'] = '{}: {}'.format(e.__class__.__name__, e.message)
         ttl = self.redis.ttl(key)
         self.redis.setex(key, ttl, json.dumps(host))
         logging.error('Failed to provision VM %s: %s', name, e.message)
