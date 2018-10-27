@@ -43,10 +43,12 @@ def create_vm(args):
 
   # Grab network settings for vCenter
   c.execute(
-    'SELECT h.ipv4_addr_txt, n.ipv4_gateway_txt, n.ipv4_netmask_dec, n.vlan '
+    'SELECT h.ipv4_addr_txt, n.ipv4_gateway_txt, n.ipv4_netmask_dec, n.vlan, '
+    'n.name '
     'FROM network n, host h WHERE h.name = ? AND n.node_id == h.network_id',
     (args.hostname,))
-  ipv4_address, ipv4_gateway, ipv4_prefix, vlan = c.fetchone()
+  ipv4_address, ipv4_gateway, ipv4_prefix, vlan, network_name = c.fetchone()
+  domain, _ = network_name.split('@', 2)
 
   # See if the host has a specific OS in ipplan.
   c.execute(
@@ -83,6 +85,7 @@ def create_vm(args):
   creation = {
       'manager': args.provisioner,
       'name': args.hostname,
+      'datacenter': domain.lower(),
       'cpus': cpus,
       'disk': disk,
       'memory': memory,
