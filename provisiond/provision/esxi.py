@@ -99,7 +99,7 @@ def _get_datacenter_props(server, datacenter):
     datacenter = server.get_datacenters().values()[0]
   for k, v in server.get_datacenters().iteritems():
     if v == datacenter:
-      return pysphere.VIProperty(server, datacenter)
+      return pysphere.VIProperty(server, k)
   logging.error('Found no datacenter matching "%s"', datacenter)
   return None
 
