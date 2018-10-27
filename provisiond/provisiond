@@ -308,7 +308,7 @@ class Esxi(Backend):
       vlan = host['network']['vlan']
 
       try:
-        esxi.provision_vm(self.server, vm, vlan)
+        esxi.provision_vm(self.server, vm, vlan, host['datacenter'])
         logging.info('Provisioned VLAN %d on VM %s', vlan, name)
       except esxi.Error, e:
         logging.error('Failed to provision VM %s: %s', name, e.message)

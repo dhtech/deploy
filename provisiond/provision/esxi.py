@@ -118,8 +118,7 @@ def _vlan_to_network(server, vlan, datacenter):
       from_node=datacenter.hostFolder._obj)
   if not hosts:
     raise NoHostsInClusterError('Datacenter %s has no hosts' % datacenter.name)
-  host = next(p.Val for p in hosts[0].PropSet if p.Name == 'name')
-  prop = pysphere.VIProperty(server, host)
+  prop = pysphere.VIProperty(server, hosts[0].Obj)
 
   network_info = prop.configManager.networkSystem.networkInfo
 
@@ -255,8 +254,7 @@ def get_server_fqdn(server):
   return dnsconfig.hostName + '.' + dnsconfig.domainName
 
 
-def provision_vm(server, vm, vlan):
-  # TODO: Set datacenter_prop
+def provision_vm(server, vm, vlan, datacenter):
   # Set VMs first NIC to the correct label
   hardware = pysphere.VIProperty(server, vm).config.hardware
   nic = next((x._obj for x in hardware.device
@@ -264,7 +262,8 @@ def provision_vm(server, vm, vlan):
   if not nic:
     raise NicNotFoundError('No NIC found')
 
-  nic.set_element_backing(create_nic_backing(server, vlan, datacenter_prop))
+  datacenter_props = _get_datacenter_props(server, datacenter)
+  nic.set_element_backing(create_nic_backing(server, vlan, datacenter_props))
 
   # Submit reconfig request
   # Copy/paste from pysphere mailinglist
