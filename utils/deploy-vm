@@ -45,7 +45,7 @@ def getpkgs(fqdn):
     'AND host.name = ?' , (fqdn,))
   pkgs = c.fetchall()
   conn.close()
-  pkglist = []
+  return [pkg[0].split('(',1)[0] for pkg in pkgs]
   for pkg in pkgs:
     basepkg = pkg[0].split('(',1)[0]
     pkglist.append(basepkg)
