@@ -93,17 +93,32 @@ class SwitchPortNotFoundError(Error):
 class NoHostsInClusterError(Error):
   """Tried to create VM in cluster without any ESXi servers."""
 
+class NoHostsInDatacenterError(Error):
+  """Datacenter has no hosts."""
 
-def _get_datacenter_props(server):
-  datacenter = server.get_datacenters().keys()[0]
-  return pysphere.VIProperty(server, datacenter)
+class DatacenterNotFoundError(Error):
+  """The specificed datacenter was not found."""
 
 
-def _vlan_to_network(server, vlan):
+def _get_datacenter_props(server, datacenter):
+  if datacenter is None:
+    datacenter = server.get_datacenters().values()[0]
+  for k, v in server.get_datacenters().iteritems():
+    if v == datacenter:
+      return pysphere.VIProperty(server, k)
+  raise DatacenterNotFoundError(
+          'Found no datacenter named "%s"' % datacenter)
+
+
+def _vlan_to_network(server, vlan, datacenter):
   """Given a numeric VLAN, resolve to network name."""
   # Fetch VLAN -> network label map
-  host = next(server.get_hosts().iterkeys())
-  prop = pysphere.VIProperty(server, host)
+  hosts = server._retrieve_properties_traversal(
+      property_names=('name', ), obj_type='HostSystem',
+      from_node=datacenter.hostFolder._obj)
+  if not hosts:
+    raise NoHostsInClusterError('Datacenter %s has no hosts' % datacenter.name)
+  prop = pysphere.VIProperty(server, hosts[0].Obj)
 
   network_info = prop.configManager.networkSystem.networkInfo
 
@@ -116,9 +131,9 @@ def _vlan_to_network(server, vlan):
   return vlan_map[vlan]
 
 
-def _vlan_to_dvs_portgroup_key(server, vlan):
+def _vlan_to_dvs_portgroup_key(server, vlan, datacenter):
   """Given a numeric VLAN, resolve to portgroup key (dvSwitch specific)."""
-  netfolder = _get_datacenter_props(server).networkFolder._obj
+  netfolder = datacenter.networkFolder._obj
   dvportgroup_resources = server._retrieve_properties_traversal(
       property_names=['key', 'config'],
       from_node=netfolder, obj_type='DistributedVirtualPortgroup')
@@ -152,9 +167,9 @@ def _portgroup_to_dvswitch(server, dvswitch_resources, portgroup_key):
       'Could not find backing switch for port group %s' % portgroup_key)
 
 
-def _find_dvswitch(server, vlan):
+def _find_dvswitch(server, vlan, datacenter):
   """Try to find a dvSwitch named as a network."""
-  netfolder = _get_datacenter_props(server).networkFolder._obj
+  netfolder = datacenter.networkFolder._obj
   dvswitch_resources = server._retrieve_properties_traversal(
       property_names=['uuid', 'portgroup'],
       from_node=netfolder, obj_type='DistributedVirtualSwitch')
@@ -171,7 +186,7 @@ def _find_dvswitch(server, vlan):
     return None
 
   # Find the dvPortgroup that contains a portgroup with the correct VLAN
-  portgroup_key, portgroup_name = _vlan_to_dvs_portgroup_key(server, vlan)
+  portgroup_key, portgroup_name = _vlan_to_dvs_portgroup_key(server, vlan, datacenter)
 
   # Now get the associated dvswitch
   dvswitch = _portgroup_to_dvswitch(server, dvswitch_resources, portgroup_key)
@@ -181,8 +196,8 @@ def _find_dvswitch(server, vlan):
   return DistributedSwitchPort(dvswitch_uuid, portgroup_key)
 
 
-def create_nic_backing(server, vlan):
-  dvswitch = _find_dvswitch(server, vlan)
+def create_nic_backing(server, vlan, datacenter):
+  dvswitch = _find_dvswitch(server, vlan, datacenter)
   if dvswitch:
     nic_backing_port = VI.ns0.DistributedVirtualSwitchPortConnection_Def(
         'nic_backing_port').pyclass()
@@ -197,7 +212,7 @@ def create_nic_backing(server, vlan):
   # Default to standard ESXi network
   nic_backing = VI.ns0.VirtualEthernetCardNetworkBackingInfo_Def(
       'nic_backing').pyclass()
-  nic_backing.set_element_deviceName(_vlan_to_network(server, vlan))
+  nic_backing.set_element_deviceName(_vlan_to_network(server, vlan, datacenter))
   return nic_backing
 
 
@@ -239,8 +254,7 @@ def get_server_fqdn(server):
   return dnsconfig.hostName + '.' + dnsconfig.domainName
 
 
-def provision_vm(server, vm, vlan):
-
+def provision_vm(server, vm, vlan, datacenter):
   # Set VMs first NIC to the correct label
   hardware = pysphere.VIProperty(server, vm).config.hardware
   nic = next((x._obj for x in hardware.device
@@ -248,7 +262,8 @@ def provision_vm(server, vm, vlan):
   if not nic:
     raise NicNotFoundError('No NIC found')
 
-  nic.set_element_backing(create_nic_backing(server, vlan))
+  datacenter_props = _get_datacenter_props(server, datacenter)
+  nic.set_element_backing(create_nic_backing(server, vlan, datacenter_props))
 
   # Submit reconfig request
   # Copy/paste from pysphere mailinglist
@@ -357,25 +372,24 @@ def add_disk(server, new_vm_config, datastore, size, provision='thick',
   return disk_spec
 
 
-def add_nic(server, new_vm_config, vlan, nic_key=0):
+def add_nic(server, new_vm_config, vlan, datacenter, nic_key=0):
   """Adds a VMXnet3 network card to the configuration."""
   nic_spec = new_vm_config.new_deviceChange()
   nic_spec.set_element_operation('add')
 
   nic_ctlr = VI.ns0.VirtualVmxnet3_Def('nic_ctrl').pyclass()
   nic_ctlr.set_element_addressType('generated')
-  nic_ctlr.set_element_backing(create_nic_backing(server, vlan))
+  nic_ctlr.set_element_backing(create_nic_backing(server, vlan, datacenter))
   nic_ctlr.set_element_key(nic_key)
   nic_spec.set_element_device(nic_ctlr)
   return nic_spec
 
 
-def _get_first_active_cluster(server):
+def _get_first_active_cluster(server, datacenter):
   """Given a server, return the first active cluster."""
-  datacenter_props = _get_datacenter_props(server)
   compute_resources = server._retrieve_properties_traversal(
       property_names=('name', 'host'), obj_type='ComputeResource',
-      from_node=datacenter_props.hostFolder._obj)
+      from_node=datacenter.hostFolder._obj)
   for compute_resource in compute_resources:
     compute_resource_props = pysphere.VIProperty(
         server, compute_resource.Obj)
@@ -389,15 +403,15 @@ def _get_first_active_cluster(server):
 
 def create_vm(server, vm_name, vlan, datastore_name=None,
               disk_size=16*1024*1024*1024, num_cpus=1, memory=1024*1024*1024,
-              os=DEFAULT_OS):
+              os=DEFAULT_OS, datacenter=None):
 
   if os not in SYSTEM_CONFIGURATION_MAP:
     raise OsNotSupportedError('OS %s not supported' % os)
 
   sysconf = SYSTEM_CONFIGURATION_MAP[os]
 
-  datacenter_props = _get_datacenter_props(server)
-  compute_resource_props = _get_first_active_cluster(server)
+  datacenter_props = _get_datacenter_props(server, datacenter)
+  compute_resource_props = _get_first_active_cluster(server, datacenter_props)
 
   if not compute_resource_props.host:
     raise NoHostsInClusterError(
@@ -420,7 +434,7 @@ def create_vm(server, vm_name, vlan, datastore_name=None,
   devices = [
       add_scsi_controller(server, new_vm_config, sysconf.scsi),
       add_disk(server, new_vm_config, datastore, size=disk_size),
-      add_nic(server, new_vm_config, vlan)]
+      add_nic(server, new_vm_config, vlan, datacenter_props)]
 
   new_vm_config.set_element_deviceChange(devices)
 
@@ -681,8 +695,9 @@ def power_on(server, vm):
 
 
 def generate_vcenter_install_config(server, host, vlan, ip, prefix, gateway,
-                                    password, datastore, domain):
-  compute_resource_props = _get_first_active_cluster(server)
+                                    password, datastore, domain, datacenter):
+  datacenter_props = _get_datacenter_props(server, datacenter)
+  compute_resource_props = _get_first_active_cluster(server, datacenter_props)
   if not compute_resource_props.host:
     raise NoHostsInClusterError(
         'Tried to create VM, but no ESXi servers exists in the cluster')
@@ -691,7 +706,7 @@ def generate_vcenter_install_config(server, host, vlan, ip, prefix, gateway,
   # Resolve datastore, if not specified pick the largest
   real_datastore, _ = find_datastore(target_config, datastore, brackets=False)
 
-  network = _vlan_to_network(server, vlan)
+  network = _vlan_to_network(server, vlan, datacenter_props)
   install_data = {
       '__version': '2.3.0',
       '__comments': host,
@@ -785,18 +800,13 @@ if __name__ == '__main__':
     generate_vcenter_install_config(
         esxi, vcenter_config['host'], 923, '1.2.3.4', '27', '1.2.3.1',
         'testar', 'datastore1', 'event.dreamhack.se')
-    #print 'Server IP test:', get_server_ip(esxi)
-    #print 'Thumbprint test:', get_ssl_thumbprint(esxi)
-    #print 'VLAN->Network test:', _vlan_to_network(esxi, host_config['vlan'])
 
   if test_vcenter:
     vcenter = pysphere.VIServer()
     vcenter.connect(vcenter_config['host'], vcenter_config['username'],
                     vcenter_config['password'])
-    datacenter = get_or_create_datacenter(vcenter, 'Event')
+    datacenter = get_or_create_datacenter(vcenter, 'event')
     cluster = get_or_create_cluster(vcenter, datacenter, 'POP')
-    #print 'VLAN->PG test:', _vlan_to_dvs_portgroup_key(
-    #    vcenter, host_config['vlan'])
 
   if test_setup:
     add_esxi_to_vcenter(vcenter, esxi, cluster)
