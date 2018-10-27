@@ -6,7 +6,7 @@
 
 import argparse
 import json
-#import redis
+import redis
 import sqlite3
 import sys
 import time
@@ -69,7 +69,11 @@ def getmaxpkgsize(pkglist, manifest):
       disklist.append(disk)
     except KeyError:
       print "pkg %s did not have hardware spec" % pkg
-  
+
+  if not cpulist:
+    print >>sys.stderr, 'Need atleast one package with hardware spec for deplo'
+    sys.exit(1)
+
   cpus = max(cpulist)
   memory = max(memorylist)
   disk = max(disklist)
