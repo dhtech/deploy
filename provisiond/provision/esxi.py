@@ -118,7 +118,7 @@ def _vlan_to_network(server, vlan, datacenter):
       from_node=datacenter.hostFolder._obj)
   if not hosts:
     raise NoHostsInClusterError('Datacenter %s has no hosts' % datacenter.name)
-  host = next(p.Val for p in next(hosts).PropSet if p.Name == 'name')
+  host = next(p.Val for p in hosts[0].PropSet if p.Name == 'name')
   prop = pysphere.VIProperty(server, host)
 
   network_info = prop.configManager.networkSystem.networkInfo
