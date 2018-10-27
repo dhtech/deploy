@@ -365,14 +365,14 @@ def add_disk(server, new_vm_config, datastore, size, provision='thick',
   return disk_spec
 
 
-def add_nic(server, new_vm_config, vlan, nic_key=0):
+def add_nic(server, new_vm_config, vlan, datacenter, nic_key=0):
   """Adds a VMXnet3 network card to the configuration."""
   nic_spec = new_vm_config.new_deviceChange()
   nic_spec.set_element_operation('add')
 
   nic_ctlr = VI.ns0.VirtualVmxnet3_Def('nic_ctrl').pyclass()
   nic_ctlr.set_element_addressType('generated')
-  nic_ctlr.set_element_backing(create_nic_backing(server, vlan))
+  nic_ctlr.set_element_backing(create_nic_backing(server, vlan, datacenter))
   nic_ctlr.set_element_key(nic_key)
   nic_spec.set_element_device(nic_ctlr)
   return nic_spec
@@ -427,7 +427,7 @@ def create_vm(server, vm_name, vlan, datastore_name=None,
   devices = [
       add_scsi_controller(server, new_vm_config, sysconf.scsi),
       add_disk(server, new_vm_config, datastore, size=disk_size),
-      add_nic(server, new_vm_config, vlan)]
+      add_nic(server, new_vm_config, vlan, datacenter_props)]
 
   new_vm_config.set_element_deviceChange(devices)
 

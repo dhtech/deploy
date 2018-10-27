@@ -31,7 +31,7 @@ from provision import snmp
 RUN_INTERVAL = 7
 
 # If we discover an unconfigured vCenter, create the following DC/cluster/DVS
-DEFAULT_DATACENTER = 'Event'
+DEFAULT_DATACENTER = 'event'
 DEFAULT_CLUSTER = 'POP'
 DEFAULT_DVS = 'DVS-POP'
 
@@ -140,7 +140,7 @@ class Esxi(Backend):
 
     config = esxi.generate_vcenter_install_config(
       self.server, host['name'], vlan, ip, prefix, gateway, password,
-      host['datastore'], domain)
+      host['datastore'], domain, datacenter=None)
 
     logging.info('Starting vCenter installation VM %s', host['name'])
     mount = tempfile.mkdtemp()
@@ -223,7 +223,8 @@ class Esxi(Backend):
           vm = esxi.create_vm(
               self.server, host['name'], self.deploy_vlan, host['datastore'],
               disk_size=host['disk'], num_cpus=host['cpus'],
-              memory=host['memory'], os=host['os'])
+              memory=host['memory'], os=host['os'],
+              datacenter=host['datacenter'])
           esxi.power_on(self.server, vm)
           logging.info('Created new VM %s', host['name'])
       except Exception as e:
