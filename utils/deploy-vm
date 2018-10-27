@@ -67,7 +67,7 @@ def getmaxpkgsize(pkglist, manifest):
       cpulist.append(cpus)
       memorylist.append(memory)
       disklist.append(disk)
-    except:
+    except KeyError:
       print "pkg %s did not have hardware spec" % pkg
   
   cpus = max(cpulist)
