@@ -19,7 +19,6 @@ import sys
 import tempfile
 import threading
 import time
-import traceback
 import yaml
 
 import pyghmi.ipmi.command
@@ -227,8 +226,8 @@ class Esxi(Backend):
               memory=host['memory'], os=host['os'])
           esxi.power_on(self.server, vm)
           logging.info('Created new VM %s', host['name'])
-      except:
-        host['error'] = traceback.format_exc()
+      except Exception as e:
+        host['error'] = str(e)
         ttl = self.redis.ttl(key)
         self.redis.setex(key, ttl, json.dumps(host))
         raise
