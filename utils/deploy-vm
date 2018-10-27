@@ -2,10 +2,11 @@
 # Script that simply writes a creation order to redis
 # for provisiond daemons to consume.
 # Note: Needs /etc/deploy.yaml to contain redis information
+# Note: Needs /etc/manifest (yaml) to get info regarding hardware
 
 import argparse
 import json
-import redis
+#import redis
 import sqlite3
 import sys
 import time
@@ -26,6 +27,54 @@ def dehumanize(string):
     sys.exit(1)
 
   return int(string[:-1]) * (2 ** suffix_map[suffix])
+
+
+def getpkgs(fqdn):
+  # See if we know about this host
+  conn = sqlite3.connect('/etc/ipplan.db')
+  c = conn.cursor()
+  c.execute('SELECT name FROM host WHERE name = ?', (fqdn,))
+  if not c.fetchone():
+    print >>sys.stderr, 'Unknown fqdn in ipplandb: %s' % fqdn
+    sys.exit(1)
+    
+  c.execute(
+    'SELECT option.value FROM host, option '
+    'WHERE host.node_id = option.node_id '
+    'AND option.name = "pkg" '
+    'AND host.name = ?' , (fqdn,))
+  pkgs = c.fetchall()
+  conn.close()
+  pkglist = []
+  for pkg in pkgs:
+    basepkg = pkg[0].split('(',1)[0]
+    pkglist.append(basepkg)
+  return pkglist
+
+
+def getmaxpkgsize(pkglist, manifest):
+  packages = manifest['packages']
+  cpulist = []
+  memorylist = []
+  disklist = []
+
+  for pkg in pkglist:
+    try:
+      size = packages[pkg]['hardware']
+      cpus = int(size['cpus'])
+      memory = dehumanize(str(size['memory']))
+      disk = dehumanize(str(size['disk']))
+      cpulist.append(cpus)
+      memorylist.append(memory)
+      disklist.append(disk)
+    except:
+      print "pkg %s did not have hardware spec" % pkg
+  
+  cpus = max(cpulist)
+  memory = max(memorylist)
+  disk = max(disklist)
+  
+  return cpus, memory, disk
 
 
 def create_vm(args):
@@ -135,16 +184,32 @@ if __name__ == '__main__':
   group.add_argument('--add-to-dvs', type=str,
       help='Register interface to DVS')
   create_group = parser.add_argument_group('creation')
-  create_group.add_argument('--disk', default='16G',
+  create_group.add_argument('--disk', 
       help='How much disk to use, humanized (default: 16G)')
-  create_group.add_argument('--memory', default='1G',
+  create_group.add_argument('--memory',
       help='How much memory to use, humanized (default: 1G)')
-  create_group.add_argument('--cpus', default=2,
+  create_group.add_argument('--cpus',
       help='How many CPU cores to use (default: 2)')
   create_group.add_argument('--datastore', default=None,
       help='Explicit datastore to use (default: use the one with most space)')
 
   args = parser.parse_args()
+
+  # load manifest yaml file for hw info from pkg
+  manifest = yaml.safe_load(file('/etc/manifest'))
+  # check if server has hw info in pkg
+  pkglist = getpkgs(args.hostname)
+  # get max hardware attributes for all specified packages
+  cpus, memory, disk = getmaxpkgsize(pkglist, manifest)
+
+  if not args.cpus:
+    args.cpus = cpus
+
+  if not args.memory:
+    args.memory = memory
+
+  if not args.disk:
+    args.disk = disk
 
   if args.add_esxi or args.add_to_dvs:
     creation, create_key = configure(args)
