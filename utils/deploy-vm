@@ -162,7 +162,13 @@ if __name__ == '__main__':
 
   print 'Waiting for provisioner to pick up creation ..'
   try:
+    prev_error = None
     while r.exists(create_key):
+      d = json.loads(r.get(create_key))
+      error = d.get('error', None)
+      if error is not None and error != prev_error:
+        prev_error = error
+        print 'Error:', error
       time.sleep(1)
   except KeyboardInterrupt:
     r.delete(create_key)

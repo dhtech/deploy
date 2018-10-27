@@ -95,7 +95,15 @@ if __name__ == '__main__':
     r.setex(create_key, 3600, json.dumps(creation))
     print 'Waiting for provisioner to pick up creation ..'
     try:
-      while not json.loads(r.get(create_key))['initialized']:
+      prev_error = None
+      while True:
+        d = json.loads(r.get(create_key))
+        error = d.get('error', None)
+        if error is not None and error != prev_error:
+          prev_error = error
+          print 'Error:', error
+        if d['initialized']:
+          break
         time.sleep(1)
     except KeyboardInterrupt:
       r.delete(create_key)
