@@ -480,6 +480,7 @@ def _build_create_vm_request(target_config, datastore, vm_name, memory,
   config.set_element_memoryMB(memory / 1024 / 1024)
   config.set_element_numCPUs(num_cpus)
   config.set_element_guestId(osid)
+  config.set_element_firmware('efi')
 
   create_vm_request.set_element_config(config)
 
