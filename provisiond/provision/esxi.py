@@ -123,7 +123,8 @@ def _vlan_to_network(server, vlan, datacenter):
   network_info = prop.configManager.networkSystem.networkInfo
 
   # This doesn't work if we have the same VLAN in multiple switches
-  vlan_map = {pg.spec.vlanId: pg.spec.name for pg in network_info.portgroup}
+  vlan_map = {pg.spec.vlanId: pg.spec.name for pg in network_info.portgroup
+          if pg.spec.name != 'Management Network'}
 
   if vlan not in vlan_map:
     raise UnknownVlanError('VLAN %d not found in any networks' % vlan)
