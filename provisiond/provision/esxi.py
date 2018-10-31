@@ -263,7 +263,10 @@ def provision_vm(server, vm, vlan, datacenter):
   if not nic:
     raise NicNotFoundError('No NIC found')
 
-  datacenter_props = _get_datacenter_props(server, datacenter)
+  # Only vCenter has the correct notion of a datacenter, so if talking to
+  # an ESXi assume it is called ha-datacenter instead.
+  dc = datacenter if 'vCenter' in server.get_server_type() else 'ha-datacenter'
+  datacenter_props = _get_datacenter_props(server, dc)
   nic.set_element_backing(create_nic_backing(server, vlan, datacenter_props))
 
   # Submit reconfig request
