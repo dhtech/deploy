@@ -176,7 +176,7 @@ class Esxi(Backend):
       if request['manager'] != self.manager:
         continue
 
-      secrets = self.read_secret(request['name'])
+      secrets = self.read_secret('login:' + request['name'])
       target = pysphere.VIServer()
       target.connect(
           host_to_ip(request['name']), secrets['username'], secrets['password'])
