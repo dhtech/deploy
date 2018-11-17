@@ -157,7 +157,7 @@ class Esxi(Backend):
           subprocess.check_call([
               exe, 'install', '--no-esx-ssl-verify', '--accept-eula', f.name])
           self.save_secret(
-              host['name'], username='administrator@%s' % domain,
+              'login:' + host['name'], username='administrator@%s' % domain,
               password=password)
           vm = self.server.get_vm_by_name(host['name'])
           logging.info('Created new vCenter VM %s', host['name'])
