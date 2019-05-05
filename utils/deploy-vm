@@ -15,7 +15,13 @@ import yaml
 
 
 def dehumanize(string):
+
+  # abort if string is int
+  if isinstance(string, int):
+    return string
+
   string = string.upper()
+
   # Treat everything as MiB / GiB etc.
   if string.endswith('IB'):
     string = string[:-2]
@@ -71,7 +77,7 @@ def getmaxpkgsize(pkglist, manifest):
       print "pkg %s did not have hardware spec" % pkg
 
   if not cpulist:
-    print >>sys.stderr, 'Need atleast one package with hardware spec for deplo'
+    print >>sys.stderr, 'Need atleast one package with hardware spec for deploy'
     sys.exit(1)
 
   cpus = max(cpulist)
