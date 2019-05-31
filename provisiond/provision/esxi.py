@@ -243,7 +243,7 @@ def get_server_ip(server):
   # Prop is a "HostSystem"
   # http://pubs.vmware.com/vsphere-60/index.jsp#com.vmware.wssdk.apiref.doc/vim.HostSystem.html
   # TODO soundgoof quick and dirty fix for edgecase for esxi00 mgmt
-  if prop.config.network.vnic[0].spec.ip.ipAddress.startswith(169):
+  if prop.config.network.vnic[0].spec.ip.ipAddress.startswith('169'):
       return prop.config.network.vnic[1].spec.ip.ipAddress
   return prop.config.network.vnic[0].spec.ip.ipAddress
 
