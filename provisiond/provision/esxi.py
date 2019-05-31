@@ -716,46 +716,45 @@ def generate_vcenter_install_config(server, host, vlan, ip, prefix, gateway,
 
   network = _vlan_to_network(server, vlan, datacenter_props)
   install_data = {
-      '__version': '2.3.0',
-      '__comments': host,
-      'new.vcsa': {
+      '__version': '2.13.0',
+      'new_vcsa': {
         'esxi': {
           'hostname': get_server_ip(server),
           'username': server._VIServer__user,
           'password': server._VIServer__password,
-          'deployment.network': network,
+          'deployment_network': network,
           'datastore': real_datastore
         },
         'appliance': {
-          'thin.disk.mode': True,
-          'deployment.option': 'tiny',
+          'thin_disk_mode': True,
+          'deployment_option': 'tiny',
           'name': host
         },
         'network': {
-          'ip.family': 'ipv4',
+          'ip_family': 'ipv4',
           'mode': 'static',
           'ip': ip,
-          'dns.servers': [
+          'dns_servers': [
             '8.8.8.8',
             '8.8.4.4'
             ],
           'prefix': prefix,
           'gateway': gateway,
-          'system.name': host
+          'system_name': host
         },
         'os': {
           'password': password,
-          'ssh.enable': True
+          'ntp_servers': 'ntp1.sp.se',
+          'ssh_enable': True
         },
         'sso': {
           'password': password,
-          'domain-name': domain,
-          'site-name': 'Dreamhack-vSphere'
+          'domain_name': domain,
         }
       },
       'ceip': {
         'settings': {
-          'ceip.enabled': False
+          'ceip_enabled': False
         }
       }
     }
