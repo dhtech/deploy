@@ -51,7 +51,7 @@ def getpkgs(fqdn):
     'AND host.name = ?' , (fqdn,))
   pkgs = c.fetchall()
   conn.close()
-  return [pkg[0].split('(',1)[0] for pkg in pkgs if not pkg.startswith('-') in pkg]
+  return [pkg[0].split('(',1)[0] for pkg in pkgs if not pkg[0].startswith('-')]
 
 
 def getmaxpkgsize(pkglist, manifest):
@@ -69,9 +69,13 @@ def getmaxpkgsize(pkglist, manifest):
       cpulist.append(cpus)
       memorylist.append(memory)
       disklist.append(disk)
+      print "pkg: %s, cpu %s, memory %s, disk %s" % (pkg, cpus, str(size['memory']), str(size['disk']))
     except KeyError:
-      print "pkg %s did not have hardware spec" % pkg
-
+      print "pkg %s did not have hardware spec, key" % pkg
+    # typeerror is needed for pkg firewall, edgecase
+    except TypeError:
+      print "pkg %s did not have hardware spec, type" % pkg
+    
   if not cpulist:
     print >>sys.stderr, 'Need atleast one package with hardware spec for deploy'
     sys.exit(1)
@@ -79,7 +83,6 @@ def getmaxpkgsize(pkglist, manifest):
   cpus = max(cpulist)
   memory = max(memorylist)
   disk = max(disklist)
-
   return cpus, memory, disk
 
 
@@ -220,6 +223,8 @@ if __name__ == '__main__':
 
   if not args.disk:
     args.disk = disk
+  
+  print "using for server: cpu %s, memory %s, disk %s" % (args.cpus, args.memory, args.disk)
 
   if args.add_esxi or args.add_to_dvs:
     creation, create_key = configure(args)
