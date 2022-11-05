@@ -41,11 +41,6 @@ user-setup-udeb passwd/make-user  boolean false
 d-i user-setup/allow-password-weak boolean true
 d-i popularity-contest/participate boolean false
 
-# Add puppet repositories
-# TODO(bluecmd): Try using puppet from debian
-#d-i apt-setup/local0/repository string http://apt.puppetlabs.com jessie PC1
-#d-i apt-setup/local0/key string http://pool.sks-keyservers.net:11371/pks/lookup?op=get&search=0x7F438280EF8D349F
-
 # Add programs
 tasksel tasksel/first multiselect none
 d-i pkgsel/include string less vlan ifenslave vim screen tmux tcpdump strace ldap-utils puppet ca-certificates openssh-server iptables-persistent xz-utils lsof dnsutils curl console-data wget
@@ -62,7 +57,6 @@ d-i preseed/late_command string wget https://deploy.tech.dreamhack.se/post-insta
 
 # Grub in MBR
 grub-installer grub-installer/only_debian boolean true
-# ... additional grub configuration needed by jessie
 d-i grub-installer/bootdev string default
 
 # Automatic reboot
