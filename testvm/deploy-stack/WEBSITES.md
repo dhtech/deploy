@@ -76,7 +76,18 @@ the real ipplan file). Current inventory:
 | `puppet1.colo.notproduction.net` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |
 | `fusion1.colo.notproduction.net` | 10.200.0.63 | `fusiondirectory` | FusionDirectory web UI | — | planned |
 | `doc1.colo.notproduction.net` | 10.200.0.64 | `trac`, `svn` | Trac + SVN (doc server) | `/srv/trac` 15G + `/srv/svn` 20G | planned |
-| `ldap1.colo.notproduction.net` | 10.200.0.65 | `ldap` | slapd directory (internal, puppet-CA TLS) | `/var/lib/ldap` 10G | planned |
+| `ldap1-master.colo.notproduction.net` | 10.200.0.65 | `ldap` | directory master A (writable, mirror mode, seeds DIT) | `/var/lib/ldap` 10G | planned |
+| `ldap2-master.colo.notproduction.net` | 10.200.0.66 | `ldap` | directory master B (writable, mirror mode) | `/var/lib/ldap` 10G | planned |
+| `ldap1.colo.notproduction.net` | 10.200.0.67 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | planned |
+| `ldap2.colo.notproduction.net` | 10.200.0.68 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | planned |
+
+Directory topology: two mirror-mode **masters** in colo take all writes
+(FusionDirectory, apps, admin); **every site — colo included — runs a
+pair of read-only slaves** (syncrepl from both masters over ldaps,
+puppet-CA verified) for resilient local reads. ldaps 636 only, no
+plaintext 389. Suffixes `dc=tech,dc=dreamhack,dc=se` (permanent) and
+`dc=event,dc=dreamhack,dc=se` (permanent, flat). Secrets live in
+OpenBao at `services/ldap:admin`.
 
 Network plan: VLAN 10 mgmt (10.10.10.0/24), VLAN 100 deployment
 (10.100.0.0/24, DHCP/PXE), VLAN 200 colo production (10.200.0.0/24),

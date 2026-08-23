@@ -92,7 +92,7 @@ packages:
       mountpoint: /var/lib/ldap
       options: nodev,nosuid,noexec
     puppet:
-      classes: [dhfirewall]
+      classes: [dhfirewall, 'dhldap::server']
   trac:
     hardware:
       cpus: 2
@@ -145,7 +145,10 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (13, 'provision1.colo.notproduction.net', '10.200.0.2'),
     (14, 'fusion1.colo.notproduction.net', '10.200.0.63'),
     (15, 'doc1.colo.notproduction.net', '10.200.0.64'),
-    (16, 'ldap1.colo.notproduction.net', '10.200.0.65'),
+    (16, 'ldap1-master.colo.notproduction.net', '10.200.0.65'),
+    (17, 'ldap2-master.colo.notproduction.net', '10.200.0.66'),
+    (18, 'ldap1.colo.notproduction.net', '10.200.0.67'),
+    (19, 'ldap2.colo.notproduction.net', '10.200.0.68'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
@@ -154,6 +157,9 @@ c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (14, 'os', 'debian'), (14, 'pkg', 'fusiondirectory'),
     (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
     (16, 'os', 'debian'), (16, 'pkg', 'ldap'),
+    (17, 'os', 'debian'), (17, 'pkg', 'ldap'),
+    (18, 'os', 'debian'), (18, 'pkg', 'ldap'),
+    (19, 'os', 'debian'), (19, 'pkg', 'ldap'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()
@@ -243,7 +249,10 @@ host-record=vault1.colo.notproduction.net,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
 host-record=puppet1.colo.notproduction.net,10.200.0.62
 host-record=fusion1.colo.notproduction.net,10.200.0.63
-host-record=ldap1.colo.notproduction.net,10.200.0.65
+host-record=ldap1-master.colo.notproduction.net,10.200.0.65
+host-record=ldap2-master.colo.notproduction.net,10.200.0.66
+host-record=ldap1.colo.notproduction.net,10.200.0.67
+host-record=ldap2.colo.notproduction.net,10.200.0.68
 host-record=doc1.colo.notproduction.net,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64
