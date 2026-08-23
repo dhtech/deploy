@@ -115,6 +115,7 @@ table ip nat {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "ens18" ip saddr 10.100.0.0/24 masquerade
+    oifname "ens18" ip saddr 10.200.0.0/24 masquerade
   }
 }
 EOF
@@ -126,8 +127,10 @@ cat > /etc/dnsmasq.d/deploy.conf <<EOF
 # systemd-resolved integration otherwise leaves dnsmasq with no servers
 # (queries get REFUSED).
 interface=ens20
+interface=ens21
 bind-interfaces
 no-dhcp-interface=ens20
+no-dhcp-interface=ens21
 no-resolv
 server=10.0.2.3
 EOF

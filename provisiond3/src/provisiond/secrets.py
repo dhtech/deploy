@@ -34,10 +34,16 @@ class Secrets:
 
             if not self._config.url:
                 raise SecretError("vault reference used but no vault.url configured")
-            cert = os.environ.get("VAULT_CERT")
-            key = os.environ.get("VAULT_KEY")
-            client = hvac.Client(url=self._config.url, cert=(cert, key))
-            client.auth.cert.login()
+            token = os.environ.get("VAULT_TOKEN")
+            if token:
+                # Lab bridge: token auth until the puppet CA exists.
+                # Production uses TLS cert auth (puppet-issued node certs).
+                client = hvac.Client(url=self._config.url, token=token)
+            else:
+                cert = os.environ.get("VAULT_CERT")
+                key = os.environ.get("VAULT_KEY")
+                client = hvac.Client(url=self._config.url, cert=(cert, key))
+                client.auth.cert.login()
             self._client = client
         return self._client
 
