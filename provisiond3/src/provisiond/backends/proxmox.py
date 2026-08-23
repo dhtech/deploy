@@ -154,6 +154,10 @@ class ProxmoxBackend(Provisioner):
             "machine": "q35",
             "ostype": OSTYPE_MAP.get(order.os, "l26"),
             "scsihw": "virtio-scsi-single",
+            # qemu-guest-agent channel (the agent itself is installed by
+            # the hardening step): clean shutdowns, IPs in the UI,
+            # qm guest exec
+            "agent": 1,
             "scsi0": f"{storage}:{disk_gib}",
             "net0": net0,
             # Deployed machines come back when the hypervisor reboots.

@@ -846,11 +846,13 @@ echo "server 100.65.0.5 iburst" >> /etc/ntpsec/ntp.conf
 echo "server 100.65.0.6 iburst" >> /etc/ntpsec/ntp.conf
 echo "server 100.65.0.7 iburst" >> /etc/ntpsec/ntp.conf
 
-# Only install vmware tools on vmware servers
-if [ "`dmidecode | grep -i vmware | wc -l`" > "0" ]
-then
-  apt-get -y install open-vm-tools
-fi
+# Hypervisor guest tools by platform. (The old check used [ x > y ],
+# which is a redirect inside [ ] - always true, and it littered a file
+# named "0"; open-vm-tools ended up on every machine.)
+case "$(dmidecode -s system-manufacturer 2>/dev/null)" in
+  *VMware*) apt-get -y install open-vm-tools ;;
+  *QEMU*)   apt-get -y install qemu-guest-agent ;;
+esac
 
 # Remove unwanted packages here.
 apt-get purge -y os-prober laptop-detect
