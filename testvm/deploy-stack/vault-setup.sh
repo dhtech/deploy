@@ -55,7 +55,7 @@ chown -R openbao:openbao /opt/openbao /etc/openbao
 systemctl enable --now openbao
 sleep 3
 
-export BAO_ADDR=http://127.0.0.1:8200
+export BAO_ADDR=https://vault1.test.lan:8200 BAO_CACERT=/etc/openbao/tls/puppet-ca.pem
 if bao status 2>/dev/null | grep -q "Initialized.*false"; then
   bao operator init -key-shares=1 -key-threshold=1 -format=json \
     > /root/vault-init.json
@@ -73,7 +73,15 @@ bao secrets list | grep -q "^services/" \
 bao secrets list | grep -q "^services-test/" \
   || bao secrets enable -path=services-test -version=1 kv >/dev/null
 
-# Scoped token for the deploy stack (CGIs + provisiond)
+# Machine auth: puppet node certs (short-TTL tokens; gen-2 used ttl=0)
+bao auth list | grep -q "^cert/" || bao auth enable cert >/dev/null
+bao write auth/cert/certs/puppet \
+  display_name="Puppet machines" \
+  policies=deploy \
+  certificate=@/etc/openbao/tls/puppet-ca.pem \
+  token_ttl=1h token_max_ttl=4h >/dev/null
+
+# Scoped token for the deploy stack (legacy bridge; cert auth preferred)
 bao policy write deploy - >/dev/null <<EOF
 path "services/*" { capabilities = ["create", "read", "update"] }
 path "services-test/*" { capabilities = ["create", "read", "update"] }
