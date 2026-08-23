@@ -1,10 +1,22 @@
-# Test-env preseed (gen-3 flow): install over DHCP on the deployment
-# VLAN; write production network config + nftables baseline; signal
-# finish so provisiond flips the VLAN. Prod adds vault passwords, LUKS
-# and puppet - kept out of the test flavor.
+# Gen-3 preseed (goodies from the hardened production preseed folded in):
+# install over DHCP on the deployment VLAN; per-host secrets and target
+# config come from the dynamic early.py / late.py scripts.
 
+d-i debian-installer/language string en
+d-i debian-installer/country string SE
 d-i debian-installer/locale string en_US.UTF-8
+d-i keyboard-configuration/unsupported_layout boolean true
+d-i keyboard-configuration/unsupported_options boolean true
+d-i keyboard-configuration/unsupported_config_layout boolean true
+d-i keyboard-configuration/unsupported_config_options boolean true
 d-i keyboard-configuration/xkb-keymap select se
+d-i keyboard-configuration/layoutcode string se
+d-i keyboard-configuration/modelcode string pc105
+
+d-i netcfg/choose_interface select auto
+d-i netcfg/dhcp_timeout string 60
+d-i netcfg/wireless_wep string
+d-i hw-detect/load_firmware boolean true
 
 d-i mirror/country string manual
 d-i mirror/http/hostname string deb.debian.org
@@ -24,24 +36,111 @@ d-i passwd/make-user boolean false
 
 d-i clock-setup/utc boolean true
 d-i time/zone string Europe/Stockholm
-d-i clock-setup/ntp boolean false
+d-i clock-setup/ntp boolean true
 
+# Hardened partitioning (from production): GPT + EFI + /boot, LVM vgsys
+# with separated LVs and nodev/nosuid/noexec where it counts. Minimums
+# scaled to fit small test disks; priorities/maximums approach the
+# production layout on real hardware.
 # partman-auto/method is set by early.py (lvm; crypto for EVENT hosts)
-d-i partman-auto/choose_recipe select atomic
 d-i partman-auto-lvm/guided_size string max
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
+d-i partman-auto/choose_recipe select dhtech-default
+d-i partman-auto-lvm/new_vg_name string vgsys
+d-i partman-auto/expert_recipe string                                \
+      dhtech-default ::                                              \
+              256 512 512 fat32                                      \
+                      $primary{ } $iflabel{ gpt } $reusemethod{ }    \
+                      method{ efi } format{ }                        \
+                      label{ EFI System Partition }                  \
+                      mountpoint{ /boot/efi }                        \
+              .                                                      \
+              512 512 1024 ext4                                      \
+                      $primary{ } $bootable{ }                       \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /boot }                            \
+              .                                                      \
+              512 2048 4096 linux-swap                               \
+                      $lvmok{ } lv_name{ lvswap }                    \
+                      method{ swap } format{ }                       \
+              .                                                      \
+              256 1024 4096 ext4                                     \
+                      $lvmok{ } lv_name{ lvhome }                    \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /home }                            \
+                      options/nodev{ nodev }                         \
+                      options/nosuid{ nosuid }                       \
+                      options/noexec{ noexec }                       \
+              .                                                      \
+              256 1024 4096 ext4                                     \
+                      $lvmok{ } lv_name{ lvvartmp }                  \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /var/tmp }                         \
+                      options/nodev{ nodev }                         \
+                      options/nosuid{ nosuid }                       \
+                      options/noexec{ noexec }                       \
+              .                                                      \
+              256 1024 4096 ext4                                     \
+                      $lvmok{ } lv_name{ lvtmp }                     \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /tmp }                             \
+                      options/nodev{ nodev }                         \
+                      options/nosuid{ nosuid }                       \
+                      options/noexec{ noexec }                       \
+              .                                                      \
+              512 4096 15360 ext4                                    \
+                      $lvmok{ } lv_name{ lvvarlog }                  \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /var/log }                         \
+                      options/nodev{ nodev }                         \
+                      options/nosuid{ nosuid }                       \
+                      options/noexec{ noexec }                       \
+              .                                                      \
+              256 1024 4096 ext4                                     \
+                      $lvmok{ } lv_name{ lvvarlogaudit }             \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /var/log/audit }                   \
+                      options/nodev{ nodev }                         \
+                      options/nosuid{ nosuid }                       \
+                      options/noexec{ noexec }                       \
+              .                                                      \
+              1024 4096 15360 ext4                                   \
+                      $lvmok{ } lv_name{ lvvar }                     \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ /var }                             \
+                      options/nodev{ nodev }                         \
+                      options/nosuid{ nosuid }                       \
+              .                                                      \
+              1024 1000 30000 ext4                                   \
+                      $lvmok{ } lv_name{ lvroot }                    \
+                      method{ format } format{ }                     \
+                      use_filesystem{ } filesystem{ ext4 }           \
+                      mountpoint{ / }                                \
+              .
 d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
 d-i partman/confirm_nooverwrite boolean true
-d-i partman-lvm/confirm boolean true
-d-i partman-lvm/confirm_nooverwrite boolean true
-d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-efi/non_efi_system boolean true
 
-tasksel tasksel/first multiselect standard
-d-i pkgsel/include string openssh-server nftables wget ca-certificates puppet-agent
+d-i apt-setup/non-free boolean true
+d-i apt-setup/contrib boolean true
+
+tasksel tasksel/first multiselect standard, ssh-server
+# Hardening + ops package set from production, plus the deploy-flow needs
+d-i pkgsel/include string vim mtr-tiny tmux tcpdump ntpsec lsof dnsutils linux-headers-amd64 htop lsscsi sysstat apt-transport-https sudo auditd audispd-plugins curl apparmor-utils libpam-pwquality libyaml-tiny-perl libsort-naturally-perl libfile-slurp-perl nftables wget ca-certificates puppet-agent
+d-i pkgsel/upgrade select full-upgrade
 popularity-contest popularity-contest/participate boolean false
-d-i pkgsel/upgrade select none
 
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string default
