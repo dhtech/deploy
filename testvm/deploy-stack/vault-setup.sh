@@ -1,7 +1,11 @@
 #!/bin/sh
-# One-time Vault setup on a freshly deployed vault VM (test env).
+# One-time OpenBao setup on a freshly deployed vault VM (test env).
 # Run as root ON the vault machine. Puppet does the equivalent in prod
 # (incl. TLS via the puppet CA; the lab runs tls_disable + token auth).
+#
+# OpenBao (MPL-2.0, Linux Foundation fork of Vault) - API-compatible with
+# the gen-2 Vault contract (KV v1, tokens, TLS cert auth); hvac works
+# unchanged.
 
 set -eu
 
@@ -9,30 +13,31 @@ set -eu
 # server's resolver on the production VLAN. (Gen-3 late script TODO.)
 echo "nameserver 10.200.0.2" > /etc/resolv.conf
 
-# Open the Vault API in the baseline firewall (puppet's job in prod)
+# Open the OpenBao API in the baseline firewall (puppet's job in prod)
 if ! grep -q "tcp dport 8200" /etc/nftables.conf; then
   sed -i 's#tcp dport 22 ip saddr .* accept#&\n    tcp dport 8200 ip saddr 10.200.0.0/24 accept#' /etc/nftables.conf
   nft -f /etc/nftables.conf
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-if ! command -v vault >/dev/null 2>&1; then
-  apt-get -qq install -y curl gnupg >/dev/null
-  curl -sfL https://apt.releases.hashicorp.com/gpg \
-    | gpg --dearmor > /usr/share/keyrings/hashicorp.gpg
-  echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com bookworm main" \
-    > /etc/apt/sources.list.d/hashicorp.list
-  apt-get -qq update >/dev/null
-  apt-get -qq install -y vault >/dev/null
+if ! command -v bao >/dev/null 2>&1; then
+  apt-get -qq install -y curl jq >/dev/null
+  url=$(curl -sfL https://api.github.com/repos/openbao/openbao/releases/latest \
+    | jq -r '.assets[].browser_download_url' \
+    | grep -E 'linux_amd64\.deb$' | grep -v hsm | head -1)
+  [ -n "$url" ] || { echo "could not find OpenBao deb release" >&2; exit 1; }
+  curl -sfL -o /tmp/openbao.deb "$url"
+  apt-get -qq install -y /tmp/openbao.deb >/dev/null
+  rm -f /tmp/openbao.deb
 fi
 
-cat > /etc/vault.d/vault.hcl <<EOF
-# Test-env Vault: raft single node, TLS disabled (lab only - prod gets
+cat > /etc/openbao/openbao.hcl <<EOF
+# Test-env OpenBao: raft single node, TLS disabled (lab only - prod gets
 # TLS with the puppet CA and cert auth).
 ui = false
 
 storage "raft" {
-  path    = "/opt/vault/data"
+  path    = "/opt/openbao/data"
   node_id = "vault1"
 }
 
@@ -44,38 +49,38 @@ listener "tcp" {
 api_addr = "http://10.200.0.61:8200"
 cluster_addr = "http://10.200.0.61:8201"
 EOF
-mkdir -p /opt/vault/data
-chown -R vault:vault /opt/vault
+mkdir -p /opt/openbao/data
+chown -R openbao:openbao /opt/openbao /etc/openbao
 
-systemctl enable --now vault
+systemctl enable --now openbao
 sleep 3
 
-export VAULT_ADDR=http://127.0.0.1:8200
-if vault status 2>/dev/null | grep -q "Initialized.*false"; then
-  vault operator init -key-shares=1 -key-threshold=1 -format=json \
+export BAO_ADDR=http://127.0.0.1:8200
+if bao status 2>/dev/null | grep -q "Initialized.*false"; then
+  bao operator init -key-shares=1 -key-threshold=1 -format=json \
     > /root/vault-init.json
   chmod 600 /root/vault-init.json
 fi
 
-unseal=$(python3 -c "import json;print(json.load(open('/root/vault-init.json'))['unseal_keys_b64'][0])")
-root_token=$(python3 -c "import json;print(json.load(open('/root/vault-init.json'))['root_token'])")
-vault operator unseal "$unseal" >/dev/null
+unseal=$(jq -r '.unseal_keys_b64[0]' /root/vault-init.json)
+root_token=$(jq -r '.root_token' /root/vault-init.json)
+bao operator unseal "$unseal" >/dev/null
 
-export VAULT_TOKEN="$root_token"
+export BAO_TOKEN="$root_token"
 # KV v1 mounts matching the gen-2 path contract
-vault secrets list | grep -q "^services/" \
-  || vault secrets enable -path=services -version=1 kv >/dev/null
-vault secrets list | grep -q "^services-test/" \
-  || vault secrets enable -path=services-test -version=1 kv >/dev/null
+bao secrets list | grep -q "^services/" \
+  || bao secrets enable -path=services -version=1 kv >/dev/null
+bao secrets list | grep -q "^services-test/" \
+  || bao secrets enable -path=services-test -version=1 kv >/dev/null
 
 # Scoped token for the deploy stack (CGIs + provisiond)
-vault policy write deploy - >/dev/null <<EOF
+bao policy write deploy - >/dev/null <<EOF
 path "services/*" { capabilities = ["create", "read", "update"] }
 path "services-test/*" { capabilities = ["create", "read", "update"] }
 EOF
-vault token create -policy=deploy -orphan -period=768h -format=json \
+bao token create -policy=deploy -orphan -period=768h -format=json \
   > /root/deploy-token.json
 chmod 600 /root/deploy-token.json
 
-echo "vault ready: http://10.200.0.61:8200"
+echo "openbao ready: http://10.200.0.61:8200"
 echo "init material: /root/vault-init.json, deploy token: /root/deploy-token.json"
