@@ -43,6 +43,9 @@ d-i clock-setup/ntp boolean true
 # scaled to fit small test disks; priorities/maximums approach the
 # production layout on real hardware.
 # partman-auto/method is set by early.py (lvm; crypto for EVENT hosts)
+# The OS always lives on the first disk; the appdisk (sdb) is handled by
+# the late script, never by partman.
+d-i partman-auto/disk string /dev/sda
 d-i partman-auto-lvm/guided_size string max
 d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-md/device_remove_md boolean true
