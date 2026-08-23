@@ -46,8 +46,8 @@ browser
 | `127.0.0.1:8768` | provision-dev:8080 | deploy status page | live |
 | `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
-| `127.0.0.1:8444` | provision-dev:444 | FusionDirectory/LDAP UI | reserved |
-| `127.0.0.1:8445` | provision-dev:445 | Trac | reserved |
+| `127.0.0.1:8444` | provision-dev:444 → future `ldap1` VM | FusionDirectory/LDAP UI | reserved |
+| `127.0.0.1:8445` | provision-dev:445 → future `trac1` VM | Trac | reserved |
 
 Live URLs:
 
@@ -56,6 +56,9 @@ Live URLs:
 - OpenBao (puppet-CA listener): <https://localhost:8200/ui>
 - **Vault website**: <https://vault.dh.notproduction.net:8443/ui>
   (real Let's Encrypt certificate — green padlock)
+
+Each service gets its **own dedicated VM**, deployed through the stack
+like everything else: FusionDirectory/LDAP on `ldap1`, Trac on `trac1`.
 
 ## Adding a new public website (checklist)
 
