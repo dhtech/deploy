@@ -35,7 +35,7 @@ redis:
   host: localhost
 base_url: http://10.100.0.2:8080
 jumpgates: [10.200.0.2]
-puppet_server: puppet1.test.lan
+puppet_server: puppet1.dh.notproduction.net
 syslog_host: 10.100.0.2
 resolvers: [10.200.0.2]
 ssh_port: 22
@@ -135,13 +135,13 @@ DELETE FROM network; DELETE FROM host; DELETE FROM option; DELETE FROM meta_data
 c.execute("INSERT INTO network VALUES (1, 'coloc@prod', 200, "
           "'10.200.0.2', '255.255.255.0', 24, NULL, NULL)")
 c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
-    (10, 'web1.test.lan', '10.200.0.60'),
-    (11, 'vault1.test.lan', '10.200.0.61'),
-    (12, 'puppet1.test.lan', '10.200.0.62'),
-    (13, 'provision-dev.test.lan', '10.200.0.2'),
-    (14, 'fusion1.test.lan', '10.200.0.63'),
-    (15, 'doc1.test.lan', '10.200.0.64'),
-    (16, 'ldap1.test.lan', '10.200.0.65'),
+    (10, 'web1.dh.notproduction.net', '10.200.0.60'),
+    (11, 'vault1.dh.notproduction.net', '10.200.0.61'),
+    (12, 'puppet1.dh.notproduction.net', '10.200.0.62'),
+    (13, 'provision-dev.dh.notproduction.net', '10.200.0.2'),
+    (14, 'fusion1.dh.notproduction.net', '10.200.0.63'),
+    (15, 'doc1.dh.notproduction.net', '10.200.0.64'),
+    (16, 'ldap1.dh.notproduction.net', '10.200.0.65'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
@@ -233,14 +233,14 @@ no-dhcp-interface=ens20
 no-dhcp-interface=ens21
 no-resolv
 server=10.0.2.3
-host-record=provision-dev.test.lan,10.200.0.2
-host-record=web1.test.lan,10.200.0.60
-host-record=vault1.test.lan,10.200.0.61
+host-record=provision-dev.dh.notproduction.net,10.200.0.2
+host-record=web1.dh.notproduction.net,10.200.0.60
+host-record=vault1.dh.notproduction.net,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
-host-record=puppet1.test.lan,10.200.0.62
-host-record=fusion1.test.lan,10.200.0.63
-host-record=ldap1.test.lan,10.200.0.65
-host-record=doc1.test.lan,10.200.0.64
+host-record=puppet1.dh.notproduction.net,10.200.0.62
+host-record=fusion1.dh.notproduction.net,10.200.0.63
+host-record=ldap1.dh.notproduction.net,10.200.0.65
+host-record=doc1.dh.notproduction.net,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64
 EOF

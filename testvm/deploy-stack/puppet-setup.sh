@@ -18,8 +18,8 @@ sed -i 's/^JAVA_ARGS=.*/JAVA_ARGS="-Xms512m -Xmx1g"/' /etc/default/puppetserver
 
 cat > /etc/puppet/puppet.conf <<EOF
 [main]
-server=puppet1.test.lan
-certname=puppet1.test.lan
+server=puppet1.dh.notproduction.net
+certname=puppet1.dh.notproduction.net
 
 [server]
 autosign=/etc/puppet/autosign.conf
@@ -30,7 +30,7 @@ EOF
 
 # Test env: autosign every deploy-system host. Prod would use policy
 # autosign validated against ipplan.
-echo "*.test.lan" > /etc/puppet/autosign.conf
+echo "*.dh.notproduction.net" > /etc/puppet/autosign.conf
 
 systemctl enable --now puppetserver
 # puppetserver takes a while to come up the first time (CA generation)
@@ -75,4 +75,4 @@ EOF
 systemctl daemon-reload
 systemctl enable --now dh-enroll-clean.timer
 
-echo "puppetserver ready on puppet1.test.lan:8140"
+echo "puppetserver ready on puppet1.dh.notproduction.net:8140"

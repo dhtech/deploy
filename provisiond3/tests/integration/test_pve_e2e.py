@@ -51,7 +51,7 @@ def _qemu_config(backend, vm):
 def test_e2e_create_provision_delete(backend):
     r = redislib.Redis()
     loop = VmManagerLoop(backend, r, deploy_vlan=DEPLOY_VLAN, fqdn="pve-test.lan")
-    name = f"e2e-{uuid_mod.uuid4().hex[:8]}.test.lan"
+    name = f"e2e-{uuid_mod.uuid4().hex[:8]}.dh.notproduction.net"
     order = {
         "manager": "coloc",
         "name": name,
