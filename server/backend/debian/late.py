@@ -158,9 +158,17 @@ if appdisks:
   # the chroot lvcreate hangs forever waiting for udev sync.
   # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
   print('export LVM_SUPPRESS_FD_WARNINGS=1')
-  print('if [ -b /dev/sdb ] && ! pvs /dev/sdb >/dev/null 2>&1; then')
-  print('  pvcreate /dev/sdb')
-  print('  vgcreate vgapp /dev/sdb')
+  # Device names are nondeterministic with two virtio-scsi disks: the
+  # appdisk is the bare disk (no partitions) — never assume /dev/sdb.
+  print('appdev=""')
+  print('for b in /sys/block/sd* /sys/block/vd*; do')
+  print('  [ -d "$b" ] || continue')
+  print('  ls "$b/${b##*/}"* >/dev/null 2>&1 && continue')
+  print('  appdev=/dev/${b##*/}')
+  print('done')
+  print('if [ -n "$appdev" ] && ! pvs "$appdev" >/dev/null 2>&1; then')
+  print('  pvcreate "$appdev"')
+  print('  vgcreate vgapp "$appdev"')
   print('fi')
   for disk in appdisks:
     mib = max(4, int(disk['size']) // 1024**2)
