@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+# External Node Classifier endpoint for the puppetserver.
+# Maps a host's ipplan pkg options (including their parameters, e.g.
+# "web(port=80)") to puppet classes and parameters, emitted as ENC YAML.
+#
+# The class mapping lives in /etc/manifest under packages.<pkg>.puppet:
+#   packages:
+#     web:
+#       puppet:
+#         classes: [dhfirewall]
+#         params:
+#           dhfirewall:
+#             open_tcp: [80]
+
+import os
+import sqlite3
+import urllib.parse
+
+import yaml
+
+from lib import metadata
+
+query_string = urllib.parse.parse_qs(
+    os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
+hostname = query_string['hostname'][0]
+
+
+def pkgs_with_params(host):
+  """pkg options incl. parsed parameters: web(port=80) -> (web, {port: 80})."""
+  conn = sqlite3.connect(metadata.DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT option.value FROM host, option '
+      'WHERE host.node_id = option.node_id '
+      'AND option.name = "pkg" AND host.name = ?', (host,))
+  rows = [r[0] for r in c.fetchall()]
+  conn.close()
+  result = []
+  for raw in rows:
+    if raw.startswith('-'):
+      continue
+    name, _, rest = raw.partition('(')
+    params = {}
+    if rest.endswith(')'):
+      for pair in rest[:-1].split(','):
+        if '=' in pair:
+          key, value = pair.split('=', 1)
+          params[key.strip()] = int(value) if value.strip().isdigit() else value.strip()
+    result.append((name, params))
+  return result
+
+
+with open('/etc/manifest') as f:
+  manifest = yaml.safe_load(f)
+
+classes = {}
+for pkg, params in pkgs_with_params(hostname):
+  spec = (manifest.get('packages', {}).get(pkg) or {}).get('puppet') or {}
+  for cls in spec.get('classes', []):
+    classes.setdefault(cls, {})
+    for pcls, pvals in (spec.get('params') or {}).items():
+      merged = classes.setdefault(pcls, {})
+      for key, value in (pvals or {}).items():
+        if isinstance(value, list):
+          merged.setdefault(key, [])
+          merged[key] = sorted(set(merged[key]) | set(value))
+        else:
+          merged[key] = value
+    # pkg parameters from ipplan override/extend: port=N -> open_tcp
+    if 'port' in params:
+      for pcls in spec.get('classes', []):
+        merged = classes.setdefault(pcls, {})
+        if 'open_tcp' in merged or pcls == 'dhfirewall':
+          ports = set(merged.get('open_tcp', []))
+          ports.add(params['port'])
+          merged['open_tcp'] = sorted(ports)
+
+print('')
+print(yaml.safe_dump({
+    'classes': classes if classes else {'dhfirewall': {}},
+    'environment': 'production',
+}, default_flow_style=False))

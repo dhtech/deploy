@@ -13,7 +13,7 @@ apt-get -qq install -y ipxe dnsmasq nftables apt-cacher-ng >/dev/null
 # --- deploy backend CGIs + lib -------------------------------------------
 mkdir -p /var/www/deploy
 cp -r "$repo/server/backend/ipxe" "$repo/server/backend/debian" /var/www/deploy/
-cp "$repo/server/backend/finish.py" /var/www/deploy/
+cp "$repo/server/backend/finish.py" "$repo/server/backend/enc.py" /var/www/deploy/
 mkdir -p /var/www/deploy/lib
 cp "$repo/server/libdhdeploy/metadata.py" /var/www/deploy/lib/
 touch /var/www/deploy/lib/__init__.py
@@ -55,6 +55,11 @@ packages:
       size: 10G
       mountpoint: /srv/www
       options: nodev,nosuid
+    puppet:
+      classes: [dhfirewall]
+      params:
+        dhfirewall:
+          open_tcp: [80, 443]
   vault:
     hardware:
       cpus: 2
@@ -63,10 +68,20 @@ packages:
       size: 20G
       mountpoint: /var/lib/openbao
       options: nodev,nosuid,noexec
+    puppet:
+      classes: [dhfirewall]
+      params:
+        dhfirewall:
+          open_tcp: [8200]
   puppetserver:
     hardware:
       cpus: 2
       memory: 3G
+    puppet:
+      classes: [dhfirewall]
+      params:
+        dhfirewall:
+          open_tcp: [8140]
 EOF
 
 python3 - <<'EOF'
