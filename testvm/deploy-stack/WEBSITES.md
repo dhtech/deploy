@@ -63,6 +63,24 @@ like everything else: FusionDirectory (web UI) on `fusion1`, with the directory 
 website); Trac **and** SVN together on `doc1`
 (their appdisks become separate LVs on its vgapp: `/srv/trac` + `/srv/svn`).
 
+## Hosts in ipplan (test environment)
+
+The authoritative source is the ipplan seed in `seed.sh` (production:
+the real ipplan file). Current inventory:
+
+| Host | IP | pkgs | Role | Appdisk LVs (vgapp) | Status |
+|---|---|---|---|---|---|
+| `provision-dev.test.lan` | 10.200.0.2 | — | provision + deploy server, router/DNS/DHCP for the lab VLANs | — | live (hand-built dev box) |
+| `web1.test.lan` | 10.200.0.60 | `base`, `web(port=80)` | reference/test machine | `/srv/www` 10G | live |
+| `vault1.test.lan` | 10.200.0.61 | `vault` | OpenBao + vault website (nginx/LE) | `/var/lib/openbao` 20G (future redeploys) | live (pre-appdisk build) |
+| `puppet1.test.lan` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |
+| `fusion1.test.lan` | 10.200.0.63 | `fusiondirectory` | FusionDirectory web UI | — | planned |
+| `doc1.test.lan` | 10.200.0.64 | `trac`, `svn` | Trac + SVN (doc server) | `/srv/trac` 15G + `/srv/svn` 20G | planned |
+| `ldap1.test.lan` | 10.200.0.65 | `ldap` | slapd directory (internal, puppet-CA TLS) | `/var/lib/ldap` 10G | planned |
+
+Network plan: VLAN 10 mgmt (10.10.10.0/24), VLAN 100 deployment
+(10.100.0.0/24, DHCP/PXE), VLAN 200 production (10.200.0.0/24).
+
 ## Adding a new public website (checklist)
 
 Using the reserved FusionDirectory slot as the example:
