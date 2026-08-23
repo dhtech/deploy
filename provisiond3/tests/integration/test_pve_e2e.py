@@ -1,6 +1,6 @@
 """End-to-end integration test against the live pve-test environment.
 
-Runs ONLY on provision-dev (needs /root/.config/proxmox-api.env, a local
+Runs ONLY on provision1 (needs /root/.config/proxmox-api.env, a local
 redis-server, and the deploy/prod VLANs 100/200 on pve-test's vmbr0):
 
     pytest -m integration

@@ -73,10 +73,10 @@ SSL-disable hacks.
 
 ## Test environment
 
-pve-test (Proxmox VE in QEMU) + provision-dev guest — see
+pve-test (Proxmox VE in QEMU) + provision1 guest — see
 `testvm/proxmox-ve/README.md`. There is no Puppet in the test env, so
 `/etc/provision/config.yaml`, `provisiond.env`, dhcpd.conf and
-`/etc/deploy.yaml` are seeded manually on provision-dev.
+`/etc/deploy.yaml` are seeded manually on provision1.
 
 ## Development
 
@@ -84,5 +84,5 @@ pve-test (Proxmox VE in QEMU) + provision-dev guest — see
 python3 -m venv .venv && .venv/bin/pip install -e .[dev]
 .venv/bin/pytest                  # unit tests
 .venv/bin/mypy src && .venv/bin/ruff check src tests
-.venv/bin/pytest -m integration   # on provision-dev only: live e2e on pve-test
+.venv/bin/pytest -m integration   # on provision1 only: live e2e on pve-test
 ```

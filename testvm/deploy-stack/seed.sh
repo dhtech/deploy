@@ -1,6 +1,6 @@
 #!/bin/sh
-# Idempotent setup of the full deploy stack on provision-dev (test env).
-# Run as root on provision-dev with the repo tree at /root/src/deploy.
+# Idempotent setup of the full deploy stack on provision1 (test env).
+# Run as root on provision1 with the repo tree at /root/src/deploy.
 # Puppet does the equivalent of this in production.
 
 set -eu
@@ -142,7 +142,7 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (10, 'web1.colo.notproduction.net', '10.200.0.60'),
     (11, 'vault1.colo.notproduction.net', '10.200.0.61'),
     (12, 'puppet1.colo.notproduction.net', '10.200.0.62'),
-    (13, 'provision-dev.colo.notproduction.net', '10.200.0.2'),
+    (13, 'provision1.colo.notproduction.net', '10.200.0.2'),
     (14, 'fusion1.colo.notproduction.net', '10.200.0.63'),
     (15, 'doc1.colo.notproduction.net', '10.200.0.64'),
     (16, 'ldap1.colo.notproduction.net', '10.200.0.65'),
@@ -197,7 +197,7 @@ sysctl -q -p /etc/sysctl.d/90-deploy-forward.conf
 
 cat > /etc/nftables.conf <<EOF
 #!/usr/sbin/nft -f
-# provision-dev: NAT the deployment VLAN out via the test-only NAT NIC.
+# provision1: NAT the deployment VLAN out via the test-only NAT NIC.
 flush ruleset
 table ip nat {
   chain postrouting {
@@ -237,7 +237,7 @@ no-dhcp-interface=ens20
 no-dhcp-interface=ens21
 no-resolv
 server=10.0.2.3
-host-record=provision-dev.colo.notproduction.net,10.200.0.2
+host-record=provision1.colo.notproduction.net,10.200.0.2
 host-record=web1.colo.notproduction.net,10.200.0.60
 host-record=vault1.colo.notproduction.net,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61

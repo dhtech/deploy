@@ -15,7 +15,7 @@ browser
        ▼
      QEMU hostfwd on the workstation (start.sh, unprivileged port)
        ▼
-     provision-dev DNAT (nftables, keyed on destination port)
+     provision1 DNAT (nftables, keyed on destination port)
        ▼
      nginx on the service VM, port 443
        │  single-name Let's Encrypt certificate (no wildcards)
@@ -31,7 +31,7 @@ browser
   only** — everything internal uses the puppet CA.
 - **DNS**: the public zone (`notproduction.net`, Route 53) carries only
   the A records (→ `127.0.0.1`) and transient ACME TXT records. Internal
-  resolution comes from dnsmasq on provision-dev. Names will move into
+  resolution comes from dnsmasq on provision1. Names will move into
   the ipplan file when the generated-ipplan work lands.
 - **Ports**: the service VM always uses standard `443`; the workstation
   side uses unprivileged `84xx` forwards (no root/sysctl needed locally).
@@ -42,12 +42,12 @@ browser
 |---|---|---|---|
 | `127.0.0.1:4454` | pve:22 | pve-test SSH | live |
 | `127.0.0.1:8006` | pve:8006 | Proxmox web UI | live |
-| `127.0.0.1:4455` | provision-dev:22 | provision-dev SSH | live |
-| `127.0.0.1:8768` | provision-dev:8080 | deploy status page | live |
+| `127.0.0.1:4455` | provision1:22 | provision1 SSH | live |
+| `127.0.0.1:8768` | provision1:8080 | deploy status page | live |
 | `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
-| `127.0.0.1:8444` | provision-dev:444 → future `fusion1` VM | FusionDirectory/LDAP UI | reserved |
-| `127.0.0.1:8445` | provision-dev:445 → future `doc1` VM | Trac + SVN (doc) | reserved |
+| `127.0.0.1:8444` | provision1:444 → future `fusion1` VM | FusionDirectory/LDAP UI | reserved |
+| `127.0.0.1:8445` | provision1:445 → future `doc1` VM | Trac + SVN (doc) | reserved |
 
 Live URLs:
 
@@ -70,7 +70,7 @@ the real ipplan file). Current inventory:
 
 | Host | IP | pkgs | Role | Appdisk LVs (vgapp) | Status |
 |---|---|---|---|---|---|
-| `provision-dev.colo.notproduction.net` | 10.200.0.2 | — | provision + deploy server, router/DNS/DHCP for the lab VLANs | — | live (hand-built dev box) |
+| `provision1.colo.notproduction.net` | 10.200.0.2 | — | provision + deploy server, router/DNS/DHCP for the lab VLANs | — | live (hand-built dev box) |
 | `web1.colo.notproduction.net` | 10.200.0.60 | `base`, `web(port=80)` | reference/test machine | `/srv/www` 10G | live |
 | `vault1.colo.notproduction.net` | 10.200.0.61 | `vault` | OpenBao + vault website (nginx/LE) | `/var/lib/openbao` 20G (future redeploys) | live (pre-appdisk build) |
 | `puppet1.colo.notproduction.net` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |

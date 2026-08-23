@@ -76,7 +76,7 @@ Shut down cleanly from inside (`poweroff`) or via the web UI.
 
 ## Guests
 
-### provision-dev (VMID 100)
+### provision1 (VMID 100)
 
 Debian 13 provision server for development, running as a guest inside
 this Proxmox instance. Built from the official `debian-13-nocloud-amd64`
@@ -88,7 +88,7 @@ image (no cloud-init), customized offline on the pve host with
 - Static IP `10.0.2.16/24`, gw `10.0.2.2`, DNS `10.0.2.3`
   (static on purpose: slirp DHCP hands out `10.0.2.15` and collides
   with the pve host itself — this actually happened; see gotchas)
-- Hostname `provision-dev`; `openssh-server` installed into the image,
+- Hostname `provision1`; `openssh-server` installed into the image,
   root SSH with the usual key; root password `pve-test` (console)
 - Timezone `Europe/Stockholm`
 - Serial console: `qm terminal 100` on the pve host
@@ -101,12 +101,12 @@ image (no cloud-init), customized offline on the pve host with
 
 - pve host: `vmbr0.10` = `10.10.10.1/24`
   (config in `/etc/network/interfaces.d/mgmt-vlan`)
-- provision-dev: second NIC `net1` (`bridge=vmbr0,tag=10`) = `ens19`,
+- provision1: second NIC `net1` (`bridge=vmbr0,tag=10`) = `ens19`,
   static `10.10.10.2/24` via `/etc/systemd/network/00-mgmt.network`
 
-provision-dev talks to the Proxmox API over this VLAN as
+provision1 talks to the Proxmox API over this VLAN as
 `provisioner@pve` (role Administrator, token `provisioner@pve!dev`,
-privsep off). Credentials on provision-dev in
+privsep off). Credentials on provision1 in
 `/root/.config/proxmox-api.env` (mode 600); token JSON also on the pve
 host in `/root/provisioner-token.json`. Example:
 
@@ -116,7 +116,7 @@ curl -ks -H "Authorization: PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}" \
   "$PVE_API_URL/version"
 ```
 
-`curl` and `jq` are installed on provision-dev.
+`curl` and `jq` are installed on provision1.
 
 Gotchas hit while building this (relevant for future nocloud guests):
 
@@ -148,7 +148,7 @@ After the next pve-test restart, directly (start.sh forwards
 ssh -i ~/.ssh/id_ecdsa -p 4455 root@127.0.0.1
 ```
 
-The provision-dev machine also runs the deploy stack under development:
+The provision1 machine also runs the deploy stack under development:
 ISC dhcpd on the deploy VLAN, a local redis, provisiond3 (from
 `/root/src/provisiond3`, venv `/opt/provisiond`), and the HTML5 status
 frontend on port 8080 (forwarded as `http://127.0.0.1:8768/` after the
@@ -167,7 +167,7 @@ next pve-test restart).
   `provision.sh`.
 
 Reserved forwards: `127.0.0.1:8443` → vault website (nginx/LE on
-vault1:443 via provision-dev DNAT 443); `127.0.0.1:8444` →
-provision-dev:444, reserved for the future FusionDirectory/LDAP web UI
+vault1:443 via provision1 DNAT 443); `127.0.0.1:8444` →
+provision1:444, reserved for the future FusionDirectory/LDAP web UI
 (DNAT to be added when ldap1 is deployed); `127.0.0.1:8445` →
-provision-dev:445, reserved for the future Trac web UI.
+provision1:445, reserved for the future Trac web UI.

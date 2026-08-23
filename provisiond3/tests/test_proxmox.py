@@ -47,13 +47,13 @@ def backend():
 def test_list_vms_parses_smbios_uuid(backend):
     b, api = backend
     api.cluster.resources.get.return_value = [
-        {"node": "pve-test", "vmid": 100, "name": "provision-dev", "status": "running"},
+        {"node": "pve-test", "vmid": 100, "name": "provision1", "status": "running"},
     ]
     api.nodes.return_value.qemu.return_value.config.get.return_value = {
         "smbios1": "uuid=ABCD-EF,base64=0"
     }
     vms = b.list_vms()
-    assert vms == [VmInfo(name="provision-dev", uuid="abcd-ef", backend_ref="pve-test/100")]
+    assert vms == [VmInfo(name="provision1", uuid="abcd-ef", backend_ref="pve-test/100")]
     # second call served from cache: config.get not called again
     api.nodes.return_value.qemu.return_value.config.get.reset_mock()
     b.list_vms()
