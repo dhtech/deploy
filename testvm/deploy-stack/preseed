@@ -1,0 +1,55 @@
+# Test-env preseed (gen-3 flow): install over DHCP on the deployment
+# VLAN; write production network config + nftables baseline; signal
+# finish so provisiond flips the VLAN. Prod adds vault passwords, LUKS
+# and puppet - kept out of the test flavor.
+
+d-i debian-installer/locale string en_US.UTF-8
+d-i keyboard-configuration/xkb-keymap select se
+
+d-i mirror/country string manual
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
+# All package fetches go through apt-cacher-ng on the provision server
+d-i mirror/http/proxy string http://10.100.0.2:3142
+d-i mirror/suite string trixie
+
+# Test env only: fixed root password, no user
+d-i passwd/root-login boolean true
+d-i passwd/root-password password pve-test
+d-i passwd/root-password-again password pve-test
+d-i passwd/make-user boolean false
+
+d-i clock-setup/utc boolean true
+d-i time/zone string Europe/Stockholm
+d-i clock-setup/ntp boolean false
+
+d-i partman-auto/method string regular
+d-i partman-auto/choose_recipe select atomic
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+d-i partman-efi/non_efi_system boolean true
+
+tasksel tasksel/first multiselect standard
+d-i pkgsel/include string openssh-server nftables wget ca-certificates
+popularity-contest popularity-contest/participate boolean false
+d-i pkgsel/upgrade select none
+
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/bootdev string default
+
+d-i preseed/late_command string \
+    dh_v4=$(sed -n 's/.*dh_v4=\([^ ]*\).*/\1/p' /proc/cmdline); \
+    base=http://10.100.0.2:8080; \
+    wget -q -O /target/etc/network/interfaces "$base/interfaces.py?hack_ip=$dh_v4&ifs=ens18"; \
+    wget -q -O /target/etc/nftables.conf "$base/data/nftables-baseline.conf"; \
+    in-target systemctl enable nftables; \
+    mkdir -p /target/root/.ssh; \
+    wget -q -O /target/root/.ssh/authorized_keys "$base/data/authorized_keys"; \
+    chmod 700 /target/root/.ssh; chmod 600 /target/root/.ssh/authorized_keys; \
+    sed -i 's/^GRUB_CMDLINE_LINUX=.*/GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200"/' /target/etc/default/grub; \
+    in-target update-grub; \
+    wget -q -O /dev/null "$base/provision.py?hack_ip=$dh_v4" || true
+
+d-i finish-install/reboot_in_progress note

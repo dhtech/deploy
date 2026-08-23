@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Script that simply writes a creation order to redis
 # for provisiond daemons to consume.
 # Note: Needs /etc/deploy.yaml to contain redis information
@@ -6,16 +6,18 @@
 
 import argparse
 import json
-import redis
 import sqlite3
 import sys
 import time
 import uuid
+
+import redis
 import yaml
+
+DB_FILE = '/etc/ipplan.db'
 
 
 def dehumanize(string):
-
   # abort if string is int
   if isinstance(string, int):
     return string
@@ -29,7 +31,7 @@ def dehumanize(string):
   suffix_map = {'T': 40, 'G': 30, 'M': 20, 'K': 10}
   suffix = string[-1]
   if suffix not in suffix_map:
-    print >>sys.stderr, 'Unknown suffix: %s' % suffix
+    print('Unknown suffix: %s' % suffix, file=sys.stderr)
     sys.exit(1)
 
   return int(string[:-1]) * (2 ** suffix_map[suffix])
@@ -37,21 +39,21 @@ def dehumanize(string):
 
 def getpkgs(fqdn):
   # See if we know about this host
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect(DB_FILE)
   c = conn.cursor()
   c.execute('SELECT name FROM host WHERE name = ?', (fqdn,))
   if not c.fetchone():
-    print >>sys.stderr, 'Unknown fqdn in ipplandb: %s' % fqdn
+    print('Unknown fqdn in ipplandb: %s' % fqdn, file=sys.stderr)
     sys.exit(1)
 
   c.execute(
     'SELECT option.value FROM host, option '
     'WHERE host.node_id = option.node_id '
     'AND option.name = "pkg" '
-    'AND host.name = ?' , (fqdn,))
+    'AND host.name = ?', (fqdn,))
   pkgs = c.fetchall()
   conn.close()
-  return [pkg[0].split('(',1)[0] for pkg in pkgs if not pkg[0].startswith('-')]
+  return [pkg[0].split('(', 1)[0] for pkg in pkgs if not pkg[0].startswith('-')]
 
 
 def getmaxpkgsize(pkglist, manifest):
@@ -69,21 +71,20 @@ def getmaxpkgsize(pkglist, manifest):
       cpulist.append(cpus)
       memorylist.append(memory)
       disklist.append(disk)
-      print "pkg: %s, cpu %s, memory %s, disk %s" % (pkg, cpus, str(size['memory']), str(size['disk']))
+      print('pkg: %s, cpu %s, memory %s, disk %s' % (
+          pkg, cpus, size['memory'], size['disk']))
     except KeyError:
-      print "pkg %s did not have hardware spec, key" % pkg
+      print('pkg %s did not have hardware spec, key' % pkg)
     # typeerror is needed for pkg firewall, edgecase
     except TypeError:
-      print "pkg %s did not have hardware spec, type" % pkg
-    
+      print('pkg %s did not have hardware spec, type' % pkg)
+
   if not cpulist:
-    print >>sys.stderr, 'Need atleast one package with hardware spec for deploy'
+    print('Need at least one package with hardware spec for deploy',
+          file=sys.stderr)
     sys.exit(1)
 
-  cpus = max(cpulist)
-  memory = max(memorylist)
-  disk = max(disklist)
-  return cpus, memory, disk
+  return max(cpulist), max(memorylist), max(disklist)
 
 
 def create_vm(args):
@@ -92,48 +93,48 @@ def create_vm(args):
   cpus = int(args.cpus)
 
   # See if we know about this host
-  conn = sqlite3.connect('/etc/ipplan.db')
+  conn = sqlite3.connect(DB_FILE)
   c = conn.cursor()
   c.execute('SELECT name FROM host WHERE name = ?', (args.hostname,))
   if not c.fetchone():
-    print >>sys.stderr, 'No host %s found in ipplan' % (args.hostname)
+    print('No host %s found in ipplan' % args.hostname, file=sys.stderr)
     sys.exit(1)
 
-  # Grab network settings for vCenter
+  # Grab network settings
   c.execute(
     'SELECT h.ipv4_addr_txt, n.ipv4_gateway_txt, n.ipv4_netmask_dec, n.vlan, '
     'n.name '
     'FROM network n, host h WHERE h.name = ? AND n.node_id == h.network_id',
     (args.hostname,))
   ipv4_address, ipv4_gateway, ipv4_prefix, vlan, network_name = c.fetchone()
-  domain, _ = network_name.split('@', 2)
+  domain, _ = network_name.split('@', 1)
 
   # See if the host has a specific OS in ipplan.
   c.execute(
     'SELECT option.value FROM host, option '
     'WHERE host.node_id = option.node_id '
     'AND option.name = "os" '
-    'AND host.name = ?' , (args.hostname,))
-
+    'AND host.name = ?', (args.hostname,))
   os_query = c.fetchone()
+  conn.close()
 
   # We default to debian if no specific OS is set.
   os = os_query[0] if os_query else 'debian'
 
   # Do some sanity checks
   success = False
-  if memory < 1024*1024*128:
-    print >>sys.stderr, 'Memory must be at least 128 MiB'
-  elif memory > 1024*1024*1024*64:
-    print >>sys.stderr, 'Memory must be no more than 64 GiB'
-  elif disk < 1024*1024*1024*10:
-    print >>sys.stderr, 'Disk must be at least 10 GiB'
-  elif disk > 1024*1024*1024*1024*2:
-    print >>sys.stderr, 'Disk must be no more than 2 TiB'
+  if memory < 1024 * 1024 * 128:
+    print('Memory must be at least 128 MiB', file=sys.stderr)
+  elif memory > 1024 * 1024 * 1024 * 64:
+    print('Memory must be no more than 64 GiB', file=sys.stderr)
+  elif disk < 1024 * 1024 * 1024 * 10:
+    print('Disk must be at least 10 GiB', file=sys.stderr)
+  elif disk > 1024 * 1024 * 1024 * 1024 * 2:
+    print('Disk must be no more than 2 TiB', file=sys.stderr)
   elif cpus < 1:
-    print >>sys.stderr, 'Number of CPUs must be at least 1'
+    print('Number of CPUs must be at least 1', file=sys.stderr)
   elif cpus > 16:
-    print >>sys.stderr, 'Number of CPUs must be no more than 16'
+    print('Number of CPUs must be no more than 16', file=sys.stderr)
   else:
     success = True
 
@@ -159,27 +160,21 @@ def create_vm(args):
       }
   }
 
-  create_key = 'create-vm-%s' % uuid.uuid1()
-  return creation, create_key
+  return creation, 'create-vm-%s' % uuid.uuid1()
 
 
 def configure(args):
-  configure = {
+  request = {
       'manager': args.provisioner,
       'name': args.hostname,
   }
 
   if args.add_esxi:
-    configure.update({
-        'operation': 'add-esxi-server',
-    })
+    request['operation'] = 'add-esxi-server'
   elif args.add_to_dvs:
-    configure.update({
-        'operation': 'add-host-to-dvs',
-        'interface': args.add_to_dvs
-    })
-  config_key = 'configure-vcenter-%s' % uuid.uuid1()
-  return configure, config_key
+    request['operation'] = 'add-host-to-dvs'
+    request['interface'] = args.add_to_dvs
+  return request, 'configure-vcenter-%s' % uuid.uuid1()
 
 
 if __name__ == '__main__':
@@ -196,24 +191,24 @@ if __name__ == '__main__':
       help='Register interface to DVS')
   create_group = parser.add_argument_group('creation')
   create_group.add_argument('--disk',
-      help='How much disk to use, humanized (default: 16G)')
+      help='How much disk to use, humanized (default: from manifest)')
   create_group.add_argument('--memory',
-      help='How much memory to use, humanized (default: 1G)')
+      help='How much memory to use, humanized (default: from manifest)')
   create_group.add_argument('--cpus',
-      help='How many CPU cores to use (default: 2)')
+      help='How many CPU cores to use (default: from manifest)')
   create_group.add_argument('--datastore', default=None,
       help='Explicit datastore to use (default: use the one with most space)')
   create_group.add_argument('--datacenter', default=None,
-      help='Explicit datacenter to use (default: use the domain the host belongs to)')
+      help='Explicit datacenter (default: the domain the host belongs to)')
 
   args = parser.parse_args()
-
 
   if args.add_esxi or args.add_to_dvs:
     creation, create_key = configure(args)
   else:
     # load manifest yaml file for hw info from pkg
-    manifest = yaml.safe_load(file('/etc/manifest'))
+    with open('/etc/manifest') as f:
+      manifest = yaml.safe_load(f)
 
     # check if server has hw info in pkg
     pkglist = getpkgs(args.hostname)
@@ -222,30 +217,29 @@ if __name__ == '__main__':
 
     if not args.cpus:
       args.cpus = cpus
-
     if not args.memory:
       args.memory = memory
-
     if not args.disk:
       args.disk = disk
 
-    print "using for server: cpu %s, memory %s, disk %s" % (args.cpus, args.memory, args.disk)
+    print('using for server: cpu %s, memory %s, disk %s' % (
+        args.cpus, args.memory, args.disk))
     creation, create_key = create_vm(args)
 
-
-  config = yaml.safe_load(file('/etc/deploy.yaml'))
-  r = redis.StrictRedis(**config['redis'])
+  with open('/etc/deploy.yaml') as f:
+    config = yaml.safe_load(f)
+  r = redis.Redis(**config['redis'])
 
   # Purge old provision records for this host
   for key in r.keys('host-*'):
     host = json.loads(r.get(key))
     if 'client' in host and host['client']['hostname'] == args.hostname:
       r.delete(key)
-      print 'Purged old deploy record for', args.hostname
+      print('Purged old deploy record for', args.hostname)
 
   r.setex(create_key, 3600, json.dumps(creation))
 
-  print 'Waiting for provisioner to pick up creation ..'
+  print('Waiting for provisioner to pick up creation ..')
   try:
     prev_error = None
     while r.exists(create_key):
@@ -253,15 +247,15 @@ if __name__ == '__main__':
       error = d.get('error', None)
       if error is not None and error != prev_error:
         prev_error = error
-        print 'Error:', error
+        print('Error:', error)
       time.sleep(1)
   except KeyboardInterrupt:
     r.delete(create_key)
-    print '\nCaught keyboard interrupt, removed creation request'
+    print('\nCaught keyboard interrupt, removed creation request')
     sys.exit(1)
   if args.add_esxi:
-    print 'Done! Server should now be managed by the vCenter server.'
+    print('Done! Server should now be managed by the vCenter server.')
   elif args.add_to_dvs:
-    print 'Done! Interface should now be part of the default DVS.'
+    print('Done! Interface should now be part of the default DVS.')
   else:
-    print 'Done! VM should now be created and powered on.'
+    print('Done! VM should now be created and powered on.')

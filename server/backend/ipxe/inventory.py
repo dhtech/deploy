@@ -44,7 +44,8 @@ def handle(contents):
     return None
 
 
-query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
+query_string = urllib.parse.parse_qs(
+    os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
 hostname = handle(query_string)
 
 print('')

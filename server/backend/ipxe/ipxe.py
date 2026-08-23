@@ -1,68 +1,64 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
+# Render the iPXE boot menu and Debian installer boot line.
+#
+# Gen-3 flow: the installer runs with DHCP on the deployment VLAN; the
+# production network config is written to the installed system and the
+# provisioner moves the machine to its production VLAN after the install
+# finishes. Legacy ESXi/OpenBSD/CoreOS/Tectonic menu entries are gone.
 
 import os
-import urlparse
-from lib import metadata 
+import urllib.parse
 
-query_string = urlparse.parse_qs(os.environ['QUERY_STRING'])
-# HACK(bluecmd): Since bnx2 iPXE doesn't like VLAN, we need to provide a way to
-# override IP in order to not screw the whole design up.
+from lib import metadata
+
+query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
 ip = os.environ['REMOTE_ADDR']
+# The install runs on the deployment VLAN; hack_ip carries the host's
+# production (ipplan) address, which is its identity here.
 if 'hack_ip' in query_string:
   ip = query_string['hack_ip'][0]
 
 client, cm = metadata.find(ip)
+BASE = metadata.base_url()
 
-mac = query_string['mac'][0]
+mac = query_string.get('mac', [''])[0]
 # Force unknown VMware MACs to use VGA installer
 is_vga = mac.startswith('00:0c:29:')
 
+
 def debian(label, vga=False, debug=False, serial='ttyS0', variant='debian'):
-  path = 'https://deploy.tech.dreamhack.se/{variant}-installer/amd64'.format(
-          variant=variant)
-  print ':' + label
-  print 'kernel {path}/linux'.format(path=path)
-  print 'initrd {path}/initrd.gz'.format(path=path)
+  path = '{base}/{variant}-installer/amd64'.format(base=BASE, variant=variant)
+  print(':' + label)
+  print('kernel {path}/linux'.format(path=path))
+  print('initrd {path}/initrd.gz'.format(path=path))
 
   args = [
-      'imgargs', 'linux', 'vga=normal', 'fb=false', 'auto=true', 'console=tty0',
-      'priority=high', 'locale=en_US', 'console-keymaps-at/keymap=se-latin1' ]
+      'imgargs', 'linux', 'vga=normal', 'fb=false', 'auto=true',
+      'console=tty0', 'priority=high', 'locale=en_US',
+      'console-keymaps-at/keymap=se-latin1']
 
-  if variant == 'ubuntu':
-    # Ubuntu has better netcfg so we don't have to do a lot of hacks
-    # Skip straight to start-preinstall
-    args.append('preseed/early_command="/start-preinstall deploy.tech.dreamhack.se"')
-    args.append('preseed/url=https://deploy.tech.dreamhack.se/debian/preseed-ubuntu')
-    args.append('netcfg/choose_interface=auto')
-    args.append('netcfg/get_hostname=${shortname}')
-    args.append('netcfg/hostname=${shortname}')
-    args.append('netcfg/get_domain=${dns_domain}')
-  else:
-    args.append('preseed/early_command="/early-launch deploy.tech.dreamhack.se"')
-    args.append('preseed/url=https://deploy.tech.dreamhack.se/preseed')
-    args.append('netcfg/get_hostname=${hostname}')
-    args.append('netcfg/hostname=${hostname}')
-    args.append('netcfg/get_domain=unassigned-domain')
-
-  args.append('netcfg/disable_dhcp=true')
-  args.append('netcfg/confirm_static=true')
-  args.append('netcfg/get_ipaddress=${v4_address}')
-  args.append('netcfg/get_netmask=${v4_netmask}')
-  args.append('netcfg/get_gateway=${v4_gateway}')
-  args.append('netcfg/get_nameservers=8.8.8.8')
-  args.append('netcfg/vlan_id=${vlan}')
+  args.append('preseed/url={base}/preseed'.format(base=BASE))
+  # Identity for late_command callbacks (finish/interfaces): the install
+  # runs on the deployment VLAN, so the production address rides along on
+  # the kernel command line.
+  args.append('dh_v4=${v4_address}')
+  args.append('netcfg/choose_interface=auto')
+  args.append('netcfg/get_hostname=${shortname}')
+  args.append('netcfg/hostname=${shortname}')
+  args.append('netcfg/get_domain=${dns_domain}')
 
   if not vga:
-    args.append('console={serial},9600n8'.format(serial=serial))
+    args.append('console={serial},115200n8'.format(serial=serial))
 
   if debug:
     args.append('--')
     args.append('DEBCONF_DEBUG=5')
 
-  print ' '.join(args)
-  print 'boot'
+  print(' '.join(args))
+  print('boot')
 
-print """
+
+print("""
 #!ipxe
 
 imgfree
@@ -71,23 +67,23 @@ imgfree
 menu Dreamhack Deploy System (host: {hostname})
 item autoinstall Autoinstall ({os}) {auto_suffix}
 item autoinstallvga Autoinstall ({os}) (Force VGA)
-item esxi ESXi install
 item --key s shell Drop to iPXE (s)hell
 item --key x exit E(x)it and continue BIOS boot order
 """.format(
-  hostname=client.hostname,
+  hostname=client.hostname if client else 'unknown',
   os=client.os_human if client and client.os_human else 'Autodetect',
-  auto_suffix='(VGA)' if client and client.virtual or is_vga else '(Serial)')
+  auto_suffix='(VGA)' if (client and client.virtual) or is_vga
+              else '(Serial)'))
 
 if cm and cm['installed']:
-  default = 'exit' if cm and cm['installed'] else 'autoinstall'
+  default = 'exit'
 else:
   default = 'autoinstall'
 
-print ('choose --timeout 15000 --default %s selected && goto ${selected} '
-       '|| goto %s' % (default, default))
+print('choose --timeout 15000 --default %s selected && goto ${selected} '
+      '|| goto %s' % (default, default))
 
-print """
+print("""
 goto menu
 
 :shell
@@ -96,37 +92,19 @@ goto menu
 
 :exit
 exit
-
-:esxi
-  kernel https://deploy.tech.dreamhack.se/esxi/mboot.c32 -c https://deploy.tech.dreamhack.se/esxi-boot.py?ip=%s
-  boot
-
-""" % (ip)
+""")
 
 if not client or not client.os or client.os == 'debian':
-  # NOTE(bluecmd): Default *must* be serial port installation, ttyS0
-  # as long as we're using iLO 2 servers. The VSP in iLO 2 is slow and doesn't
-  # seem to react to navigation in the menus, so let's use ttyS0 as the default.
+  # NOTE: serial installation is the default; our VMs attach their
+  # console to a serial port.
   debian('autoinstall', vga=client.virtual if client else is_vga)
   debian('autoinstallvga', vga=True)
 elif client.os == 'ubuntu':
   debian('autoinstall', vga=client.virtual if client else is_vga,
-          variant='ubuntu')
+         variant='ubuntu')
   debian('autoinstallvga', vga=True, variant='ubuntu')
 else:
-  print ':autoinstallvga'
-  print ':autoinstall'
-  if client.os == 'openbsd':
-    print 'initrd https://deploy.tech.dreamhack.se/dh-obsd-5.8-amd64.iso'
-    print 'chain https://deploy.tech.dreamhack.se/memdisk iso raw'
-  elif client.os == 'esxi':
-    print 'kernel https://deploy.tech.dreamhack.se/esxi/mboot.c32 -c https://deploy.tech.dreamhack.se/esxi-boot.py?ip=%s' % ip
-  elif client.os == 'cdrom':
-    print 'exit'
-  elif client.os == 'coreos':
-    print 'kernel https://deploy.tech.dreamhack.se/coreos/coreos_production_pxe.vmlinuz coreos.first_boot=1 coreos.config.url=oem:///install.ign coreos.autologin=tty1'
-    print 'initrd https://deploy.tech.dreamhack.se/coreos/coreos_production_pxe_image.cpio.gz'
-    print 'initrd https://deploy.tech.dreamhack.se/coreos/oem.cpio.py?hostname={hostname}'.format(hostname=client.hostname)
-  elif client.os == 'tectonic':
-    print 'chain http://provision-esx.event.dreamhack.se:8080/boot.ipxe'
-  print 'boot'
+  print(':autoinstallvga')
+  print(':autoinstall')
+  print('echo OS %s is not supported by this deploy server' % client.os)
+  print('exit')

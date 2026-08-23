@@ -1,0 +1,30 @@
+#!ipxe
+# Test-env flavor of the deploy chain script (served over HTTP from the
+# provision server on the deployment VLAN; prod uses HTTPS + pinned CA).
+
+# Step 0. DHCP on the deployment VLAN
+dhcp || exit
+prompt --key 0x02 --timeout 2000 Press Ctrl-B for the iPXE command line... && shell ||
+
+set base http://10.100.0.2:8080
+
+:retry
+
+# Step 1. Get hostname (UUID-first identity, serial fallback)
+chain ${base}/ipxe-inventory.py?uuid=${uuid}&serial=${serial}&manufacturer=${manufacturer} || goto retry
+
+# Step 2. Fetch production network settings as variables (no VLAN switch:
+# the install runs on the deployment VLAN; provisiond moves us afterwards)
+chain ${base}/ipxe-network.py?hostname=${hostname} || goto retry
+
+# Step 3. Register metadata; identity is the production address
+chain ${base}/ipxe-register.py?uuid=${uuid}&serial=${serial}&manufacturer=${manufacturer}&product=${product}&hack_ip=${v4_address} || goto fail
+
+# Step 4. Boot the installer
+chain ${base}/ipxe.py?mac=${net0/mac}&hack_ip=${v4_address} || goto fail
+
+:fail
+echo "Partial failure while loading deploy system!"
+echo "Will reboot in 5 seconds"
+sleep 5
+reboot

@@ -1,34 +1,30 @@
-#!/usr/bin/env python2
-# Configure iPXE network to production network
+#!/usr/bin/env python3
+# Expose the host's production network settings as iPXE variables.
+#
+# Gen-3 flow: the machine installs entirely on the deployment VLAN, so by
+# default this only *sets* the variables (the old 'noset' behavior); pass
+# vcreate=1 to actually switch iPXE onto the production VLAN (legacy flow).
 
 import os
-import urlparse
+import urllib.parse
 
 from lib import metadata
 
-
-query_string = urlparse.parse_qs(os.environ['QUERY_STRING'])
+query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
 hostname = query_string['hostname'][0]
 network = metadata.installation_network(hostname)
 
-print ''
-print '#!ipxe'
-for key, value in network.iteritems():
-  print 'set', key, value
+print('')
+print('#!ipxe')
+for key, value in sorted(network.items()):
+  print('set', key, value)
 
-if 'noset' not in query_string:
-  # Remove DHCP settings
-  print 'set net0/ip 0.0.0.0'
+if 'vcreate' in query_string:
+  # Legacy: move iPXE itself onto the production VLAN
+  print('set net0/ip 0.0.0.0')
+  print('vcreate --tag ${vlan} net0')
+  print('set net0-${vlan}/ip ${v4_address}')
+  print('set net0-${vlan}/netmask ${v4_netmask}')
+  print('set net0-${vlan}/gateway ${v4_gateway}')
 
-  # Apply settings to iPXE
-  print 'vcreate --tag ${vlan} net0'
-  print 'set net0-${vlan}/ip ${v4_address}'
-  print 'set net0-${vlan}/netmask ${v4_netmask}'
-  print 'set net0-${vlan}/gateway ${v4_gateway}'
-else:
-  # HACK(bluecmd): Since bnx2 iPXE doesn't like VLAN, we need to provide a way to
-  # override IP in order to not screw the whole design up.
-  print 'echo HACK: No-set hack enabled, will not switch over to VLAN'
-
-print 'echo My IP is ${v4_address} on VLAN ${vlan}'
-print 'sleep 3'
+print('echo Production address ${v4_address} on VLAN ${vlan}')
