@@ -57,9 +57,6 @@ packages:
       options: nodev,nosuid
     puppet:
       classes: [dhfirewall]
-      params:
-        dhfirewall:
-          open_tcp: [80, 443]
   vault:
     hardware:
       cpus: 2
@@ -69,26 +66,13 @@ packages:
       mountpoint: /var/lib/openbao
       options: nodev,nosuid,noexec
     puppet:
-      classes: [dhfirewall, 'dhacme::cert']
-      params:
-        dhfirewall:
-          open_tcp: [8200, 8443]
-        'dhacme::cert':
-          restart_cmd: systemctl restart openbao
-          key_group: openbao
+      classes: [dhfirewall, 'dhacme::cert', 'dhnginx::vault']
   puppetserver:
     hardware:
       cpus: 2
       memory: 3G
     puppet:
       classes: [dhfirewall, 'dhacme::issuer']
-      params:
-        dhfirewall:
-          open_tcp: [8140]
-        'dhacme::issuer':
-          domains: ['*.dh.notproduction.net', 'dh.notproduction.net']
-          email: acme@notproduction.net
-          acme_server: 'https://acme-v02.api.letsencrypt.org/directory'
 EOF
 
 python3 - <<'EOF'
@@ -170,14 +154,14 @@ table ip nat {
     type nat hook postrouting priority srcnat;
     oifname "ens18" ip saddr 10.100.0.0/24 masquerade
     oifname "ens18" ip saddr 10.200.0.0/24 masquerade
-    oifname "ens21" ip daddr 10.200.0.61 tcp dport 8200 masquerade
+    oifname "ens21" ip daddr 10.200.0.61 tcp dport 443 masquerade
   }
 }
 table ip deploynat {
   chain prerouting {
     type nat hook prerouting priority dstnat;
     # OpenBao web UI reachable from the workstation via the NAT NIC
-    iifname "ens18" tcp dport 8200 dnat to 10.200.0.61:8200
+    iifname "ens18" tcp dport 8200 dnat to 10.200.0.61:443
   }
 }
 EOF
