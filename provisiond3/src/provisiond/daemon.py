@@ -93,6 +93,11 @@ class VmManagerLoop:
         self.fqdn = fqdn
         self.interval = interval
         self._inventory: dict[str, VmInfo] | None = None  # backend_ref -> VmInfo
+        # Names we recently attempted to create: a backend error AFTER the
+        # VM came into existence keeps the order key, and the fresh VM may
+        # not show up in the inventory for a few scrapes — without this
+        # guard one order can storm into several VMs (seen live: three).
+        self._create_attempts: dict[str, float] = {}
         self.thread = threading.Thread(
             target=self.run, name=f"manager-{backend.name}", daemon=True
         )
@@ -155,12 +160,24 @@ class VmManagerLoop:
             try:
                 order = CreateOrder.from_json(key, raw)
                 known_names = {vm.name for vm in self._inventory.values()}
+                attempted = self._create_attempts.get(order.name, 0.0)
                 if order.name in known_names:
                     log.error(
                         "[%s] tried to create already existing VM %s",
                         self.backend.name,
                         order.name,
                     )
+                elif time.monotonic() - attempted < CREATE_COOLDOWN:
+                    # Recent attempt with a lingering order key: do NOT
+                    # retry blindly — the VM may exist even though the
+                    # attempt errored. Keep the key for the operator.
+                    log.warning(
+                        "[%s] create of %s attempted %.0fs ago; holding off",
+                        self.backend.name,
+                        order.name,
+                        time.monotonic() - attempted,
+                    )
+                    continue
                 elif order.os == "vcenter":
                     # Raises for backends without VCENTER_DEPLOY capability.
                     self.backend.deploy_vcenter(order)

@@ -76,9 +76,9 @@ the real ipplan file). Current inventory:
 | `puppet1.colo.notproduction.net` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |
 | `fusion1.colo.notproduction.net` | 10.200.0.63 | `fusiondirectory` | FusionDirectory web UI | — | planned |
 | `doc1.colo.notproduction.net` | 10.200.0.64 | `trac`, `svn` | Trac + SVN (doc server) | `/srv/trac` 15G + `/srv/svn` 20G | planned |
-| `ldap1-master.colo.notproduction.net` | 10.200.0.65 | `ldap` | directory master A (writable, mirror mode, seeds DIT) | `/var/lib/ldap` 10G | planned |
-| `ldap2-master.colo.notproduction.net` | 10.200.0.66 | `ldap` | directory master B (writable, mirror mode) | `/var/lib/ldap` 10G | planned |
-| `ldap1.colo.notproduction.net` | 10.200.0.67 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | planned |
+| `ldap1-master.colo.notproduction.net` | 10.200.0.65 | `ldap` | directory master A (writable, mirror mode, seeds DIT) | `/var/lib/ldap` 10G | live |
+| `ldap2-master.colo.notproduction.net` | 10.200.0.66 | `ldap` | directory master B (writable, mirror mode) | `/var/lib/ldap` 10G | live |
+| `ldap1.colo.notproduction.net` | 10.200.0.67 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | live |
 | `ldap2.colo.notproduction.net` | 10.200.0.68 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | planned |
 
 Directory topology: two mirror-mode **masters** in colo take all writes
