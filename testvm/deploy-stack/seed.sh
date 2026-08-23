@@ -77,6 +77,12 @@ packages:
     hardware:
       cpus: 2
       memory: 2G
+    puppet:
+      classes: [dhfirewall]
+  ldap:
+    hardware:
+      cpus: 2
+      memory: 2G
     appdisk:
       size: 10G
       mountpoint: /var/lib/ldap
@@ -131,6 +137,7 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (13, 'provision-dev.test.lan', '10.200.0.2'),
     (14, 'fusion1.test.lan', '10.200.0.63'),
     (15, 'doc1.test.lan', '10.200.0.64'),
+    (16, 'ldap1.test.lan', '10.200.0.65'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
@@ -138,6 +145,7 @@ c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
     (14, 'os', 'debian'), (14, 'pkg', 'fusiondirectory'),
     (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
+    (16, 'os', 'debian'), (16, 'pkg', 'ldap'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()
@@ -219,6 +227,7 @@ host-record=vault1.test.lan,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
 host-record=puppet1.test.lan,10.200.0.62
 host-record=fusion1.test.lan,10.200.0.63
+host-record=ldap1.test.lan,10.200.0.65
 host-record=doc1.test.lan,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64

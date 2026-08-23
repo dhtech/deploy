@@ -58,7 +58,9 @@ Live URLs:
   (real Let's Encrypt certificate — green padlock)
 
 Each service gets its **own dedicated VM**, deployed through the stack
-like everything else: FusionDirectory/LDAP on `fusion1`; Trac **and** SVN together on `doc1`
+like everything else: FusionDirectory (web UI) on `fusion1`, with the directory itself
+(slapd) on its own **internal** VM `ldap1` (puppet-CA TLS, not a
+website); Trac **and** SVN together on `doc1`
 (their appdisks become separate LVs on its vgapp: `/srv/trac` + `/srv/svn`).
 
 ## Adding a new public website (checklist)
