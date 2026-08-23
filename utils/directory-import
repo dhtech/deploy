@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Transform a production slapcat dump into a clean gen-3 LDIF.
+
+Reads slapcat LDIF on stdin, writes sanitized LDIF on stdout. Pure
+transform - no LDAP connection. Meant to be re-run on every fresh prod
+dump:
+
+  incremental top-up (existing entries skipped):
+    ./directory-import < thecat.ldif | ssh <master> ldapadd -c -x \\
+        -D cn=admin,dc=dreamhack,dc=se -w <pw>
+
+  full refresh: wipe the sub-trees on master A first (ldapdelete -r of
+  dc=tech/dc=event/dc=colo/dc=crew children), then load as above;
+  mirrors and slaves resync automatically.
+
+What it does:
+  - drops FusionDirectory/GOsa: every gosa*/fd* objectClass and their
+    attributes, the ou=fusiondirectory / ou=aclroles / ou=templates /
+    ou=snapshots subtrees, and FD service accounts at the root
+  - keeps an attribute allowlist (posix/inetOrgPerson essentials,
+    sshPublicKey, jpegPhoto, group membership); base64 values are
+    passed through byte-exact
+  - skips base containers the servers seed themselves (suffix, sub-dcs,
+    ou=people/ou=groups, cn=replicator)
+  - prunes member DNs that point at skipped entries
+"""
+
+import base64
+import sys
+
+SKIP_SUBTREE_MARKERS = ('ou=fusiondirectory', 'ou=aclroles',
+                        'ou=templates', 'ou=snapshots', 'ou=snapshots,')
+SKIP_CLASSES = ('gosaRole', 'gosaAcl', 'gosaCacheEntry')
+DROP_CLASS_PREFIXES = ('gosa', 'fd')
+KEEP_ATTRS = {
+    'objectclass', 'dc', 'o', 'ou', 'uid', 'cn', 'sn', 'givenname',
+    'mail', 'uidnumber', 'gidnumber', 'homedirectory', 'loginshell',
+    'sshpublickey', 'member', 'memberuid', 'description', 'l',
+    'jpegphoto',
+}
+KEEP_ATTR_PREFIXES = ('shadow',)
+# containers dh-ldap-config seeds on the masters - never import them:
+# the suffix, the sub-dcs, and ou=people/ou=groups DIRECTLY under them
+# (deeper OUs like ou=groups,ou=services,dc=event are real data)
+import re
+SEEDED_RE = re.compile(
+    r'^(dc=[^,]+,)?dc=dreamhack,dc=se$|'
+    r'^(ou=people|ou=groups),(dc=[^,]+,)?dc=dreamhack,dc=se$',
+    re.IGNORECASE)
+
+
+def parse(stream):
+  """Yield (dn, [(attr, value, is_b64)]) per entry."""
+  entry = []
+  for raw in stream:
+    line = raw.rstrip('\n')
+    if line.startswith('#'):
+      continue
+    if line == '':
+      if entry:
+        yield unfold(entry)
+        entry = []
+      continue
+    if line.startswith(' ') and entry:
+      entry[-1] += line[1:]
+    else:
+      entry.append(line)
+  if entry:
+    yield unfold(entry)
+
+
+def unfold(lines):
+  dn = None
+  attrs = []
+  for line in lines:
+    if line.startswith('dn:: '):
+      dn = base64.b64decode(line[5:]).decode('utf-8', 'replace')
+    elif line.startswith('dn: '):
+      dn = line[4:]
+    elif ':: ' in line:
+      attr, value = line.split(':: ', 1)
+      attrs.append((attr, value, True))
+    elif ': ' in line:
+      attr, value = line.split(': ', 1)
+      attrs.append((attr, value, False))
+  return dn, attrs
+
+
+def keep_attr(attr):
+  a = attr.lower()
+  return a in KEEP_ATTRS or a.startswith(KEEP_ATTR_PREFIXES)
+
+
+def is_seeded_container(dn):
+  return bool(SEEDED_RE.match(dn.strip()))
+
+
+def transform(stream, out):
+  kept_dns = set()
+  entries = []
+  skipped = 0
+  for dn, attrs in parse(stream):
+    if dn is None:
+      continue
+    low = dn.lower()
+    if any(m in low for m in SKIP_SUBTREE_MARKERS):
+      skipped += 1
+      continue
+    ocs = [v for a, v, b in attrs if a.lower() == 'objectclass']
+    if any(oc in SKIP_CLASSES for oc in ocs):
+      skipped += 1
+      continue
+    # FD service accounts directly under the root
+    if low.startswith('cn=') and low.count(',dc=') == 2:
+      skipped += 1
+      continue
+    if is_seeded_container(dn) or low == 'cn=replicator,dc=dreamhack,dc=se':
+      skipped += 1
+      continue
+    new_ocs = [oc for oc in ocs
+               if not oc.lower().startswith(DROP_CLASS_PREFIXES)]
+    if not new_ocs or new_ocs == ['top']:
+      skipped += 1
+      continue
+    new_attrs = [('objectClass', oc, False) for oc in new_ocs]
+    new_attrs += [(a, v, b) for a, v, b in attrs
+                  if a.lower() != 'objectclass' and keep_attr(a)]
+    entries.append((dn, new_attrs))
+    kept_dns.add(low)
+
+  written = 0
+  pruned_members = 0
+  for dn, attrs in entries:
+    out.write('dn: %s\n' % dn)
+    for attr, value, is_b64 in attrs:
+      if attr.lower() == 'member' and value.lower() not in kept_dns:
+        pruned_members += 1
+        continue
+      sep = ':: ' if is_b64 else ': '
+      out.write('%s%s%s\n' % (attr, sep, value))
+    out.write('\n')
+    written += 1
+  print('directory-import: %d entries written, %d skipped, '
+        '%d dangling member DNs pruned' % (written, skipped, pruned_members),
+        file=sys.stderr)
+
+
+if __name__ == '__main__':
+  transform(sys.stdin, sys.stdout)

@@ -17,8 +17,7 @@ def generate(host, params, manifest):
       'dhfirewall': {'open_tcp': [443]},
       'dhlam': {
           'ldap_uris': ['ldaps://%s' % h for h, _ in masters],
-          'suffixes': ['dc=tech,dc=dreamhack,dc=se',
-                       'dc=event,dc=dreamhack,dc=se'],
+          'suffixes': ['dc=dreamhack,dc=se'],
       },
   }
   if webname:

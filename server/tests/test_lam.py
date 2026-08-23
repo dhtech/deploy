@@ -24,8 +24,7 @@ def test_lam_params(ipplan, manifest):
   classes = enc.classify('directory1.test', manifest)
   assert classes['dhlam']['ldap_uris'] == [
       'ldaps://ldap1-master.test', 'ldaps://ldap2-master.test']
-  assert classes['dhlam']['suffixes'] == [
-      'dc=tech,dc=dreamhack,dc=se', 'dc=event,dc=dreamhack,dc=se']
+  assert classes['dhlam']['suffixes'] == ['dc=dreamhack,dc=se']
   assert classes['dhacme::cert']['cert_name'] == 'directory.dh.example'
   assert classes['dhnginx::lam']['server_name'] == 'directory.dh.example'
   assert classes['dhfirewall']['open_tcp'] == [443]
