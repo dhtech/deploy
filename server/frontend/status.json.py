@@ -20,7 +20,10 @@ def collect(store):
 
     for key in store.keys('host-*'):
         key = key.decode()
-        props = json.loads(store.get(key))
+        try:
+            props = json.loads(store.get(key))
+        except (ValueError, TypeError):
+            continue
         hostname = key.split('-', 1)[1]
         last_log = store.get('last-log-' + hostname)
         if props.get('installed'):
@@ -45,7 +48,10 @@ def collect(store):
         })
 
     for key in store.keys('create-vm-*'):
-        props = json.loads(store.get(key))
+        try:
+            props = json.loads(store.get(key))
+        except (ValueError, TypeError):
+            continue
         data['vm_orders'].append({
             'name': props.get('name'),
             'manager': props.get('manager'),
@@ -54,7 +60,13 @@ def collect(store):
         })
 
     for key in store.keys('install-*'):
-        props = json.loads(store.get(key))
+        # install-ip-* are installer identity mappings, not orders
+        if key.decode().startswith('install-ip-'):
+            continue
+        try:
+            props = json.loads(store.get(key))
+        except (ValueError, TypeError):
+            continue
         data['hw_orders'].append({
             'name': props.get('name'),
             'manager': props.get('manager'),
@@ -64,7 +76,10 @@ def collect(store):
 
     for key in store.keys('vm-*'):
         key = key.decode()
-        props = json.loads(store.get(key))
+        try:
+            props = json.loads(store.get(key))
+        except (ValueError, TypeError):
+            continue
         data['vms'].append({
             'name': props.get('name'),
             'manager': props.get('manager'),
