@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -eu
+cd "$(dirname "$0")"
+
+if [ ! -f pve-test.qcow2 ]; then
+  echo "Missing pve-test.qcow2; run ./provision.sh and ./install.sh first" >&2
+  exit 1
+fi
+
+exec qemu-system-x86_64 \
+  -name proxmox-ve \
+  -enable-kvm \
+  -machine q35 \
+  -cpu host \
+  -m "${MEMORY:-12G}" \
+  -smp "${CPUS:-4}" \
+  -drive file=pve-test.qcow2,format=qcow2,if=virtio \
+  -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:4454-:22,hostfwd=tcp:127.0.0.1:8006-:8006 \
+  -nographic
