@@ -46,14 +46,17 @@ browser
 | `127.0.0.1:8768` | provision1:8080 | deploy status page | live |
 | `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
-| `127.0.0.1:8444` | provision1:444 → future `directory1` VM | Directory UI (LAM) | reserved |
-| `127.0.0.1:8445` | provision1:445 → future `doc1` VM | Trac + SVN (doc) | reserved |
+| `127.0.0.1:8444` | → directory1:443 (DNAT) | Directory UI (LAM) | live |
+| `127.0.0.1:8445` | → doc1:443 (DNAT) | Trac + SVN (doc) | reserved |
+| `127.0.0.1:8447` | → puppet1:443 (DNAT) | **puppetboard** (nginx + LE, tech group) | live |
 
 Live URLs:
 
 - Deploy status: <http://localhost:8768>
 - Proxmox: <https://localhost:8006> (root / Linux PAM)
 - OpenBao (puppet-CA listener): <https://localhost:8200/ui>
+- Puppetboard: <https://puppet.dh.notproduction.net:8447> (hosts entry
+  `127.0.0.1 puppet.dh.notproduction.net`; directory login, tech group)
 - **Vault website**: <https://vault.dh.notproduction.net:8443/ui>
   (real Let's Encrypt certificate — green padlock)
 

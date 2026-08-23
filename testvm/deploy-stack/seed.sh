@@ -298,6 +298,7 @@ table ip nat {
     oifname "ens21" ip daddr 10.200.0.61 tcp dport { 443, 8200 } masquerade
     oifname "ens21" ip daddr 10.200.0.63 tcp dport 443 masquerade
     oifname "ens21" ip daddr 10.200.0.64 tcp dport 443 masquerade
+    oifname "ens21" ip daddr 10.200.0.62 tcp dport 443 masquerade
   }
 }
 table ip deploynat {
@@ -311,6 +312,8 @@ table ip deploynat {
     # directory (LAM) and doc1 (Trac+SVN) websites
     iifname "ens18" tcp dport 444 dnat to 10.200.0.63:443
     iifname "ens18" tcp dport 445 dnat to 10.200.0.64:443
+    # puppetboard website (puppet1)
+    iifname "ens18" tcp dport 447 dnat to 10.200.0.62:443
   }
 }
 EOF
