@@ -200,14 +200,22 @@ table ip nat {
     type nat hook postrouting priority srcnat;
     oifname "ens18" ip saddr 10.100.0.0/24 masquerade
     oifname "ens18" ip saddr 10.200.0.0/24 masquerade
-    oifname "ens21" ip daddr 10.200.0.61 tcp dport 443 masquerade
+    oifname "ens21" ip daddr 10.200.0.61 tcp dport { 443, 8200 } masquerade
+    oifname "ens21" ip daddr 10.200.0.63 tcp dport 443 masquerade
+    oifname "ens21" ip daddr 10.200.0.64 tcp dport 443 masquerade
   }
 }
 table ip deploynat {
   chain prerouting {
     type nat hook prerouting priority dstnat;
-    # OpenBao web UI reachable from the workstation via the NAT NIC
-    iifname "ens18" tcp dport 8200 dnat to 10.200.0.61:443
+    # Workstation-facing forwards via the NAT NIC (see WEBSITES.md):
+    # OpenBao API/UI (puppet-CA listener)
+    iifname "ens18" tcp dport 8200 dnat to 10.200.0.61:8200
+    # vault website (nginx + Let's Encrypt)
+    iifname "ens18" tcp dport 443 dnat to 10.200.0.61:443
+    # reserved: fusion1 (FusionDirectory) and doc1 (Trac+SVN) websites
+    iifname "ens18" tcp dport 444 dnat to 10.200.0.63:443
+    iifname "ens18" tcp dport 445 dnat to 10.200.0.64:443
   }
 }
 EOF
