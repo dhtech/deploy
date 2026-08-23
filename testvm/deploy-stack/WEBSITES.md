@@ -47,7 +47,7 @@ browser
 | `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
 | `127.0.0.1:8444` | provision-dev:444 → future `ldap1` VM | FusionDirectory/LDAP UI | reserved |
-| `127.0.0.1:8445` | provision-dev:445 → future `trac1` VM | Trac | reserved |
+| `127.0.0.1:8445` | provision-dev:445 → future `doc1` VM | Trac + SVN (doc) | reserved |
 
 Live URLs:
 
@@ -58,7 +58,8 @@ Live URLs:
   (real Let's Encrypt certificate — green padlock)
 
 Each service gets its **own dedicated VM**, deployed through the stack
-like everything else: FusionDirectory/LDAP on `ldap1`, Trac on `trac1`.
+like everything else: FusionDirectory/LDAP on `ldap1`; Trac **and** SVN together on `doc1`
+(their appdisks become separate LVs on its vgapp: `/srv/trac` + `/srv/svn`).
 
 ## Adding a new public website (checklist)
 

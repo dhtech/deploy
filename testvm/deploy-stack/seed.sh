@@ -93,6 +93,16 @@ packages:
       options: nodev,nosuid
     puppet:
       classes: [dhfirewall]
+  svn:
+    hardware:
+      cpus: 2
+      memory: 2G
+    appdisk:
+      size: 20G
+      mountpoint: /srv/svn
+      options: nodev,nosuid
+    puppet:
+      classes: [dhfirewall]
 EOF
 
 python3 - <<'EOF'
@@ -120,14 +130,14 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (12, 'puppet1.test.lan', '10.200.0.62'),
     (13, 'provision-dev.test.lan', '10.200.0.2'),
     (14, 'ldap1.test.lan', '10.200.0.63'),
-    (15, 'trac1.test.lan', '10.200.0.64'),
+    (15, 'doc1.test.lan', '10.200.0.64'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
     (14, 'os', 'debian'), (14, 'pkg', 'fusiondirectory'),
-    (15, 'os', 'debian'), (15, 'pkg', 'trac'),
+    (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()
@@ -209,9 +219,9 @@ host-record=vault1.test.lan,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
 host-record=puppet1.test.lan,10.200.0.62
 host-record=ldap1.test.lan,10.200.0.63
-host-record=trac1.test.lan,10.200.0.64
+host-record=doc1.test.lan,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
-host-record=trac.dh.notproduction.net,10.200.0.64
+host-record=doc.dh.notproduction.net,10.200.0.64
 EOF
 systemctl restart dnsmasq
 
