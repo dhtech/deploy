@@ -62,6 +62,15 @@ packages:
     hardware:
       cpus: 1
       memory: 1G
+  login:
+    hardware:
+      cpus: 1
+      memory: 1G
+    puppet:
+      classes: [dhlogin]
+      params:
+        dhlogin:
+          sudo_groups: [everyone]
   web:
     hardware:
       cpus: 2
@@ -172,6 +181,7 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
+    (10, 'pkg', 'login'),
     (13, 'pkg', 'jumpgate'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
