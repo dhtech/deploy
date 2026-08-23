@@ -179,7 +179,12 @@ hosts entries make them work offline too. Paste into `/etc/hosts`:
 
 ```
 # dh lab web services
-127.0.0.1 vault.dh.notproduction.net pve1.dh.notproduction.net pve2.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net deploy.dh.notproduction.net
+127.0.0.1 vault.dh.notproduction.net
+127.0.0.1 pve1.dh.notproduction.net
+127.0.0.1 pve2.dh.notproduction.net
+127.0.0.1 fusion.dh.notproduction.net
+127.0.0.1 doc.dh.notproduction.net
+127.0.0.1 deploy.dh.notproduction.net
 ```
 
 | URL | Service |
