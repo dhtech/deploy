@@ -156,6 +156,8 @@ class ProxmoxBackend(Provisioner):
             "scsihw": "virtio-scsi-single",
             "scsi0": f"{storage}:{disk_gib}",
             "net0": net0,
+            # Deployed machines come back when the hypervisor reboots.
+            "onboot": 1,
             # Disk first: OVMF skips the blank disk near-instantly and
             # falls through to PXE for the install; once installed, every
             # boot goes straight to disk with no PXE timeouts. VM
