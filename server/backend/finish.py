@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import time
 import urllib.parse
 
 from lib import metadata
@@ -23,6 +24,7 @@ if not cm['installed']:
   # This will tell provisiond to provision the machine if not already done
   # and also tell ipxe.py to boot to disk as default
   cm['installed'] = True
+  cm['finished'] = int(time.time())
   cm['client'] = client._asdict()
   cm['network'] = network._asdict() if network else None
 

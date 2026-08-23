@@ -3,6 +3,7 @@
 # Needs /etc/deploy.yaml to contain redis information.
 
 import json
+import time
 
 import redis
 import yaml
@@ -28,8 +29,14 @@ def collect(store):
             state = 'installing'
         else:
             state = 'starting'
+        started = props.get('started')
+        finished = props.get('finished')
+        duration = None
+        if started:
+            duration = int((finished or time.time()) - started)
         data['hosts'].append({
             'hostname': hostname,
+            'duration': duration,
             'product': props.get('product', ''),
             'state': state,
             'log': last_log.decode(errors='replace') if last_log else None,

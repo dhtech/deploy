@@ -4,6 +4,7 @@
 import json
 import os
 import syslog
+import time
 import urllib.parse
 
 from lib import metadata
@@ -27,7 +28,8 @@ def handle(ip, contents):
       'uuid': contents['uuid'][0],
       'manufacturer': manufacturer,
       'serial': contents['serial'][0],
-      'product': contents['product'][0]
+      'product': contents['product'][0],
+      'started': int(time.time())
      }
 
   hostname = metadata.lookup_ip(ip)

@@ -104,6 +104,13 @@
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
   (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
+function fmtDuration(secs) {
+  if (secs == null) return "";
+  const m = Math.floor(secs / 60), s = secs % 60;
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
 const STATE_LABELS = {
   "done": "Done",
   "waiting-for-provision": "Waiting for provision",
@@ -122,7 +129,7 @@ function table(headers, rows) {
 
 function render(data) {
   document.getElementById("hosts").outerHTML = '<div id="hosts">'
-    + table(["Host", "Product", "State", "TTL"], data.hosts.map((h) => {
+    + table(["Host", "Product", "State", "Duration", "TTL"], data.hosts.map((h) => {
         let state = `<span class="state ${esc(h.state)}">`
           + esc(STATE_LABELS[h.state] || h.state) + "</span>";
         if (h.state === "installing" && h.log)
@@ -130,6 +137,7 @@ function render(data) {
         if (h.error) state += `<div class="error">${esc(h.error)}</div>`;
         return `<td>${esc(h.hostname)}</td><td>${esc(h.product)}</td>`
           + `<td style="white-space:normal">${state}</td>`
+          + `<td class="ttl">${fmtDuration(h.duration)}</td>`
           + `<td class="ttl">${esc(h.ttl)}</td>`;
       })) + "</div>";
 
