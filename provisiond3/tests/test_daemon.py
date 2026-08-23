@@ -3,7 +3,7 @@ import json
 import fakeredis
 import pytest
 
-from provisiond.backends.base import Capability, Provisioner, VmInfo
+from provisiond.backends.base import Capability, Provisioner, ProvisionerError, VmInfo
 from provisiond.daemon import VmManagerLoop
 from provisiond.orders import CreateOrder
 
@@ -123,7 +123,7 @@ def test_vcenter_order_rejected_without_capability(loop):
     mgr, _backend, r = loop
     r.setex("create-vm-1", 3600, json.dumps(dict(ORDER, os="vcenter")))
     mgr.scrape()
-    with pytest.raises(ValueError):
+    with pytest.raises(ProvisionerError):
         mgr.create()
     assert "error" in json.loads(r.get("create-vm-1"))
 

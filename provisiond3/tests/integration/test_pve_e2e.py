@@ -102,7 +102,7 @@ def test_e2e_create_provision_delete(backend):
         while time.monotonic() < deadline and not saw_dhcp:
             out = subprocess.run(
                 ["journalctl", "-u", "isc-dhcp-server", "--since", "-3min", "-o", "cat"],
-                capture_output=True, text=True,
+                capture_output=True, text=True, check=False,
             ).stdout
             saw_dhcp = mac.split("=")[1].lower() in out.lower()
             if not saw_dhcp:

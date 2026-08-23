@@ -62,8 +62,10 @@ class VmManagerLoop:
             time.sleep(self.interval)
 
     def iterate(self) -> None:
+        self.backend.ensure_setup()
         self.scrape()
         self.create()
+        self.configure()
         self.provision()
 
     # -- scrape ----------------------------------------------------------
@@ -113,11 +115,8 @@ class VmManagerLoop:
                         order.name,
                     )
                 elif order.os == "vcenter":
-                    if Capability.VCENTER_DEPLOY not in self.backend.capabilities:
-                        raise ValueError(
-                            f"manager {self.backend.name} cannot deploy vcenter"
-                        )
-                    self.backend.create_vm(order, self.deploy_vlan)
+                    # Raises for backends without VCENTER_DEPLOY capability.
+                    self.backend.deploy_vcenter(order)
                 else:
                     log.info(
                         "[%s] creating VM %s (cpus=%d memory=%d disk=%d os=%s)",
@@ -135,6 +134,25 @@ class VmManagerLoop:
                 raise
             # Delete the order since we are done; failures above keep the
             # key (with the error field) so the operator can see and retry.
+            self.redis.delete(key)
+
+    # -- configure (vCenter management requests) -------------------------
+
+    def configure(self) -> None:
+        """Handle configure-vcenter-* requests (VMware managers only)."""
+        if Capability.VCENTER_DEPLOY not in self.backend.capabilities:
+            return
+        for rawkey in cast(list[bytes], self.redis.keys("configure-vcenter-*")):
+            key = rawkey.decode() if isinstance(rawkey, bytes) else rawkey
+            raw = cast("bytes | None", self.redis.get(key))
+            if raw is None:
+                continue
+            request = json.loads(raw)
+            if request.get("manager") != self.backend.name:
+                continue
+            self.backend.configure_vcenter(request)
+            # Delete the request since we are done; a raise above keeps the
+            # key so it is retried next cycle (parity with gen-2).
             self.redis.delete(key)
 
     # -- provision -------------------------------------------------------

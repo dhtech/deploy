@@ -58,3 +58,16 @@ class Provisioner(ABC):
 
     def close(self) -> None:
         """Release any connection state; called between cycles if needed."""
+
+    # -- optional (Capability.VCENTER_DEPLOY backends only) --------------
+
+    def ensure_setup(self) -> None:
+        """First-contact setup of the managed endpoint; default no-op."""
+
+    def deploy_vcenter(self, order: CreateOrder) -> None:
+        """Deploy a vCenter appliance for an os == 'vcenter' order."""
+        raise ProvisionerError(f"manager {self.name} cannot deploy vcenter")
+
+    def configure_vcenter(self, request: dict[str, object]) -> None:
+        """Handle a configure-vcenter-* request."""
+        raise ProvisionerError(f"manager {self.name} cannot configure vcenter")
