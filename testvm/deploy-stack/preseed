@@ -13,22 +13,29 @@ d-i mirror/http/directory string /debian
 d-i mirror/http/proxy string http://10.100.0.2:3142
 d-i mirror/suite string trixie
 
-# Test env only: fixed root password, no user
+# Root password is generated per host by early.py and stored in the
+# secret store (OpenBao); no user account.
+d-i preseed/early_command string \
+    dh_v4=$(sed -n 's/.*dh_v4=\([^ ]*\).*/\1/p' /proc/cmdline); \
+    dh_base=$(sed -n 's/.*dh_base=\([^ ]*\).*/\1/p' /proc/cmdline); \
+    wget -q -O /tmp/dh-early "$dh_base/early.py?hack_ip=$dh_v4" && sh /tmp/dh-early
 d-i passwd/root-login boolean true
-d-i passwd/root-password password pve-test
-d-i passwd/root-password-again password pve-test
 d-i passwd/make-user boolean false
 
 d-i clock-setup/utc boolean true
 d-i time/zone string Europe/Stockholm
 d-i clock-setup/ntp boolean false
 
-d-i partman-auto/method string regular
+# partman-auto/method is set by early.py (lvm; crypto for EVENT hosts)
 d-i partman-auto/choose_recipe select atomic
+d-i partman-auto-lvm/guided_size string max
 d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
 d-i partman/confirm_nooverwrite boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
+d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-efi/non_efi_system boolean true
 
 tasksel tasksel/first multiselect standard

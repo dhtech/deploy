@@ -41,10 +41,11 @@ def debian(label, vga=False, debug=False, serial='ttyS0', variant='debian'):
       'ipv6.disable=1']
 
   args.append('preseed/url={base}/preseed'.format(base=BASE))
-  # Identity for late_command callbacks (finish/interfaces): the install
-  # runs on the deployment VLAN, so the production address rides along on
-  # the kernel command line.
+  # Identity for early/late script callbacks: the install runs on the
+  # deployment VLAN, so the production address and the deploy base URL
+  # ride along on the kernel command line.
   args.append('dh_v4=${v4_address}')
+  args.append('dh_base=%s' % BASE)
   args.append('netcfg/choose_interface=auto')
   args.append('netcfg/get_hostname=${shortname}')
   args.append('netcfg/hostname=${shortname}')
