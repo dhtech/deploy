@@ -366,7 +366,11 @@ cat > /etc/nginx/sites-available/deploy-web <<EOF
 # deploy status website (LE cert); the plain :8080 apache stays for the
 # installer CGIs on the deploy VLAN.
 server {
+  # 446: the workstation-facing port (ens18:443 is DNATed to the vault
+  # website, so the deploy site cannot share it); 443 kept for lab-
+  # internal access.
   listen 443 ssl;
+  listen 446 ssl;
   server_name deploy.dh.notproduction.net;
   ssl_certificate     /etc/dh-certs/deploy.dh.notproduction.net.fullchain.pem;
   ssl_certificate_key /etc/dh-certs/deploy.dh.notproduction.net.key;
