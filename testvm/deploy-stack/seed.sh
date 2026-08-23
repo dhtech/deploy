@@ -129,7 +129,7 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (11, 'vault1.test.lan', '10.200.0.61'),
     (12, 'puppet1.test.lan', '10.200.0.62'),
     (13, 'provision-dev.test.lan', '10.200.0.2'),
-    (14, 'ldap1.test.lan', '10.200.0.63'),
+    (14, 'fusion1.test.lan', '10.200.0.63'),
     (15, 'doc1.test.lan', '10.200.0.64'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
@@ -218,7 +218,7 @@ host-record=web1.test.lan,10.200.0.60
 host-record=vault1.test.lan,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
 host-record=puppet1.test.lan,10.200.0.62
-host-record=ldap1.test.lan,10.200.0.63
+host-record=fusion1.test.lan,10.200.0.63
 host-record=doc1.test.lan,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64

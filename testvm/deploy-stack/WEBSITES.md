@@ -46,7 +46,7 @@ browser
 | `127.0.0.1:8768` | provision-dev:8080 | deploy status page | live |
 | `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
-| `127.0.0.1:8444` | provision-dev:444 → future `ldap1` VM | FusionDirectory/LDAP UI | reserved |
+| `127.0.0.1:8444` | provision-dev:444 → future `fusion1` VM | FusionDirectory/LDAP UI | reserved |
 | `127.0.0.1:8445` | provision-dev:445 → future `doc1` VM | Trac + SVN (doc) | reserved |
 
 Live URLs:
@@ -58,25 +58,25 @@ Live URLs:
   (real Let's Encrypt certificate — green padlock)
 
 Each service gets its **own dedicated VM**, deployed through the stack
-like everything else: FusionDirectory/LDAP on `ldap1`; Trac **and** SVN together on `doc1`
+like everything else: FusionDirectory/LDAP on `fusion1`; Trac **and** SVN together on `doc1`
 (their appdisks become separate LVs on its vgapp: `/srv/trac` + `/srv/svn`).
 
 ## Adding a new public website (checklist)
 
 Using the reserved FusionDirectory slot as the example:
 
-1. **ipplan/manifest**: add the host (e.g. `ldap1.test.lan`,
+1. **ipplan/manifest**: add the host (e.g. `fusion1.test.lan`,
    `10.200.0.63`) with its pkg; give the pkg `puppet: classes:
    [dhfirewall, 'dhacme::cert', 'dhnginx::<service>']` in the manifest
    (classification only — no params there).
-2. **Deploy**: `deploy-vm ldap1.test.lan coloc` (~4 min).
+2. **Deploy**: `deploy-vm fusion1.test.lan coloc` (~4 min).
 3. **Puppet repo** (`~/repos/dh/local/puppet`):
    - hiera `data/common.yaml`: append the new name to
      `dhacme::issuer::domains`? No — single certs: add the domain to the
      issuer by adding a second `dhacme::issuer` cert run, or reuse the
      class per-domain (current issuer handles one cert; extend when the
      second site lands).
-   - hiera `data/nodes/ldap1.test.lan.yaml`: `dhfirewall::open_tcp:
+   - hiera `data/nodes/fusion1.test.lan.yaml`: `dhfirewall::open_tcp:
      [443, 636]`, `dhacme::cert::cert_name: 'fusion.dh.notproduction.net'`.
    - a `dhnginx::<service>` class (copy `dhnginx/manifests/vault.pp`).
    - `git push puppet1 main` (push-to-deploy).
