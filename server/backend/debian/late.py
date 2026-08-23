@@ -105,8 +105,10 @@ print('in-target update-grub')
 # go missing (seen once: VM stranded in the UEFI shell after install);
 # the removable-media fallback boots regardless. debconf keeps it across
 # grub package upgrades.
-print('echo "grub-efi-amd64 grub2/force_efi_extra_removable boolean true"'
-      ' | in-target debconf-set-selections')
+# NB: pipe must live inside the chroot — in-target swallows stdin
+# (same trap as the chpasswd fix below).
+print('in-target sh -c \'echo "grub-efi-amd64 grub2/force_efi_extra_removable'
+      ' boolean true" | debconf-set-selections\'')
 print('in-target grub-install --force-extra-removable')
 print('wget -q -O /target/root/.vimrc "%s/data/vimrc" || true' % base)
 
