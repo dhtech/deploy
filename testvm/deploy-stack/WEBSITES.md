@@ -87,7 +87,9 @@ pair of read-only slaves** (syncrepl from both masters over ldaps,
 puppet-CA verified) for resilient local reads. ldaps 636 only, no
 plaintext 389. Suffixes `dc=tech,dc=dreamhack,dc=se` (permanent) and
 `dc=event,dc=dreamhack,dc=se` (permanent, flat). Secrets live in
-OpenBao at `services/ldap:admin`.
+OpenBao on the dedicated `services-ldap` mount, readable **only** by
+the ldap servers (cert-auth role `ldap`, bound to their certnames);
+other machines' `deploy` policy cannot see it.
 
 Network plan: VLAN 10 mgmt (10.10.10.0/24), VLAN 100 deployment
 (10.100.0.0/24, DHCP/PXE), VLAN 200 colo production (10.200.0.0/24),
