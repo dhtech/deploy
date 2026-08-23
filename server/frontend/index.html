@@ -280,9 +280,13 @@ function render(data) {
     + table(["Host", "Product", "State", "Duration", "TTL"], data.hosts.map((h) => {
         let state = `<span class="state ${esc(h.state)}">`
           + esc(STATE_LABELS[h.state] || h.state) + "</span>";
-        if (h.state === "done" && h.finished)
-          state += ` <span class="ttl">at ${new Date(h.finished * 1000)
-            .toLocaleTimeString()}</span>`;
+        if (h.state === "done" && h.finished) {
+          const d = new Date(h.finished * 1000);
+          const pad = (n) => String(n).padStart(2, "0");
+          state += ` <span class="ttl">${d.getFullYear()}-${pad(d.getMonth() + 1)}-`
+            + `${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+            + `:${pad(d.getSeconds())}</span>`;
+        }
         if (h.state === "installing" && h.log)
           state += `<div class="log">${esc(h.log)}</div>`;
         if (h.error) state += `<div class="error">${esc(h.error)}</div>`;
