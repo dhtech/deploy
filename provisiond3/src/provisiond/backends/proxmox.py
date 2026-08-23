@@ -182,7 +182,12 @@ class ProxmoxBackend(Provisioner):
         parts = [p for p in net0.split(",") if not p.startswith("tag=")]
         if vlan:
             parts.append(f"tag={vlan}")
-        self._api.nodes(node).qemu(vmid).config.put(net0=",".join(parts))
+        # Also flip to disk-first boot: netboot is done, and the production
+        # VLAN has no DHCP - skipping the firmware PXE timeouts saves
+        # minutes on every reboot.
+        self._api.nodes(node).qemu(vmid).config.put(
+            net0=",".join(parts), boot="order=scsi0;net0"
+        )
 
     def delete_vm(self, vm: VmInfo) -> None:
         node, vmid = self._split_ref(vm)

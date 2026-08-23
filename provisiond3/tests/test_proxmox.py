@@ -147,7 +147,8 @@ def test_provision_vm_flips_tag_preserving_mac(backend):
     vm = VmInfo(name="web1.test", uuid="u", backend_ref="pve-test/101")
     b.provision_vm(vm, vlan=200)
     api.nodes.return_value.qemu.return_value.config.put.assert_called_once_with(
-        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0,tag=200"
+        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0,tag=200",
+        boot="order=scsi0;net0",
     )
 
 
@@ -159,7 +160,8 @@ def test_provision_vm_untagged_removes_tag(backend):
     vm = VmInfo(name="web1.test", uuid="u", backend_ref="pve-test/101")
     b.provision_vm(vm, vlan=0)
     api.nodes.return_value.qemu.return_value.config.put.assert_called_once_with(
-        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0"
+        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0",
+        boot="order=scsi0;net0",
     )
 
 
