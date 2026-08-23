@@ -122,3 +122,38 @@ def test_dangling_member_pruned():
   assert 'member: uid=anna,ou=people,dc=tech,dc=dreamhack,dc=se' in out
   assert 'cn=config,ou=fusiondirectory' not in out
   assert 'memberUid: anna' in out
+
+
+def test_orphan_continuations_dropped():
+  # password-stripped dumps leave continuation lines of deleted attrs;
+  # they must not fold onto the previous attribute
+  dump = ("dn: uid=x,ou=people,dc=tech,dc=dreamhack,dc=se\n"
+          "objectClass: inetOrgPerson\n"
+          "uid: x\n"
+          " R3I3Ly83em1vSDA=\n"
+          "cn: X\n"
+          "sn: X\n")
+  out = io.StringIO()
+  di.transform(io.StringIO(dump), out)
+  assert 'uid: x\n' in out.getvalue()
+  assert 'R3I3' not in out.getvalue()
+
+
+def test_parents_written_before_children():
+  dump = ("dn: cn=g,ou=groups,ou=deep,dc=event,dc=dreamhack,dc=se\n"
+          "objectClass: groupOfNames\n"
+          "cn: g\n"
+          "member: uid=y,ou=people,dc=tech,dc=dreamhack,dc=se\n"
+          "\n"
+          "dn: ou=deep,dc=event,dc=dreamhack,dc=se\n"
+          "objectClass: organizationalUnit\n"
+          "ou: deep\n"
+          "\n"
+          "dn: ou=groups,ou=deep,dc=event,dc=dreamhack,dc=se\n"
+          "objectClass: organizationalUnit\n"
+          "ou: groups\n")
+  out = io.StringIO()
+  di.transform(io.StringIO(dump), out)
+  text = out.getvalue()
+  assert text.index('ou=deep,dc=event') < text.index('ou=groups,ou=deep')
+  assert text.index('ou=groups,ou=deep') < text.index('cn=g,ou=groups')

@@ -50,21 +50,39 @@ SEEDED_RE = re.compile(
 
 
 def parse(stream):
-  """Yield (dn, [(attr, value, is_b64)]) per entry."""
+  """Yield (dn, [(attr, value, is_b64)]) per entry.
+
+  Orphan continuation lines are dropped: slapcat folds at 76 columns,
+  so a continuation is only legitimate after a full-width physical
+  line. Password-stripped dumps delete the userPassword line but leave
+  its continuations behind - folding those onto the previous attribute
+  corrupts it (seen live: uid values with base64 garbage appended)."""
   entry = []
+  prev_len = 0
+  dropping = False
   for raw in stream:
     line = raw.rstrip('\n')
     if line.startswith('#'):
       continue
     if line == '':
+      dropping = False
+      prev_len = 0
       if entry:
         yield unfold(entry)
         entry = []
       continue
     if line.startswith(' ') and entry:
-      entry[-1] += line[1:]
-    else:
-      entry.append(line)
+      if dropping:
+        continue
+      if prev_len >= 76:
+        entry[-1] += line[1:]
+        prev_len = len(line)
+      else:
+        dropping = True
+      continue
+    dropping = False
+    entry.append(line)
+    prev_len = len(line)
   if entry:
     yield unfold(entry)
 
@@ -110,8 +128,13 @@ def transform(stream, out):
     if any(oc in SKIP_CLASSES for oc in ocs):
       skipped += 1
       continue
-    # FD service accounts directly under the root
+    # FD service accounts directly under the root (cn=... at the root,
+    # and the FD-era users/groups in the root-level ou=people/ou=groups)
     if low.startswith('cn=') and low.count(',dc=') == 2:
+      skipped += 1
+      continue
+    if re.match(r'^(uid|cn)=[^,]+,ou=(people|groups),dc=dreamhack,dc=se$',
+                low):
       skipped += 1
       continue
     if is_seeded_container(dn) or low == 'cn=replicator,dc=dreamhack,dc=se':
@@ -127,6 +150,9 @@ def transform(stream, out):
                   if a.lower() != 'objectclass' and keep_attr(a)]
     entries.append((dn, new_attrs))
     kept_dns.add(low)
+
+  # parents before children: slapcat order does not guarantee it
+  entries.sort(key=lambda e: e[0].count(','))
 
   written = 0
   pruned_members = 0
