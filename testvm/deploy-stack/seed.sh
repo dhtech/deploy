@@ -185,6 +185,10 @@ no-dhcp-interface=ens20
 no-dhcp-interface=ens21
 no-resolv
 server=10.0.2.3
+host-record=provision-dev.test.lan,10.200.0.2
+host-record=web1.test.lan,10.200.0.60
+host-record=vault1.test.lan,10.200.0.61
+host-record=puppet1.test.lan,10.200.0.62
 EOF
 systemctl restart dnsmasq
 
