@@ -166,8 +166,9 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (17, 'ldap2-master.colo.notproduction.net', '10.200.0.66'),
     (18, 'ldap1.colo.notproduction.net', '10.200.0.67'),
     (19, 'ldap2.colo.notproduction.net', '10.200.0.68'),
-    # the hypervisor (mgmt VLAN) - puppet-enrolled by hand, never deployed
+    # the hypervisors (mgmt VLAN) - puppet-enrolled by hand, never deployed
     (20, 'pve1.colo.notproduction.net', '10.10.10.1'),
+    (21, 'pve2.colo.notproduction.net', '10.10.10.3'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
@@ -186,7 +187,10 @@ c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (11, 'webname', 'vault.dh.notproduction.net'),
     (14, 'webname', 'fusion.dh.notproduction.net'),
     (15, 'webname', 'doc.dh.notproduction.net'),
-    (20, 'webname', 'pve.dh.notproduction.net'),
+    (20, 'webname', 'pve1.dh.notproduction.net'),
+    (21, 'os', 'debian'), (21, 'pkg', 'pve'),
+    (21, 'webname', 'pve2.dh.notproduction.net'),
+    (13, 'webname', 'deploy.dh.notproduction.net'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()
@@ -281,10 +285,12 @@ host-record=ldap2-master.colo.notproduction.net,10.200.0.66
 host-record=ldap1.colo.notproduction.net,10.200.0.67
 host-record=ldap2.colo.notproduction.net,10.200.0.68
 host-record=pve1.colo.notproduction.net,10.10.10.1
-host-record=pve.dh.notproduction.net,10.10.10.1
+host-record=pve1.dh.notproduction.net,10.10.10.1
+host-record=pve2.dh.notproduction.net,10.10.10.3
 host-record=doc1.colo.notproduction.net,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64
+host-record=deploy.dh.notproduction.net,10.200.0.2
 EOF
 systemctl restart dnsmasq
 
@@ -304,5 +310,76 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
 systemctl enable --now dh-syslog-receiver
+
+# --- deploy website: nginx + LE cert on 443, proxying the status page ----
+# (puppet's dhacme::cert/dhnginx pattern, hand-seeded here because
+# provision1 is not puppet-managed in the test env)
+apt-get -qq install -y nginx >/dev/null
+cat > /usr/local/sbin/dh-cert-sync <<"EOF"
+#!/bin/sh
+# Fetch the deploy website cert from the secret store (cert-auth with
+# the provision server identity in /etc/deploy-ssl).
+set -eu
+name=deploy.dh.notproduction.net
+D=/etc/deploy-ssl
+TOKEN=$(curl -sf --cacert "$D/puppet-ca.pem" --cert "$D/node.pem" --key "$D/node.key" \
+  -XPOST "https://vault1.colo.notproduction.net:8200/v1/auth/cert/login" | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['"'"'auth'"'"']['"'"'client_token'"'"'])")
+mkdir -p /etc/dh-certs
+umask 077
+curl -sf --cacert "$D/puppet-ca.pem" -H "X-Vault-Token: $TOKEN" \
+  "https://vault1.colo.notproduction.net:8200/v1/services/certs:$name" | \
+  python3 -c "
+import json, sys
+d = json.load(sys.stdin)['"'"'data'"'"']
+open('"'"'/etc/dh-certs/$name.fullchain.pem.new'"'"', '"'"'w'"'"').write(d['"'"'certificate'"'"'] + d['"'"'chain'"'"'])
+open('"'"'/etc/dh-certs/$name.key.new'"'"', '"'"'w'"'"').write(d['"'"'private_key'"'"'])"
+if ! cmp -s /etc/dh-certs/$name.fullchain.pem.new /etc/dh-certs/$name.fullchain.pem 2>/dev/null; then
+  mv /etc/dh-certs/$name.fullchain.pem.new /etc/dh-certs/$name.fullchain.pem
+  mv /etc/dh-certs/$name.key.new /etc/dh-certs/$name.key
+  systemctl reload nginx || true
+else
+  rm -f /etc/dh-certs/$name.fullchain.pem.new /etc/dh-certs/$name.key.new
+fi
+EOF
+chmod 755 /usr/local/sbin/dh-cert-sync
+cat > /etc/systemd/system/dh-cert-sync.service <<EOF
+[Unit]
+Description=Sync deploy website cert from the secret store
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/dh-cert-sync
+EOF
+cat > /etc/systemd/system/dh-cert-sync.timer <<EOF
+[Unit]
+Description=Daily deploy website cert sync
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=2h
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload
+systemctl enable --now dh-cert-sync.timer >/dev/null 2>&1
+
+cat > /etc/nginx/sites-available/deploy-web <<EOF
+# deploy status website (LE cert); the plain :8080 apache stays for the
+# installer CGIs on the deploy VLAN.
+server {
+  listen 443 ssl;
+  server_name deploy.dh.notproduction.net;
+  ssl_certificate     /etc/dh-certs/deploy.dh.notproduction.net.fullchain.pem;
+  ssl_certificate_key /etc/dh-certs/deploy.dh.notproduction.net.key;
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host \$host;
+  }
+}
+EOF
+ln -sf /etc/nginx/sites-available/deploy-web /etc/nginx/sites-enabled/deploy-web
+rm -f /etc/nginx/sites-enabled/default
+if [ -f /etc/dh-certs/deploy.dh.notproduction.net.fullchain.pem ]; then
+  systemctl reload nginx || systemctl restart nginx
+fi
 
 echo "deploy stack seeded"

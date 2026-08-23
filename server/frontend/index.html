@@ -185,10 +185,11 @@
         <thead><tr><th>Service</th><th>URL</th><th>Certificate</th></tr></thead>
         <tbody>
           <tr><td>Deploy status (this page)</td>
-              <td><a href="http://localhost:8768/">localhost:8768</a></td>
-              <td>—</td></tr>
+              <td><a href="https://deploy.dh.notproduction.net:8446/">deploy.dh.notproduction.net:8446</a>
+                  / <a href="http://localhost:8768/">localhost:8768</a></td>
+              <td>Let's Encrypt (8446 after next bench restart)</td></tr>
           <tr><td>Proxmox web UI</td>
-              <td><a href="https://pve.dh.notproduction.net:8006/">pve.dh.notproduction.net:8006</a></td>
+              <td><a href="https://pve1.dh.notproduction.net:8006/">pve1.dh.notproduction.net:8006</a></td>
               <td>Let's Encrypt</td></tr>
           <tr><td>Vault website (OpenBao UI)</td>
               <td><a href="https://vault.dh.notproduction.net:8443/ui">vault.dh.notproduction.net:8443/ui</a></td>
@@ -214,7 +215,7 @@
       <pre style="background: var(--bg); padding: 0.6rem 0.9rem;
                   border-radius: 6px; overflow-x: auto;
                   font-family: var(--mono); font-size: 0.82rem;"># dh lab web services
-127.0.0.1 vault.dh.notproduction.net pve.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net</pre>
+127.0.0.1 vault.dh.notproduction.net pve1.dh.notproduction.net pve2.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net deploy.dh.notproduction.net</pre>
 
       <h4>Machine names</h4>
       <p>Machines (<code>*.colo.notproduction.net</code>) resolve only

@@ -179,15 +179,16 @@ hosts entries make them work offline too. Paste into `/etc/hosts`:
 
 ```
 # dh lab web services
-127.0.0.1 vault.dh.notproduction.net pve.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net
+127.0.0.1 vault.dh.notproduction.net pve1.dh.notproduction.net pve2.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net deploy.dh.notproduction.net
 ```
 
 | URL | Service |
 |---|---|
 | <https://vault.dh.notproduction.net:8443/ui> | OpenBao website (Let's Encrypt) |
-| <https://pve.dh.notproduction.net:8006> | Proxmox web UI (Let's Encrypt) |
+| <https://pve1.dh.notproduction.net:8006> | Proxmox web UI (Let's Encrypt) |
 | <https://fusion.dh.notproduction.net:8444> | FusionDirectory (planned) |
 | <https://doc.dh.notproduction.net:8445> | Trac + SVN (planned) |
+| <https://deploy.dh.notproduction.net:8446> | Deploy status (after next restart) |
 
 Machine names (`*.colo.notproduction.net`) resolve only inside the lab
 (dnsmasq on provision1); machine TLS is the puppet CA
