@@ -35,7 +35,7 @@ is_event = client.domain == 'EVENT'
 vault_path = metadata.vault_login_path(client)
 admin_pw = ''.join(secrets.choice(alphabet) for _ in range(16))
 metadata.vault_write(vault_path, root_password=root_pw,
-                     admin_password=admin_pw)
+                     dhtech_password=admin_pw)
 
 passphrase = None
 if is_event:

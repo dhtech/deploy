@@ -120,7 +120,7 @@ fi''')
 
 # --- admin user: operator access (CIS hardening denies root SSH) ---
 admin_pw = metadata.vault_read(metadata.vault_login_path(client)).get(
-    'admin_password', '')
+    'dhtech_password', '')
 print('in-target useradd -m -s /bin/bash -G sudo dhtech || true')
 print('mkdir -p /target/home/dhtech/.ssh')
 print('wget -q -O /target/home/dhtech/.ssh/authorized_keys '
