@@ -158,14 +158,13 @@ if appdisks:
   # the chroot lvcreate hangs forever waiting for udev sync.
   # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
   print('export LVM_SUPPRESS_FD_WARNINGS=1')
-  # Device names are nondeterministic with two virtio-scsi disks: the
-  # appdisk is the bare disk (no partitions) — never assume /dev/sdb.
-  print('appdev=""')
-  print('for b in /sys/block/sd* /sys/block/vd*; do')
-  print('  [ -d "$b" ] || continue')
-  print('  ls "$b/${b##*/}"* >/dev/null 2>&1 && continue')
-  print('  appdev=/dev/${b##*/}')
-  print('done')
+  # Kernel device names are nondeterministic with two virtio-scsi disks —
+  # select by stable bus path (work convention, cf. the VMware ansible
+  # pattern *scsi-0:0:<unit>:0): sorted by-path, first disk = OS
+  # (matches the preseed partman pin), second = appdisk.
+  print('appdev=$(ls /dev/disk/by-path/*-scsi-* 2>/dev/null'
+        ' | grep -v -- -part | sort | sed -n 2p)')
+  print('[ -n "$appdev" ] && appdev=$(readlink -f "$appdev")')
   print('if [ -n "$appdev" ] && ! pvs "$appdev" >/dev/null 2>&1; then')
   print('  pvcreate "$appdev"')
   print('  vgcreate vgapp "$appdev"')
