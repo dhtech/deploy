@@ -15,6 +15,6 @@ r = metadata.connection()
 print('Content-Type: text/plain')
 print('')
 for key in sorted(r.keys('enroll-*')):
-  ttl = r.ttl(key)
-  age = max(0, TOKEN_TTL - ttl) if ttl and ttl > 0 else 0
-  print('%s %d' % (key.decode()[len('enroll-'):], age))
+    ttl = r.ttl(key)
+    age = max(0, TOKEN_TTL - ttl) if ttl and ttl > 0 else 0
+    print('%s %d' % (key.decode()[len('enroll-'):], age))

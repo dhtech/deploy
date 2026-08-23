@@ -6,9 +6,9 @@ from . import ldap as _ldap
 
 
 def generate(host, params, manifest):
-  return {
-      'dhlogin': {
-          'ldap_uris': _ldap.slave_uris(),
-          'search_base': 'dc=dreamhack,dc=se',
-      },
-  }
+    return {
+        'dhlogin': {
+            'ldap_uris': _ldap.slave_uris(),
+            'search_base': 'dc=dreamhack,dc=se',
+        },
+    }

@@ -10,22 +10,22 @@ first_if = None
 ifs = []
 query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
 if 'ifs' in query_string:
-  ifs = query_string['ifs'][0].split(',')
-  first_if = ifs[0]
+    ifs = query_string['ifs'][0].split(',')
+    first_if = ifs[0]
 
 ip = os.environ['REMOTE_ADDR']
 # The install runs on the deployment VLAN; hack_ip carries the host's
 # production (ipplan) address, which is its identity here.
 if 'hack_ip' in query_string:
-  ip = query_string['hack_ip'][0]
+    ip = query_string['hack_ip'][0]
 
 client, cm = metadata.find(ip, first_if)
 network = metadata.network(client, cm)
 if not network:
-  exit(1)
+    exit(1)
 
 if_template = (
-"""# This file describes the network interfaces available on your system
+    """# This file describes the network interfaces available on your system
 # and how to activate them. For more information, see interfaces(5).
 
 source-directory interfaces.d
@@ -36,27 +36,27 @@ iface lo inet loopback
 """)
 
 if network.bonded:
-  if client.os == 'debian':
-    if_template = if_template + """
+    if client.os == 'debian':
+        if_template = if_template + """
 auto bond0
 iface bond0 inet manual
-  bond-mode 802.3ad
-  slaves eth0 eth1
+    bond-mode 802.3ad
+    slaves eth0 eth1
 """
-  elif client.os == 'ubuntu':
-    if_template = if_template + """
+    elif client.os == 'ubuntu':
+        if_template = if_template + """
 auto {if0}
 iface {if0} inet manual
-  bond-master bond0
+    bond-master bond0
 
 auto {if1}
 iface {if1} inet manual
-  bond-master bond0
+    bond-master bond0
 
 auto bond0
 iface bond0 inet manual
-  bond-mode 802.3ad
-  bond-slaves none
+    bond-mode 802.3ad
+    bond-slaves none
 """.format(if0=ifs[0], if1=ifs[1])
 
 if_template = if_template + """
@@ -69,7 +69,7 @@ iface {vlan_interface} inet static
 """
 
 if network.v6_address:
-  if_template = if_template + """
+    if_template = if_template + """
 iface {vlan_interface} inet6 static
 \taddress {v6_address}
 \tnetmask {v6_netmask}
@@ -77,7 +77,7 @@ iface {vlan_interface} inet6 static
 """
 
 vars_template = (
-"""v4_address={v4_address}
+    """v4_address={v4_address}
 v4_netmask={v4_netmask}
 v4_gateway={v4_gateway}
 v6_address={v6_address}

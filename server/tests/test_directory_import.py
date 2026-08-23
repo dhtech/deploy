@@ -79,81 +79,81 @@ cn: aclthing
 
 
 def run_transform():
-  out = io.StringIO()
-  di.transform(io.StringIO(DUMP), out)
-  return out.getvalue()
+    out = io.StringIO()
+    di.transform(io.StringIO(DUMP), out)
+    return out.getvalue()
 
 
 def test_fd_subtree_and_root_accounts_skipped():
-  out = run_transform()
-  assert 'fusiondirectory' not in out
-  assert 'fd-admin' not in out
-  assert 'aclthing' not in out
+    out = run_transform()
+    assert 'fusiondirectory' not in out
+    assert 'fd-admin' not in out
+    assert 'aclthing' not in out
 
 
 def test_seeded_containers_skipped_but_deep_ous_kept():
-  out = run_transform()
-  assert 'dn: ou=people,dc=tech,dc=dreamhack,dc=se' not in out
-  assert 'dn: dc=dreamhack,dc=se' not in out
-  assert 'dn: ou=services,dc=event,dc=dreamhack,dc=se' in out
-  assert 'dn: ou=groups,ou=services,dc=event,dc=dreamhack,dc=se' in out
+    out = run_transform()
+    assert 'dn: ou=people,dc=tech,dc=dreamhack,dc=se' not in out
+    assert 'dn: dc=dreamhack,dc=se' not in out
+    assert 'dn: ou=services,dc=event,dc=dreamhack,dc=se' in out
+    assert 'dn: ou=groups,ou=services,dc=event,dc=dreamhack,dc=se' in out
 
 
 def test_user_sanitized():
-  out = run_transform()
-  assert 'objectClass: fdPersonalInfo' not in out
-  assert 'objectClass: gosaMailAccount' not in out
-  assert 'gosaMailServer' not in out
-  assert 'fdBankAccountNumber' not in out
-  assert 'objectClass: ldapPublicKey' in out
-  assert 'sshPublicKey: ssh-ed25519 AAAA anna' in out
-  assert 'jpegPhoto:: /9j/qqqq' in out
-  assert 'sn:: QQ==' in out
-  assert 'mail: anna@example.se' in out
+    out = run_transform()
+    assert 'objectClass: fdPersonalInfo' not in out
+    assert 'objectClass: gosaMailAccount' not in out
+    assert 'gosaMailServer' not in out
+    assert 'fdBankAccountNumber' not in out
+    assert 'objectClass: ldapPublicKey' in out
+    assert 'sshPublicKey: ssh-ed25519 AAAA anna' in out
+    assert 'jpegPhoto:: /9j/qqqq' in out
+    assert 'sn:: QQ==' in out
+    assert 'mail: anna@example.se' in out
 
 
 def test_department_keeps_organizational_unit_only():
-  out = run_transform()
-  assert 'objectClass: gosaDepartment' not in out
+    out = run_transform()
+    assert 'objectClass: gosaDepartment' not in out
 
 
 def test_dangling_member_pruned():
-  out = run_transform()
-  assert 'member: uid=anna,ou=people,dc=tech,dc=dreamhack,dc=se' in out
-  assert 'cn=config,ou=fusiondirectory' not in out
-  assert 'memberUid: anna' in out
+    out = run_transform()
+    assert 'member: uid=anna,ou=people,dc=tech,dc=dreamhack,dc=se' in out
+    assert 'cn=config,ou=fusiondirectory' not in out
+    assert 'memberUid: anna' in out
 
 
 def test_orphan_continuations_dropped():
-  # password-stripped dumps leave continuation lines of deleted attrs;
-  # they must not fold onto the previous attribute
-  dump = ("dn: uid=x,ou=people,dc=tech,dc=dreamhack,dc=se\n"
-          "objectClass: inetOrgPerson\n"
-          "uid: x\n"
-          " R3I3Ly83em1vSDA=\n"
-          "cn: X\n"
-          "sn: X\n")
-  out = io.StringIO()
-  di.transform(io.StringIO(dump), out)
-  assert 'uid: x\n' in out.getvalue()
-  assert 'R3I3' not in out.getvalue()
+    # password-stripped dumps leave continuation lines of deleted attrs;
+    # they must not fold onto the previous attribute
+    dump = ("dn: uid=x,ou=people,dc=tech,dc=dreamhack,dc=se\n"
+            "objectClass: inetOrgPerson\n"
+            "uid: x\n"
+            " R3I3Ly83em1vSDA=\n"
+            "cn: X\n"
+            "sn: X\n")
+    out = io.StringIO()
+    di.transform(io.StringIO(dump), out)
+    assert 'uid: x\n' in out.getvalue()
+    assert 'R3I3' not in out.getvalue()
 
 
 def test_parents_written_before_children():
-  dump = ("dn: cn=g,ou=groups,ou=deep,dc=event,dc=dreamhack,dc=se\n"
-          "objectClass: groupOfNames\n"
-          "cn: g\n"
-          "member: uid=y,ou=people,dc=tech,dc=dreamhack,dc=se\n"
-          "\n"
-          "dn: ou=deep,dc=event,dc=dreamhack,dc=se\n"
-          "objectClass: organizationalUnit\n"
-          "ou: deep\n"
-          "\n"
-          "dn: ou=groups,ou=deep,dc=event,dc=dreamhack,dc=se\n"
-          "objectClass: organizationalUnit\n"
-          "ou: groups\n")
-  out = io.StringIO()
-  di.transform(io.StringIO(dump), out)
-  text = out.getvalue()
-  assert text.index('ou=deep,dc=event') < text.index('ou=groups,ou=deep')
-  assert text.index('ou=groups,ou=deep') < text.index('cn=g,ou=groups')
+    dump = ("dn: cn=g,ou=groups,ou=deep,dc=event,dc=dreamhack,dc=se\n"
+            "objectClass: groupOfNames\n"
+            "cn: g\n"
+            "member: uid=y,ou=people,dc=tech,dc=dreamhack,dc=se\n"
+            "\n"
+            "dn: ou=deep,dc=event,dc=dreamhack,dc=se\n"
+            "objectClass: organizationalUnit\n"
+            "ou: deep\n"
+            "\n"
+            "dn: ou=groups,ou=deep,dc=event,dc=dreamhack,dc=se\n"
+            "objectClass: organizationalUnit\n"
+            "ou: groups\n")
+    out = io.StringIO()
+    di.transform(io.StringIO(dump), out)
+    text = out.getvalue()
+    assert text.index('ou=deep,dc=event') < text.index('ou=groups,ou=deep')
+    assert text.index('ou=groups,ou=deep') < text.index('cn=g,ou=groups')

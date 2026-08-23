@@ -8,20 +8,16 @@ from . import ldap as _ldap
 
 
 def generate(host, params, manifest):
-  webname = metadata.host_option(host, 'webname')
-  masters = sorted(
-      ((h, p) for h, p in metadata.hosts_with_pkg('ldap')
-       if p.get('role') == 'master'),
-      key=lambda hp: hp[1].get('id', 0))
-  out = {
-      'dhfirewall': {'open_tcp': [443]},
-      'dhlam': {
-          'ldap_uris': ['ldaps://%s' % h for h, _ in masters],
-          'suffixes': ['dc=dreamhack,dc=se'],
-      },
-  }
-  if webname:
-    out['dhacme::cert'] = {'cert_name': webname,
-                           'vault_addr': _ldap.vault_addr()}
-    out['dhnginx::lam'] = {'server_name': webname}
-  return out
+    webname = metadata.host_option(host, 'webname')
+    out = {
+        'dhfirewall': {'open_tcp': [443]},
+        'dhlam': {
+            'ldap_uris': _ldap.master_uris(),
+            'suffixes': ['dc=dreamhack,dc=se'],
+        },
+    }
+    if webname:
+        out['dhacme::cert'] = {'cert_name': webname,
+                               'vault_addr': _ldap.vault_addr()}
+        out['dhnginx::lam'] = {'server_name': webname}
+    return out

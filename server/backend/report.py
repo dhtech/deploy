@@ -22,8 +22,8 @@ print('Content-Type: text/plain')
 print('')
 
 if not host_m or not status_m:
-  print('ignored')
-  sys.exit(0)
+    print('ignored')
+    sys.exit(0)
 
 host = host_m.group(1)
 status = status_m.group(1)
@@ -32,15 +32,15 @@ r = metadata.connection()
 key = 'host-' + host
 raw_rec = r.get(key)
 if raw_rec is None or status not in ('changed', 'unchanged'):
-  print('ignored')
-  sys.exit(0)
+    print('ignored')
+    sys.exit(0)
 
 rec = json.loads(raw_rec)
 if rec.get('provisioned') and not rec.get('puppet_time'):
-  import time
-  rec['puppet_time'] = int(time.time())
-  ttl = r.ttl(key)
-  r.setex(key, ttl if ttl and ttl > 0 else 3600, json.dumps(rec))
-  print('marked')
+    import time
+    rec['puppet_time'] = int(time.time())
+    ttl = r.ttl(key)
+    r.setex(key, ttl if ttl and ttl > 0 else 3600, json.dumps(rec))
+    print('marked')
 else:
-  print('ok')
+    print('ok')

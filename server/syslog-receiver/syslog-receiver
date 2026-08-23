@@ -16,29 +16,29 @@ r = redis.Redis(**config['redis'])
 
 class SyslogUDPHandler(socketserver.BaseRequestHandler):
 
-  def handle(self):
-    data = self.request[0].decode('utf-8', errors='replace').strip()
-    data = data.split(' ', 4)[-1]
-    client = self.client_address[0]
+    def handle(self):
+        data = self.request[0].decode('utf-8', errors='replace').strip()
+        data = data.split(' ', 4)[-1]
+        client = self.client_address[0]
 
-    conn = sqlite3.connect('/etc/ipplan.db')
-    c = conn.cursor()
-    c.execute('SELECT name FROM host WHERE ipv4_addr_txt = ?', (client,))
-    res = c.fetchone()
-    conn.close()
-    hostname = res[0] if res else None
-    if not hostname:
-      # Installer on the deployment VLAN: mapping recorded by early.py
-      mapped = r.get('install-ip-' + client)
-      hostname = mapped.decode() if mapped else None
+        conn = sqlite3.connect('/etc/ipplan.db')
+        c = conn.cursor()
+        c.execute('SELECT name FROM host WHERE ipv4_addr_txt = ?', (client,))
+        res = c.fetchone()
+        conn.close()
+        hostname = res[0] if res else None
+        if not hostname:
+            # Installer on the deployment VLAN: mapping recorded by early.py
+            mapped = r.get('install-ip-' + client)
+            hostname = mapped.decode() if mapped else None
 
-    if hostname:
-      r.setex('last-log-' + hostname, 3600, data)
+        if hostname:
+            r.setex('last-log-' + hostname, 3600, data)
 
 
 if __name__ == '__main__':
-  try:
-    server = socketserver.UDPServer(('', 514), SyslogUDPHandler)
-    server.serve_forever()
-  except KeyboardInterrupt:
-    print('Ctrl+C pressed. Shutting down.')
+    try:
+        server = socketserver.UDPServer(('', 514), SyslogUDPHandler)
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print('Ctrl+C pressed. Shutting down.')

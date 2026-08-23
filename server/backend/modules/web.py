@@ -2,4 +2,4 @@
 # in ipplan, e.g. web(port=80).
 
 def generate(host, params, manifest):
-  return {'dhfirewall': {'open_tcp': [params.get('port', 80)]}}
+    return {'dhfirewall': {'open_tcp': [params.get('port', 80)]}}

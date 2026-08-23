@@ -8,14 +8,14 @@ from . import ldap as _ldap
 
 
 def generate(host, params, manifest):
-  acme = (manifest.get('globals') or {}).get('acme') or {}
-  domains = sorted(set(metadata.all_host_options('webname').values()))
-  return {
-      'dhfirewall': {'open_tcp': [8140]},
-      'dhacme::issuer': {
-          'domains': domains,
-          'email': acme.get('email'),
-          'acme_server': acme.get('server'),
-          'vault_addr': _ldap.vault_addr(),
-      },
-  }
+    acme = (manifest.get('globals') or {}).get('acme') or {}
+    domains = sorted(set(metadata.all_host_options('webname').values()))
+    return {
+        'dhfirewall': {'open_tcp': [8140]},
+        'dhacme::issuer': {
+            'domains': domains,
+            'email': acme.get('email'),
+            'acme_server': acme.get('server'),
+            'vault_addr': _ldap.vault_addr(),
+        },
+    }

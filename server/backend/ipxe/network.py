@@ -17,14 +17,14 @@ network = metadata.installation_network(hostname)
 print('')
 print('#!ipxe')
 for key, value in sorted(network.items()):
-  print('set', key, value)
+    print('set', key, value)
 
 if 'vcreate' in query_string:
-  # Legacy: move iPXE itself onto the production VLAN
-  print('set net0/ip 0.0.0.0')
-  print('vcreate --tag ${vlan} net0')
-  print('set net0-${vlan}/ip ${v4_address}')
-  print('set net0-${vlan}/netmask ${v4_netmask}')
-  print('set net0-${vlan}/gateway ${v4_gateway}')
+    # Legacy: move iPXE itself onto the production VLAN
+    print('set net0/ip 0.0.0.0')
+    print('vcreate --tag ${vlan} net0')
+    print('set net0-${vlan}/ip ${v4_address}')
+    print('set net0-${vlan}/netmask ${v4_netmask}')
+    print('set net0-${vlan}/gateway ${v4_gateway}')
 
 print('echo Production address ${v4_address} on VLAN ${vlan}')

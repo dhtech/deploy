@@ -13,7 +13,7 @@ query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
 ip = os.environ['REMOTE_ADDR']
 if 'hack_ip' in query_string:
-  ip = query_string['hack_ip'][0]
+    ip = query_string['hack_ip'][0]
 
 client, cm = metadata.find(ip)
 config = metadata.config()
@@ -47,17 +47,17 @@ print('''#!/usr/sbin/nft -f
 flush ruleset
 
 table inet filter {
-  chain input {
-    type filter hook input priority filter; policy drop;
-    ct state established,related accept
-    ct state invalid drop
-    iif "lo" accept
-    ip protocol icmp accept
-    meta l4proto ipv6-icmp accept
-    tcp dport %d ip saddr { %s } accept
-  }
-  chain forward { type filter hook forward priority filter; policy drop; }
-  chain output { type filter hook output priority filter; policy accept; }
+    chain input {
+        type filter hook input priority filter; policy drop;
+        ct state established,related accept
+        ct state invalid drop
+        iif "lo" accept
+        ip protocol icmp accept
+        meta l4proto ipv6-icmp accept
+        tcp dport %d ip saddr { %s } accept
+    }
+    chain forward { type filter hook forward priority filter; policy drop; }
+    chain output { type filter hook output priority filter; policy accept; }
 }''' % (ssh_port, jump_set))
 print('__NFT__')
 print('in-target systemctl enable nftables')
@@ -68,7 +68,7 @@ print('wget -q -O /target/root/.ssh/authorized_keys "%s/data/authorized_keys"'
       % base)
 print('chmod 700 /target/root/.ssh; chmod 600 /target/root/.ssh/authorized_keys')
 if ssh_port != 22:
-  print('sed -i "s/^#\\?Port 22/Port %d/" /target/etc/ssh/sshd_config' % ssh_port)
+    print('sed -i "s/^#\\?Port 22/Port %d/" /target/etc/ssh/sshd_config' % ssh_port)
 
 # --- puppet agent: configured, enabled, never run during install ---
 # One-time enrollment token: puppet1's autosign policy validates it
@@ -114,17 +114,17 @@ print('wget -q -O /target/root/.vimrc "%s/data/vimrc" || true' % base)
 
 # --- LUKS auto-unlock (EVENT machines; passphrase from early.py) ---
 print('''if [ -f /tmp/crypto.pass ]; then
-  PASSPHRASE=$(cat /tmp/crypto.pass)
-  cat > /target/usr/local/sbin/dh-unlock-disk <<__EOF__
+    PASSPHRASE=$(cat /tmp/crypto.pass)
+    cat > /target/usr/local/sbin/dh-unlock-disk <<__EOF__
 #!/bin/sh
 echo -n "$PASSPHRASE"
 __EOF__
-  chmod 0500 /target/usr/local/sbin/dh-unlock-disk
-  echo "$PASSPHRASE" > /target/root/.dh-luks-pw
-  chmod 0400 /target/root/.dh-luks-pw
-  sed -i "s/none luks/none luks,keyscript=\\/usr\\/local\\/sbin\\/dh-unlock-disk/" \\
-    /target/etc/crypttab
-  in-target update-initramfs -k all -u
+    chmod 0500 /target/usr/local/sbin/dh-unlock-disk
+    echo "$PASSPHRASE" > /target/root/.dh-luks-pw
+    chmod 0400 /target/root/.dh-luks-pw
+    sed -i "s/none luks/none luks,keyscript=\\/usr\\/local\\/sbin\\/dh-unlock-disk/" \\
+        /target/etc/crypttab
+    in-target update-initramfs -k all -u
 fi''')
 
 # --- admin user: operator access (CIS hardening denies root SSH) ---
@@ -138,11 +138,11 @@ print('in-target chown -R dhtech:dhtech /home/dhtech/.ssh')
 print('chmod 700 /target/home/dhtech/.ssh')
 print('chmod 600 /target/home/dhtech/.ssh/authorized_keys')
 if admin_pw:
-  # in-target does not pass stdin through (log-output wrapper), so the
-  # redirect must happen inside the chroot.
-  print('printf "dhtech:%%s" "%s" > /target/tmp/.dh-pw' % admin_pw)
-  print("in-target sh -c 'chpasswd < /tmp/.dh-pw'")
-  print('rm -f /target/tmp/.dh-pw')
+    # in-target does not pass stdin through (log-output wrapper), so the
+    # redirect must happen inside the chroot.
+    print('printf "dhtech:%%s" "%s" > /target/tmp/.dh-pw' % admin_pw)
+    print("in-target sh -c 'chpasswd < /tmp/.dh-pw'")
+    print('rm -f /target/tmp/.dh-pw')
 
 # --- CIS hardening (production post-install, versioned in the repo) ---
 print('wget -q -O /target/tmp/dh-hardening "%s/data/post-install-hardening"'
@@ -154,35 +154,35 @@ print('rm -f /target/tmp/dh-hardening')
 # --- application disk: one disk, vgapp VG, one ext4 LV per package ---
 appdisks = metadata.get_appdisks(client.hostname)
 if appdisks:
-  # LVM runs in the OUTER d-i environment (like partman does): inside
-  # the chroot lvcreate hangs forever waiting for udev sync.
-  # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
-  print('export LVM_SUPPRESS_FD_WARNINGS=1')
-  # Kernel device names are nondeterministic with two disks — the appdisk
-  # is unit 1 on the SCSI bus (work convention: find disk by SCSI path).
-  # virtio-scsi puts the unit in the LUN field (scsi-0:0:0:1), VMware
-  # pvscsi in the target field (scsi-0:0:1:0); match both. Fallback:
-  # second disk in /sys bus-path order, should by-path be absent.
-  print('appdev=""')
-  print('for l in /dev/disk/by-path/*scsi-0:0:1:0'
-        ' /dev/disk/by-path/*scsi-0:0:0:1; do')
-  print('  [ -e "$l" ] && [ -z "$appdev" ] && appdev=$(readlink -f "$l")')
-  print('done')
-  print('[ -n "$appdev" ] || appdev=/dev/$(for b in /sys/block/sd*'
-        ' /sys/block/vd*; do [ -d "$b" ] || continue;'
-        ' echo "$(readlink -f "$b") ${b##*/}";'
-        ' done | sort | sed -n 2p | sed "s/.* //")')
-  print('if [ -n "$appdev" ] && ! pvs "$appdev" >/dev/null 2>&1; then')
-  print('  pvcreate "$appdev"')
-  print('  vgcreate vgapp "$appdev"')
-  print('fi')
-  for disk in appdisks:
-    mib = max(4, int(disk['size']) // 1024**2)
-    print('lvcreate -y -L %dM -n %s vgapp' % (mib, disk['lv']))
-    print('mkfs.ext4 -q /dev/vgapp/%s' % disk['lv'])
-    print('mkdir -p /target%s' % disk['mountpoint'])
-    print('echo "/dev/vgapp/%s %s ext4 %s 0 2" >> /target/etc/fstab'
-          % (disk['lv'], disk['mountpoint'], disk['options']))
+    # LVM runs in the OUTER d-i environment (like partman does): inside
+    # the chroot lvcreate hangs forever waiting for udev sync.
+    # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
+    print('export LVM_SUPPRESS_FD_WARNINGS=1')
+    # Kernel device names are nondeterministic with two disks — the appdisk
+    # is unit 1 on the SCSI bus (work convention: find disk by SCSI path).
+    # virtio-scsi puts the unit in the LUN field (scsi-0:0:0:1), VMware
+    # pvscsi in the target field (scsi-0:0:1:0); match both. Fallback:
+    # second disk in /sys bus-path order, should by-path be absent.
+    print('appdev=""')
+    print('for l in /dev/disk/by-path/*scsi-0:0:1:0'
+          ' /dev/disk/by-path/*scsi-0:0:0:1; do')
+    print('  [ -e "$l" ] && [ -z "$appdev" ] && appdev=$(readlink -f "$l")')
+    print('done')
+    print('[ -n "$appdev" ] || appdev=/dev/$(for b in /sys/block/sd*'
+          ' /sys/block/vd*; do [ -d "$b" ] || continue;'
+          ' echo "$(readlink -f "$b") ${b##*/}";'
+          ' done | sort | sed -n 2p | sed "s/.* //")')
+    print('if [ -n "$appdev" ] && ! pvs "$appdev" >/dev/null 2>&1; then')
+    print('  pvcreate "$appdev"')
+    print('  vgcreate vgapp "$appdev"')
+    print('fi')
+    for disk in appdisks:
+        mib = max(4, int(disk['size']) // 1024**2)
+        print('lvcreate -y -L %dM -n %s vgapp' % (mib, disk['lv']))
+        print('mkfs.ext4 -q /dev/vgapp/%s' % disk['lv'])
+        print('mkdir -p /target%s' % disk['mountpoint'])
+        print('echo "/dev/vgapp/%s %s ext4 %s 0 2" >> /target/etc/fstab'
+              % (disk['lv'], disk['mountpoint'], disk['options']))
 
 # --- signal finish: provisiond moves us to the production VLAN ---
 print('wget -q -O /dev/null "%s/provision.py?hack_ip=%s" || true' % (base, ip))
