@@ -4,13 +4,10 @@
 # (OpenBao/Vault KV v1, gen-2 path contract), and preseeds partitioning.
 # Identity comes from hack_ip (the host's production address).
 
-import json
 import os
 import secrets
 import string
-import ssl
 import urllib.parse
-import urllib.request
 
 from lib import metadata
 
@@ -35,50 +32,16 @@ alphabet = ''.join(c for c in string.ascii_letters + string.digits
 root_pw = ''.join(secrets.choice(alphabet) for _ in range(16))
 
 is_event = client.domain == 'EVENT'
-if is_event:
-  event = metadata.get_current_event()
-  vault_path = 'services-%s/login:%s' % (event, client.hostname)
-  luks_path = 'services-%s/luks:%s' % (event, client.hostname)
-else:
-  vault_path = 'services/login:%s' % client.hostname
-  luks_path = 'services/luks:%s' % client.hostname
-
-
-def _vault_context():
-  """TLS context: trust the puppet CA, present our puppet node cert."""
-  ctx = ssl.create_default_context(cafile=config['vault_cacert'])
-  ctx.load_cert_chain(config['vault_cert'], config['vault_key'])
-  return ctx
-
-
-def _vault_token(ctx):
-  """Machine identity: TLS cert auth (puppet node cert), gen-2 contract."""
-  if config.get('vault_token'):
-    return config['vault_token']
-  request = urllib.request.Request(
-      '%s/v1/auth/cert/login' % config['vault_addr'], data=b'{}',
-      method='POST')
-  with urllib.request.urlopen(request, timeout=10, context=ctx) as response:
-    return json.load(response)['auth']['client_token']
-
-
-def vault_write(path, **data):
-  """KV v1 write over the plain HTTP API - no client dependency needed."""
-  ctx = _vault_context() if config.get('vault_cacert') else None
-  request = urllib.request.Request(
-      '%s/v1/%s' % (config['vault_addr'], path),
-      data=json.dumps(data).encode(),
-      headers={'X-Vault-Token': _vault_token(ctx)},
-      method='PUT')
-  urllib.request.urlopen(request, timeout=10, context=ctx)
-
-
-vault_write(vault_path, root_password=root_pw)
+vault_path = metadata.vault_login_path(client)
+admin_pw = ''.join(secrets.choice(alphabet) for _ in range(16))
+metadata.vault_write(vault_path, root_password=root_pw,
+                     admin_password=admin_pw)
 
 passphrase = None
 if is_event:
+  luks_path = vault_path.replace('/login:', '/luks:')
   passphrase = ''.join(secrets.choice(alphabet) for _ in range(32))
-  vault_write(luks_path, passphrase=passphrase)
+  metadata.vault_write(luks_path, passphrase=passphrase)
 
 print('')
 print('#!/bin/sh')

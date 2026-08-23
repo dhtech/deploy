@@ -1,0 +1,875 @@
+#!/bin/bash
+# 2.0 debian 13 compatibility - Tue Jan 20 10:03:24 AM CET 2026 
+# Log
+# 1.1 basic settings - Wed Aug 16 10:17:49 CEST 2017
+# Removed: sed -i 's/.*issue_discards.*/    issue_discards = 1/' /etc/lvm/lvm.conf, since this is default in stretch
+#
+
+# CIS
+### Filesystem Configuration
+#### 1.1.1.1 Ensure mounting of cramfs filesystems is disabled (Automated)
+#### 1.1.1.2 Ensure freevxfs kernel module is not available(Automated) 
+#### 1.1.1.3 Ensure hfs kernel module is not available (Automated)
+#### 1.1.1.4 Ensure hfsplus kernel module is not available (Automated)
+#### 1.1.1.5 Ensure jffs2 kernel module is not available (Automated)
+#### 1.1.1.6 Ensure overlayfs kernel module is not available
+#### 1.1.1.7 Ensure mounting of squashfs filesystems is disabled (Automated)
+#### 1.1.1.8 Ensure mounting of udf filesystems is disabled (Automated)
+#### 1.1.1.9 Ensure firewire-core kernel module is not available (Automated)
+cat >/etc/modprobe.d/filesystems.conf <<EOF
+# 1.1.1.9
+install cramfs /bin/true
+blacklist cramfs
+install squashfs /bin/true
+blacklist squashfs
+install udf /bin/true
+blacklist udf
+install freevxfs /bin/true
+blacklist freevxfs
+install hfs /bin/true
+blacklist hfs
+install hfsplus /bin/true
+blacklist hfsplus
+install jffs2 /bin/true
+blacklist jffs2
+install firewire-core /bin/true
+blacklist firewire-core
+install overlayfs /bin/true
+blacklist overlayfs
+EOF
+### 1.1.1.10 Ensure usb-storage kernel module is not available (Automated)
+cat >/etc/modprobe.d/usb.conf <<EOF
+# 1.1.1.10
+install usb-storage /bin/true
+blacklist usb-storage
+EOF
+
+### 1.1.2.1 Configure /tmp
+#### 1.1.2.1.1 Ensure /tmp is a separate partition (Automated) -  Default
+#### 1.1.2.1.2 Ensure nodev option set on /tmp partition (Automated) -  Default
+#### 1.1.2.1.3 Ensure nosuid option set on /tmp partition (Automated) - Default
+#### 1.1.2.1.4 Ensure noexec option set on /tmp partition (Automated) - Default
+# Fix tmp noexec (1.1.2.1.4), looks correct in preseed but not applied??
+sed -i 's|/dev/mapper/vgsys-lvtmp /tmp            ext4    nodev,nosuid    0       2|/dev/mapper/vgsys-lvtmp /tmp            ext4    nodev,nosuid,noexec    0       2|' /etc/fstab
+### 1.1.2.2 Configure /dev/shm
+#### 1.1.2.2.1 Ensure /dev/shm is a separate partition (Automated)
+#### 1.1.2.2.2 Ensure nodev option set on /dev/shm partition (Automated
+#### 1.1.2.2.3 Ensure nosuid option set on /dev/shm partition (Automated)
+#### 1.1.2.2.4 Ensure noexec option set on /dev/shm partition (Automated)
+echo "tmpfs                   /dev/shm                tmpfs   defaults,nodev,nosuid,noexec 0       0" >> /etc/fstab
+### 1.1.2.3 Configure /home
+#### 1.1.2.3.1 Ensure separate partition exists for /home (Automated) - Default
+#### 1.1.2.3.2 Ensure nodev option set on /home partition (Automated) - Default
+#### 1.1.2.3.3 Ensure nosuid option set on /home partition (Automated) - Default
+### 1.1.2.4 Configure /var
+#### 1.1.2.4.1 Ensure separate partition exists for /var (Automated) - Default
+#### 1.1.2.4.2 Ensure nodev option set on /var partition (Automated) - Default
+#### 1.1.2.4.3 Ensure nosuid option set on /var partition (Automated) - Default
+### 1.1.2.5 Configure /var/tmp
+#### 1.1.2.5.1 Ensure separate partition exists for /var/tmp (Automated) - Default
+#### 1.1.2.5.2 Ensure noexec option set on /var/tmp partition (Automated) - Default
+#### 1.1.2.5.3 Ensure nosuid option set on /var/tmp partition (Automated) - Default
+#### 1.1.2.5.4 Ensure nodev option set on /var/tmp partition (Automated) - Default
+### 1.1.2.6 Configure /var/log
+#### 1.1.2.6.1 Ensure separate partition exists for /var/log (Automated) - Default
+#### 1.1.2.6.2 Ensure nodev option set on /var/log partition (Automated) - Default
+#### 1.1.2.6.3 Ensure noexec option set on /var/log partition (Automated) - Default
+#### 1.1.2.6.4 Ensure nosuid option set on /var/log partition (Automated) - Default
+### 1.1.2.7 Configure /var/log/audit
+#### 1.1.2.7.1 Ensure separate partition exists for /var/log/audit (Automated) - Default
+#### 1.1.2.7.2 Ensure noexec option set on /var/log/audit partition (Automated) - Default
+#### 1.1.2.7.3 Ensure nodev option set on /var/log/audit partition (Automated) - Default
+#### 1.1.2.7.4 Ensure nosuid option set on /var/log/audit partition (Automated) - Default
+
+## 1.2 Package Management
+### 1.2.1 Configure Package Repositories
+### 1.2.1.1 Ensure the source.list and .source files use the Signed-By option (Manual)
+### 1.2.1.2 Ensure weak dependencies are configured (Automated)
+cat >/etc/apt/apt.conf.d/99no-install-recommends << EOF
+# 1.2.1.2
+APT::Install-Recommends "0";
+APT::Install-Suggests "0";
+EOF
+### 1.2.1 Ensure package manager repositories are configured (Manual) - Default
+### 1.2.2 Ensure GPG keys are configured (Manual) - Kolla med Gurra
+### 1.2.1.3 Ensure access to gpg key files are configured (Automated)
+### 1.2.1.4 Ensure access to /etc/apt/trusted.gpg.d directory is configured (Automated)
+### 1.2.1.5 Ensure access to /etc/apt/auth.conf.d directory is configured (Automated)
+### 1.2.1.6 Ensure access to files in the /etc/apt/auth.conf.d/ directory is configured (Automated)
+### 1.2.1.7 Ensure access to /usr/share/keyrings directory is configured (Automated)
+### 1.2.1.8 Ensure access to /etc/apt/sources.list.d directory is configured (Automated)
+### 1.2.1.9 Ensure access to files in /etc/apt/sources.list.d are configured (Automated)
+## 1.2.2 Configure Package Updates
+### 1.2.2.1 Ensure updates, patches, and additional security software are installed (Manual) 
+### 1.3.1 Ensure AIDE is installed (Automated) - Do not install per dhtech policy
+
+
+## Mandatory Access Control
+### 1.3.1.1 Ensure apparmor packages are installed (Automated) - Default
+### 1.3.1.2 Ensure AppArmor is enabled in the bootloader configuration (Automated) - Not used default per dhtech policy
+### 1.3.1.3 Ensure all AppArmor Profiles are in enforce or complain mode (Automated) - Not used default per dhtech policy
+### 1.3.1.4 Ensure all AppArmor Profiles are enforcing (Automated) - Not used default per dhtech policy
+
+## Secure Boot Settings
+### 1.4.1 Ensure bootloader password is set (Automated) - Default is no password and this is dhtech policy
+### 1.4.2 Ensure permissions on bootloader config are configured (Automated) - chmod u-wx,go-rwx /boot/grub/grub.cfg - kolla med gurra
+### 1.4.3 Ensure authentication required for single user mode (Automated) - Default
+
+## Additional Process Hardening
+### 1.5.1 Ensure fs.protected_hardlinks is configured | conf
+### 1.5.2 Ensure fs.protected_symlinks is configured | conf
+cat >/etc/ax-links.conf << EOF
+# 1.5.1
+fs.protected_hardlinks = 1
+# 1.5.2
+fs.protected_symlinks = 1
+EOF
+### 1.5.3 Ensure kernel.yama.ptrace_scope is configured (Automated) 
+# Duplicate of 1.5.10 ?
+### 1.5.4 Ensure fs.suid_dumpable is configured (Automated) 
+cat >/etc/ax-suid.conf << EOF
+# 1.5.4
+fs.suid_dumpable = 0
+EOF
+
+### 1.5.5 Ensure kernel.dmesg_restrict is configured (Automated)
+cat >/etc/ax-dmesg.conf << EOF
+# 1.5.5
+kernel.dmesg_restrict = 1
+EOF
+### 1.5.6 Ensure prelink is not installed (Automated) 
+### 1.5.7 Ensure Automatic Error Reporting is configured (Automated) 
+### 1.5.8 Ensure kernel.kptr_restrict is configured (Automated) 
+### 1.5.9 Ensure kernel.randomize_va_space is configured (Automated) 
+### 1.5.10 Ensure kernel.yama.ptrace_scope is configured (Automated) 
+cat > /etc/sysctl.d/ax-ptrace.conf << EOF
+# 1.5.8
+kernel.kptr_restrict = 1
+# 1.5.9
+kernel.randomize_va_space = 2
+# 1.5.10
+kernel.yama.ptrace_scope = 2
+EOF
+### 1.5.11 Ensure core file size is configured (Automated) 
+sed -i 's/infinity/0/g' /etc/security/limits.d/10-coredump-debian.conf
+### 1.5.12 Ensure systemd-coredump ProcessSizeMax is configured (Automated) 
+# Application not installed by default skipping this
+### 1.5.13 Ensure systemd-coredump Storage is configured (Automated) 
+# Application not installed by default skipping this
+
+## Command Line Warning Banners
+### 1.6.1 Ensure message of the day is configured properly (Automated) - Default
+# dhtech default is to use the default. 
+### 1.6.2 Ensure local login warning banner is configured properly (Automated)
+echo "Authorized uses only. All activity may be monitored and reported." > /etc/issue
+### 1.6.3 Ensure remote login warning banner is configured properly (Automated)
+echo "Authorized uses only. All activity may be monitored and reported." > /etc/issue.net
+### 1.6.4 Ensure permissions on /etc/motd are configured (Automated) - Default
+### 1.6.5 Ensure permissions on /etc/issue are configured (Automated) - Default
+### 1.6.6 Ensure permissions on /etc/issue.net are configured (Automated) - Default
+
+## GNOME Display Manager
+### 1.7 Not installed default, skipping block
+
+## Services
+### 2.1.1 Ensure autofs services are not in use (Automated) - Default
+### 2.1.2 Ensure avahi daemon services are not in use (Automated) - Not installed
+### 2.1.3 Ensure dhcp server services are not in use (Automated) - Not installed
+### 2.1.4 Ensure dns server services are not in use (Automated) - Not installed
+### 2.1.5 Ensure dnsmasq services are not in use (Automated)  - Not installed
+### 2.1.6 Ensure ftp server services are not in use (Automated)  - Not installed
+### 2.1.7 Ensure ldap server services are not in use (Automated) - Not installed
+### 2.1.8 Ensure message access server services are not in use (Automated) - Not installed
+### 2.1.9 Ensure network file system services are not in use (Automated) - Default/not installed
+### 2.1.10 Ensure nis server services are not in use (Automated)  - Not installed
+### 2.1.11 Ensure print server services are not in use (Automated) - Not installed
+### 2.1.12 Ensure rpcbind services are not in use (Automated) - Default/not installed
+### 2.1.13 Ensure rsync services are not in use (Automated)  - Not installed
+### 2.1.14 Ensure samba file server services are not in use (Automated) - Not installed
+### 2.1.15 Ensure snmp services are not in use (Automated)  - Not installed
+### 2.1.16 Ensure telnet-server services are not in use (Automated)  - Not installed
+### 2.1.17 Ensure tftp server services are not in use (Automated) - Not installed
+### 2.1.18 Ensure web proxy server services are not in use (Automated) - Not installed
+### 2.1.19 Ensure web server services are not in use (Automated) - Not installed by default
+### 2.1.20 Ensure xinetd services are not in use (Automated)  - Not installed
+### 2.1.21 Ensure X window server services are not in use (Automated) - Not installed
+### 2.1.22 Ensure mail transfer agents are configured for local-only mode (Automated) - No MTA installed 
+### 2.1.23 Ensure only approved services are listening on a network interface (Manual) - Only SSH and NTP
+
+## Service clients
+### 2.2.1 Ensure NIS Client is not installed (Automated) - not installed by default
+### 2.2.2 Ensure rsh client is not installed (Automated) - not installed by default
+### 2.2.3 Ensure talk client is not installed (Automated) - not installed by default
+### 2.2.4 Ensure telnet client is not installed (Automated) - explicitly choosing to keep inetutils-telnet
+### 2.2.5 Ensure ldap client is not installed (Automated) - not installed by default
+### 2.2.6 Ensure ftp client is not installed (Automated) - not installed by default
+### 2.3 Configure Time Synchronization
+### 2.3.1.1 Einsure a single time synchronization daemon is in use (Automated) - Only ntp is used default
+### Skipping steps about chrony ans systemd-timesync
+### 2.3.4.1 Ensure ntp access control is configured (Automated)
+sed -i 's/restrict default kod nomodify noquery limited/restrict default kod notrap nomodify nopeer noquery/g' /etc/ntpsec/ntp.conf
+### 2.3.4.2 Ensure ntp is configured with authorized timeserver (Manual) - Default using internal servers for ntp
+### 2.3.4.3 Ensure ntp is running as user ntp (Automated) - Default
+### 2.3.4.4 Ensure ntp is enabled and running (Automated) - Default
+### 2.4.1.1 Ensure cron daemon is enabled 
+systemctl --now enable cron
+
+### 2.4.1.2 Ensure permissions on /etc/crontab are configured 
+chown root:root /etc/crontab
+chmod og-rwx /etc/crontab
+
+### 2.4.1.3 Ensure permissions on /etc/cron.hourly are configured 
+chown root:root /etc/cron.hourly
+chmod og-rwx /etc/cron.hourly
+
+### 2.4.1.4 Ensure permissions on /etc/cron.daily are configured 
+chown root:root /etc/cron.daily
+chmod og-rwx /etc/cron.daily
+
+### 2.4.1.5 Ensure permissions on /etc/cron.weekly are configured 
+chown root:root /etc/cron.weekly
+chmod og-rwx /etc/cron.weekly
+
+### 2.4.1.6 Ensure permissions on /etc/cron.monthly are configured 
+chown root:root /etc/cron.monthly
+chmod og-rwx /etc/cron.monthly
+
+### 2.4.1.7 Ensure permissions on /etc/cron.yearly are configured 
+chown root:root /etc/cron.yearly
+chmod og-rwx /etc/cron.yearly
+
+### 2.4.1.8 Ensure permissions on /etc/cron.d are configured 
+chown root:root /etc/cron.d
+chmod og-rwx /etc/cron.d
+### 2.4.1.9 Ensure at/cron is restricted to authorized users
+### 2.4.2.1 Ensure access to at is configured (Automated)
+# This will not be enabled by default. However, this can be implemtented by request on a server-to-server basis
+
+## Network Configuration
+### 3.1.1 Ensure system is checked to determine if IPv6 is enabled (Manual)
+echo "net.ipv6.conf.all.disable_ipv6 = 1" > /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.default.disable_ipv6 = 1 " >> /etc/sysctl.d/ax-ipv6.conf
+### 3.1.2 Ensure wireless interfaces are disabled (Automated) - Default
+### 3.1.3 Ensure bluetooth devices are disabled (Automated) - Default
+### 3.2.1 Ensure atm kernel module is not available (Automated)
+### 3.2.2 Ensure can kernel module is not available (Automated)
+### 3.2.3 Ensure DCCP is disabled (Automated) - Default
+### 3.2.4 Ensure RDS is disabled (Automated) - Default
+### 3.2.5 Ensure SCTP is disabled (Automated) - Default
+### 3.2.6 Ensure TIPC is disabled (Automated) - Default
+cat >/etc/modprobe.d/network.conf <<EOF
+install atm /bin/false
+blacklist atm
+install can /bin/false
+blacklist can
+install dccp /bin/false
+blacklist dccp
+install rds /bin/false
+blacklist rds
+install sctp /bin/false
+blacklist sctp
+install tipc /bin/false
+blacklist tipc
+EOF
+
+## Network Parameters (Host Only)
+### 3.3.1.1 Ensure net.ipv4.ip_forward is configured (Automated) - Default
+### 3.3.1.2 Ensure net.ipv4.conf.all.forwarding is configured (Automated) - Default
+### 3.3.1.3 Ensure net.ipv4.conf.default.forwarding is configured (Automated) - Default
+### 3.3.1.4 Ensure net.ipv4.conf.all.send_redirects is configured (Automated) - Default
+### 3.3.1.5 Ensure net.ipv4.conf.default.send_redirects is configured (Automated) - Default
+### 3.3.2.1 Ensure net.ipv6.conf.all.forwarding is configured (Automated) - Default
+### 3.3.2.2 Ensure net.ipv6.conf.default.forwarding is configured (Automated) - Default
+echo "net.ipv4.conf.all.send_redirects = 0" > /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.default.send_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+## Network Parameters (Host and Router)
+### 3.3.1.6 Ensure net.ipv4.icmp_ignore_bogus_error_responses is configured (Automated)
+echo "net.ipv4.icmp_ignore_bogus_error_responses = 1" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.7 Ensure net.ipv4.icmp_echo_ignore_broadcasts is configured (Automated)
+echo "net.ipv4.icmp_echo_ignore_broadcasts = 1" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.8 Ensure net.ipv4.conf.all.accept_redirects is configured (Automated)
+echo "net.ipv4.conf.all.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.9 Ensure net.ipv4.conf.default.accept_redirects is configured (Automated)
+echo "net.ipv4.conf.default.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.10 Ensure net.ipv4.conf.all.secure_redirects is configured (Automated)
+echo "net.ipv4.conf.all.secure_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.11 Ensure net.ipv4.conf.default.secure_redirects is configured (Automated)
+echo "net.ipv4.conf.default.secure_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.2.3 Ensure net.ipv6.conf.all.accept_redirects is configured (Automated)
+echo "net.ipv6.conf.all.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv6.conf
+### 3.3.2.4 Ensure net.ipv6.conf.default.accept_redirects is configured (Automated)
+echo "net.ipv6.conf.default.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv6.conf
+### 3.3.1.16 Ensure net.ipv4.conf.all.log_martians is configured (Automated)
+### 3.3.1.17 Ensure net.ipv4.conf.default.log_martians is configured (Automated)
+echo "net.ipv4.conf.all.log_martians = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.default.log_martians = 1" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.12 Ensure net.ipv4.conf.all.rp_filter is configured (Automated)
+### 3.3.1.13 Ensure net.ipv4.conf.default.rp_filter is configured (Automated)
+echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.default.rp_filter = 1" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.1.14 Ensure net.ipv4.conf.all.accept_source_route is configured (Automated)
+### 3.3.1.15 Ensure net.ipv4.conf.default.accept_source_route is configured (Automated)
+### 3.3.2.5 Ensure net.ipv6.conf.all.accept_source_route is configured (Automated)
+### 3.3.2.6 Ensure net.ipv6.conf.default.accept_source_route is configured (Automated)
+echo "net.ipv4.conf.all.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.default.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv6.conf.all.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.default.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv6.conf
+### 3.3.1.18 Ensure net.ipv4.tcp_syncookies is configured (Automated) - Default
+echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/ax-ipv4.conf
+### 3.3.2.7 Ensure net.ipv6.conf.all.accept_ra is configured (Automated)
+### 3.3.2.8 Ensure net.ipv6.conf.default.accept_ra is configured (Automated)
+echo "net.ipv6.conf.all.accept_ra = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.default.accept_ra = 0" >> /etc/sysctl.d/ax-ipv6.conf
+
+## 4 Firewall Configuration
+### 4.1 Configure UncomplicatedFirewall - We use iptables as fw, skipping config of ufw
+
+# Access Control
+#### 5.1.1 Ensure permissions on /etc/ssh/sshd_config are configured 
+chown root:root /etc/ssh/sshd_config
+chmod og-rwx /etc/ssh/sshd_config
+
+#### 5.1.2 Ensure permissions on SSH private host key files are configured 
+# Compliant by default, no changes needed
+
+#### 5.1.3 Ensure permissions on SSH public host key files are configured 
+# Compliant by default, no changes needed
+
+#### 5.1.4 Ensure SSH access is limited
+#sed -i '39 a DenyUsers root' /etc/ssh/sshd_config
+echo "DenyUsers root" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.5 Ensure sshd Banner is configured (Automated)
+echo "Authorized uses only. All activity may be monitored and reported." > /etc/issue
+echo "Authorized uses only. All activity may be monitored and reported." > /etc/issue.net
+#sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config
+echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config.d/dhtech.conf
+### 5.1.6 Ensure sshd Ciphers are configured (Automated) - Compliant by default
+### 5.1.7 Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured (Automated)
+#sed -i 's/#ClientAliveInterval 0/ClientAliveInterval 300/g' /etc/ssh/sshd_config
+#sed -i 's/#ClientAliveCountMax 3/ClientAliveCountMax 0/g' /etc/ssh/sshd_config
+echo "ClientAliveInterval 300" >> /etc/ssh/sshd_config.d/dhtech.conf
+echo "ClientAliveCountMax 0" >> /etc/ssh/sshd_config.d/dhtech.conf
+### 5.1.8 Ensure DisableForwarding is enabled (Automated) - We use forwarding so not disabled
+### 5.1.9 Ensure sshd GSSAPIAuthentication is disabled (Automated) - This may be in use, not disabled
+
+#### 5.1.10 Ensure SSH HostbasedAuthentication is disabled
+#sed -i 's/#HostbasedAuthentication no/HostbasedAuthentication no/g' /etc/ssh/sshd_config
+echo "HostbasedAuthentication no" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.15 Ensure SSH LogLevel is appropriate
+# LogLevel is set to INFO as default
+# Compliant by default, no changes needed
+#### 5.2.6 Ensure SSH PAM is enabled (Automated) - Default
+#### 5.1.20 Ensure SSH root login is disabled (Automated) - Default
+#sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/g' /etc/ssh/sshd_config
+echo "PermitRootLogin no" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.19 Ensure SSH PermitEmptyPasswords is disabled
+#sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords no/g' /etc/ssh/sshd_config
+echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.21 ensure ssh permituserenvironment is disabled 
+#sed -i 's/#PermitUserEnvironment no/PermitUserEnvironment no/g' /etc/ssh/sshd_config
+echo "PermitUserEnvironment no" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.11 Ensure SSH IgnoreRhosts is enabled
+#sed -i 's/#IgnoreRhosts yes/IgnoreRhosts yes/g' /etc/ssh/sshd_config
+echo "IgnoreRhosts yes" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.2.12 Ensure SSH X11 forwarding is disabled 
+sed -i 's/X11Forwarding yes/X11Forwarding no/g' /etc/ssh/sshd_config
+
+#### 5.1.15 Ensure only strong MAC algorithms are used 
+#sed -i '25 a MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256' /etc/ssh/sshd_config
+echo "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.12 Ensure only strong Key Exchange algorithms are used 
+#### 5.1.13 Ensure sshd post-quantum cryptography key exchange algorithms are configured(Automated)
+#sed -i '26 a KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256' /etc/ssh/sshd_config
+echo "KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+####5.2.16 Ensure SSH AllowTcpForwarding is disabled 
+#sed -i 's/#AllowTcpForwarding yes/AllowTcpForwarding no/g' /etc/ssh/sshd_config
+echo "AllowTcpForwarding no" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config.d/dhtech.conf
+#### 5.1.16 Ensure SSH MaxAuthTries is set to 4 or less
+#sed -i 's/#MaxAuthTries 6/MaxAuthTries 4/g' /etc/ssh/sshd_config
+echo "MaxAuthTries 4" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.18 Ensure SSH MaxStartups is configured (Automated)
+#sed -i 's/#MaxStartups 10:30:100/MaxStartups 10:30:60/g' /etc/ssh/sshd_config
+echo "MaxStartups 10:30:60" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+### 5.1.17 Ensure SSH MaxSessions is set to 10 or less (Automated)
+#sed -i 's/#MaxSessions 10/MaxSessions 10/g' /etc/ssh/sshd_config
+echo "MaxSessions 10" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+#### 5.1.14 Ensure SSH LoginGraceTime isset to one minute or less
+#sed -i 's/#LoginGraceTime 2m/LoginGraceTime 60/g' /etc/ssh/sshd_config
+echo "LoginGraceTime 60" >> /etc/ssh/sshd_config.d/dhtech.conf
+## 5.1.22 Ensure sshd PermitUserEnvironment is disabled (Automated)
+echo "PermitUserEnvironment no" >> /etc/ssh/sshd_config.d/dhtech.conf
+
+## 5.1.23 Ensure sshd UsePAM is enabled (Automated) - Default
+## 5.2 Configure privilege escalation
+### 5.2.1 Ensure sudo is installed (Automated) - Default
+
+### 5.2.2 Ensure sudo commands use pty (Automated) - 
+echo "Defaults use_pty" > /etc/sudoers.d/ax-pty
+
+### 5.2.3 Ensure sudo log file exists (Automated) level 1
+echo 'Defaults logfile="/var/log/sudo.log"' > /etc/sudoers.d/ax-logfile
+
+### 5.2.4 Ensure users must provide password for privilege escalation (Automated) - Default
+### 5.2.5 Ensure re-authentication for privilege escalation is not disabled globally (Automated) - Default
+### 5.2.6 Ensure sudo authentication timeout is configured correctly (Automated) - Default
+### 5.2.7 Ensure access to the su command is restricted (Automated) - Default
+# Due to operational requirements at dhtech we refrain from implementing this at this point in time
+
+## 5.3 Pluggable Authentication Modules
+### 5.3.1 Configure PAM software packages
+### 5.3.1.1 Ensure latest version of pam is installed (Automated) - Default
+### 5.3.1.2 Ensure latest version of libpam-modules is installed (Automated) - Default
+### 5.3.1.3 Ensure latest version of libpam-pwquality is installed (Automated)
+# Added to preseed file
+### 5.3.2 Configure pam-auth-update profiles
+### 5.3.2.1 Ensure pam_unix module is enabled (Automated) - Default
+### 5.3.2.2 Ensure pam_faillock module is enabled (Automated)
+cat >/usr/share/pam-configs/faillock <<EOF
+Name: Enable pam_faillock to deny access
+Default: yes
+Priority: 0
+Auth-Type: Primary
+Auth:
+[default=die] pam_faillock.so authfail
+EOF
+cat >/usr/share/pam-configs/faillock_notify <<EOF
+Name: Notify of failed login attempts and reset count upon success
+Default: yes
+Priority: 1024
+Auth-Type: Primary
+Auth:
+requisite pam_faillock.so preauth
+Account-Type: Primary
+Account:
+required pam_faillock.so
+EOF
+pam-auth-update --enable faillock
+pam-auth-update --enable faillock_notify
+### 5.3.2.3 Ensure pam_pwquality module is enabled (Automated) - Default after install
+### 5.3.2.4 Ensure pam_pwhistory module is enabled (Automated) - Not implementing
+# This will not be implemented due to dhtech policy
+### 5.3.1.1 Ensure latest version of pam is installed (Automated) - Default
+### 5.3.1.2 Ensure libpam-modules is installed (Automated) - Default
+### 5.3.1.3 Ensure pam_pwquality module is enabled (Automated) - Default after install
+### 5.3.3.2 Configure pam_pwquality module
+### 5.3.3.2.2 Ensure minimum password length is configured (Automated)
+sed -i 's/# minlen = 8/minlen = 14/g' /etc/security/pwquality.conf
+sed -i 's/# minclass = 0/minclass = 4/g' /etc/security/pwquality.conf
+### 5.3.3.4.4 Ensure pam_unix includes use_authtok (Automated) - Default
+### 5.3.3.1 Configure pam_faillock module
+### 5.3.3.1.1 Ensure lockout for failed password attempts is configured (Automated) - dhtech has changed this to 5 2022-04-04
+sed -i 's/# deny = 3/deny = 5/' /etc/security/faillock.conf
+### 5.3.3.1.2 Ensure password unlock time is configured (Automated)
+### 5.3.3.1.3 Ensure password failed attempts lockout includes root account (Automated) - Default?
+### 5.3.3.2 Configure pam_pwquality module
+### 5.3.3.2.1 Ensure password number of changed characters is configured (Automated)
+### 5.3.3.2.2 Ensure password length is configured (Automated)
+### 5.3.3.2.3 Ensure password complexity is configured (Manual) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.2.4 Ensure password same consecutive characters is configured (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.2.5 Ensure password maximum sequential characters is configured (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.2.6 Ensure password dictionary check is enabled (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.2.7 Ensure password quality checking is enforced (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.2.8 Ensure password quality is enforced for the root user (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+
+### 5.3.3.3 Configure pam_pwhistory module
+### 5.3.3.3.1 Ensure password history remember is configured (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.3.2 Ensure password history is enforced for the root user (Automated) - dhtech will not implement this due to operational policy 2022-04-04
+### 5.3.3.3.3 Ensure pam_pwhistory includes use_authtok (Automated) 
+### 5.3.3.4 Configure pam_unix module
+### 5.3.3.4.1 Ensure pam_unix does not include nullok (Automated) Level1
+sed -i 's/ nullok//' /usr/share/pam-configs/unix
+sed -i 's/ nullok//' /etc/pam.d/common-auth
+### 5.3.3.4.2 Ensure pam_unix does not include remember (Automated) Level1
+# OK by default 2026-02-12
+### 5.3.3.4.3 Ensure pam_unix includes a strong password hashing algorithm (Automated) Level1
+# Debian uses yescrypt by default on debian 11, 12, 13 this is ok by dhtech standard 2026-02-12
+### 5.3.3.4.4 Ensure pam_unix includes use_authtok (Automated)
+### 5.4.3 Ensure password reuse is limited (Automated) 
+# - dhtech will not implement this due to operational policy 2022-04-04 2026-02-05
+### 5.3.3.4.3 Ensure pam_unix includes a strong password hashing algorithm (Automated)
+### 5.3.3.2.1 Ensure password number of changed characters isconfigured (Automated) 
+# - not implementing due to policy 2026-02-05
+
+## User Accounts and Environment
+### 5.4.1.1 Ensure password expiration is configured (Automated) 
+# - cant be implemented because of policy 2026-02-05
+### 5.4.1.2 Ensure minimum days between password changes is configured (Automated)
+sed -i 's/PASS_MIN_DAYS\t0/PASS_MIN_DAYS\t7/' /etc/login.defs
+### 5.4.1.2 Ensure password expiration is 365 days or less (Automated) 
+# - this cant be implementd du to dhtech operatinal policy 2022-11-02 2026-02-05
+### 5.4.1.3 Ensure password expiration warning days is 7 or more (Automated) - Default
+### 5.4.1.4 Ensure strong password hashing algorithm is configured (Automated) - Default
+### 5.4.1.5 Ensure inactive password lock is 30 days or less (Automated) 
+# - this cant be implementd du to dhtech operatinal policy 2022-11-02 2026-02-05
+### 5.4.1.6 Ensure all users last password change date is in the past (Automated) - Default
+### 5.4.2.1 Ensure root is the only UID 0 account (Automated) - Default
+### 5.4.2.2 Ensure root is the only GID 0 account (Automated) - Default
+### 5.4.2.3 Ensure group root is the only GID 0 group (Automated) - Default
+### 5.4.2.4 Ensure root account access is controlled (Automated) - Done in preseed
+### 5.4.2.5 Ensure root path integrity (Automated) - Default
+### 5.4.2.6 Ensure root user umask is configured (Automated) - Default (0027)
+### 5.4.2 Ensure system accounts are secured (Automated) - Default
+### 5.4.2.7 Ensure system accounts do not have a valid login shell (Automated) - Default
+### 5.4.2.8 Ensure accounts without a valid login shell are locked (Automated) - Not sure
+### 5.4.3 Ensure default group for the root account is GID 0 (Automated) - Default
+### 5.4.3.1 Ensure nologin is not listed in /etc/shells (Automated) - Default
+### 5.4.3.2 Ensure default user shell timeout is 900 seconds or less (Automated)
+echo 'readonly TMOUT=1200 ; export TMOUT' >> /etc/profile.d/ax-tmout.sh
+### 5.4.3.3 Ensure default user umask is 027 or more restrictive (Automated)
+echo "umask 0027" > /etc/profile.d/ax-set-umask.sh
+chmod +x /etc/profile.d/ax-set-umask.sh
+sed -i 's/^UMASK           022/UMASK           0027/' /etc/login.defs
+sed -i 's/^USERGROUPS_ENAB yes/USERGROUPS_ENAB no/' /etc/login.defs
+
+# 6 Logging and Auditing
+## 6.1 System Logging
+### 6.1.1 Configure journald
+[[ -d /etc/systemd/journald.conf.d/ ]] ; mkdir /etc/systemd/journald.conf.d/
+### 6.1.1.1 Configure systemd-journald service
+### 6.1.1.1.1 Ensure journald service is active (Automated) - Default
+### 6.1.1.1.2 Ensure journald log file access is configured (Manual) - Default
+# LGTM OK in default
+### 6.1.1.1.3 Ensure journald log file rotation is configured (Manual) - Default
+# LGTM OK in default
+### 6.1.1.1.4 Ensure journald ForwardToSyslog is disabled (Automated)
+# dhtech does not forward journald to syslog at this time, if we'd like in the futureenable it here 2026-02-11
+#echo 'ForwardToSyslog=yes' >> /etc/systemd/journald.conf.d/dhtech.conf
+### 6.1.1.1.5 Ensure journald Storage is configured (Automated)
+echo 'Storage=persistent' >> /etc/systemd/journald.conf.d/dhtech.conf
+### 6.1.1.1.6 Ensure journald Compress is configured (Automated)
+echo 'Compress=persistent' >> /etc/systemd/journald.conf.d/dhtech.conf
+### 6.1.1.2 Configure systemd-journal-remote - Not implemented
+### 6.1.1.2.1 Ensure systemd-journal-remote is installed (Automated) - Not implemented
+# Not installed 2026-02-11
+### 6.1.1.2.2 Ensure systemd-journal-upload authentication is configured (Manual) - Not implemented
+# Not installed 2026-02-11
+### 6.1.1.2.3 Ensure systemd-journal-upload is enabled and active (Automated) - Not implemented
+# Not installed 2026-02-11
+### 6.1.1.2.4 Ensure systemd-journal-remote service is not in use (Automated) - Default
+# Not installed 2026-02-11
+### 6.1.2 Configure rsyslogd - Skipped in favor of journald
+# Acording to dhtech policy Rsyslogd is configured 2026-02-11
+### 6.1.3 Configure Logfiles
+#### 6.1.3.1 Ensure permissions on all logfiles are configured 
+find /var/log -type f -exec chmod g-wx,o-rwx "{}" + -o -type d -exec chmod g-w,o-rwx "{}" +
+
+## 6.2 System Auditing - Auditd
+### 6.2.1.1 Ensure auditd is installed (Automated) - Default
+### 6.2.1.2 Ensure auditd service is enabled and active (Automated) - Default
+### 6.2.1.3 and 6.2.1.4
+sed -i 's|^GRUB_CMDLINE_LINUX=""|GRUB_CMDLINE_LINUX="audit=1 audit_backlog_limit=8192"|g' /etc/default/grub
+### 6.2.2.1 Ensure audit log storage size is configured - Default for now
+### 6.2.2.2 Ensure audit logs are not automatically deleted - Will not be implemented
+# Its not viable to keep all logs for customers acording to dhtech policy 2026-02-11
+### 6.2.2.3 Ensure system is disabled when audit logs are full - Will not be implemented by default
+# Its not viable to keep all logs for customers acording to dhtech policy 2026-02-11
+### 6.2.2.4 Ensure system warns when audit logs are low on space (Automated) - Will not change from SYSLOG
+# Alerts will come from external monitoring 2026-02-11
+
+# dhtech policy putside CIS 2026-02-11
+sed -i 's/disk_full_action = SUSPEND/disk_full_action = ROTATE/' /etc/audit/auditd.conf
+
+### 6.2.3 Configure auditd rules
+### 6.2.3.1 Ensure modification of the /etc/sudoers file is collected (Automated)
+echo """\
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d/ -p wa -k scope \
+""" > /etc/audit/rules.d/scope.rules
+
+### 6.2.3.2 Ensure actions as another user are always logged (Automated)
+echo """\
+-a always,exit -F arch=b64 -C euid!=uid -F auid!=unset -S execve -k user_emulation \
+""" >> /etc/audit/rules.d/user_emulation.rules
+
+### 6.2.3.3 Ensure events that modify the sudo log file are collected (Automated)
+echo """
+-a always,exit -F arch=b64 -S all -F path=/var/log/sudo.log -F perm=wa -k sudo_log_file \
+""" >> /etc/audit/rules.d/sudo.rules
+
+### 6.2.3.4 Ensure events that modify date and time information are collected (Automated) Level2
+echo """\
+-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+-a always,exit -F arch=b64 -S clock_settime -k time-change
+-a always,exit -F arch=b32 -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change \
+""" > /etc/audit/rules.d/time-change.rules
+
+### 6.2.3.12 Ensure events that modify /etc/group information are collected (Automated)
+### 6.2.3.13 Ensure events that modify /etc/passwd information are collected (Automated)
+### 6.2.3.14 Ensure events that modify /etc/shadow and /etc/gshadow are collected (Automated)
+### 6.2.3.15 Ensure events that modify /etc/security/opasswd are collected (Automated)
+### 6.2.3.16 Ensure events that modify /etc/nsswitch.conf file are collected (Automated)
+echo """\
+-w /etc/group -p wa -k identity
+-w /etc/passwd -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+-w /etc/nsswitch.conf -p wa -k identity \
+""" > /etc/audit/rules.d/identity.rules
+
+### 6.2.3.5 Ensure events that modify sethostname and setdomainname are collected(Automated) Level2
+### 6.2.3.6 Ensure events that modify /etc/issue and /etc/issue.net are collected (Automated) .. 803 Level2
+### 6.2.3.7 Ensure events that modify /etc/hosts and /etc/hostname are collected (Automated) 806 Level2
+### 6.2.3.8 Ensure events that modify the system's network environment are collected(Automated) Level2
+### 6.2.3.9 Ensure events that modify /etc/NetworkManager directory are collected (Automated) - not installed by default Level2
+echo """\
+-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale
+-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+""" > /etc/audit/rules.d/system-locale.rules
+
+### 6.2.3.10 Ensure use of privileged commands are collected (Automated) 
+
+#### 6.2.3.23 Ensure login and logout events are collected Level2
+echo """\
+-w /var/log/faillog -p wa -k logins
+-w /var/log/lastlog -p wa -k logins
+-w /var/log/tallylog -p wa -k logins \
+""" > /etc/audit/rules.d/logins.rules
+
+#### 6.2.3.22 Ensure session initiation information is collected Level2
+echo """\
+-w /var/run/utmp -p wa -k session
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins \
+""" > /etc/audit/rules.d/session.rules
+
+### 6.2.3.18 Ensure discretionary access control permission modification events chmod,fchmod,fchmodat,fchmodat2 are collected (Automated)
+### 6.2.3.19 Ensure discretionary access control permission modification events chown,fchown,lchown,fchownat are collected (Automated) Level2
+### 6.2.3.20 Ensure discretionary access control permission modification events setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr collected (Automated) Level2
+echo """\
+-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod \
+""" > /etc/audit/rules.d/perm_mod.rules
+
+### 6.2.3.11 Ensure unsuccessful file access attempts are collected (Automated)
+echo """\
+-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access \
+""" > /etc/audit/rules.d/access.rules
+
+
+#### 6.2.3.21 Ensure successful file system mounts are collected Level2
+echo """\
+-a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts \
+""" > /etc/audit/rules.d/mounts.rules
+
+### 6.2.3.24 Ensure unlink file deletion events by users are collected (Automated) Level2
+### 6.2.3.25 Ensure rename file deletion events by users are collected (Automated) Level2
+echo """\
+-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete \
+""" > /etc/audit/rules.d/delete.rules
+
+### 6.2.3.26 Ensure events that modify the system's Mandatory Access Controls are collected(Automated) Level2
+echo """\
+-w /etc/apparmor/ -p wa -k MAC-policy
+-w /etc/apparmor.d/ -p wa -k MAC-policy \
+""" > /etc/audit/rules.d/MAC-policy.rules
+
+### 6.2.3.27 Ensure successful and unsuccessful attempts to use the chcon command arecollected (Automated) Level2
+### 6.2.3.28 Ensure successful and unsuccessful attempts to use the setfacl command arecollected (Automated) Level2
+### 6.2.3.29 Ensure successful and unsuccessful attempts to use the chacl command arecollected (Automated) Level2
+### 6.2.3.30 Ensure successful and unsuccessful attempts to use the usermod command arecollected (Automated) Level2
+echo """\
+-a always,exit -F arch=b64 -S all -F path=/usr/bin/chcon -F perm=x -F auid>=1000 -F auid!=unset -k perm_chng
+-a always,exit -F arch=b64 -S all -F path=/usr/bin/setfacl -F perm=x -F auid>=1000 -F auid!=unset -k perm_chng
+-a always,exit -F arch=b64 -S all -F path=/usr/bin/chacl -F perm=x -F auid>=1000 -F auid!=unset -k perm_chng
+-a always,exit -F arch=b64 -S all -F path=/usr/sbin/usermod -F perm=x -F auid>=1000 -F auid!=unset -k usermodi \
+""" >> /etc/audit/rules.d/perm_chng.rules
+
+#### 4.1.15 Ensure system administrator actions (sudolog) are collected
+echo """\
+-w /var/log/auth.log -p wa -k actions \
+""" > /etc/audit/rules.d/actions.rules
+
+#### 6.2.3.31 Ensure kernel module loading and unloading is collected Level2
+echo """\
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b64 -S init_module -S delete_module -k modules \
+""" > /etc/audit/rules.d/modules.rules
+
+### 6.2.3.32 Ensure kernel "init_module" and "finit_module" loading unloading and modification iscollected (Automated) Level2
+### 6.2.3.33 Ensure kernel "delete_module" loading unloading and modification is collected(Automated) Level2
+### 6.2.3.34 Ensure kernel query_module loading unloading and modification is collected(Automated) Level2
+echo """\
+-a always,exit -F arch=b64 -S init_module,finit_module -F auid>=1000 -F auid!=unset -k kernel_modules
+-a always,exit -F arch=b64 -S delete_module -F auid>=1000 -F auid!=unset -k kernel_modules
+-a always,exit -F arch=b64 -S query_module -F auid>=1000 -F auid!=unset -k kernel_modules \
+""" >> /etc/audit/rules.d/kernel_modules.rule
+
+### 6.2.3.35 Ensure the audit configuration is loaded regardless of errors (Automated) Level2
+printf '%s\n' "" "-c" >> /etc/audit/rules.d/01-initialize.rules
+
+#### 6.2.3.36 Ensure the audit configuration is immutable 
+echo "-e 2" > /etc/audit/rules.d/99-finalize.rules
+### 6.2.3.37 Ensure the running and on disk configuration is the same (Manual) - Default Level2
+
+### 6.2.4 Configure auditd File Access
+### 6.2.4.1 Ensure audit log files mode is configured (Automated) - Default 
+### 6.2.4.2 Ensure audit log files owner is configured (Automated) - Default
+### 6.2.4.3 Ensure audit log files group owner is configured (Automated) - Default
+### 6.2.4.4 Ensure the audit log file directory mode is configured (Automated) - Default
+### 6.2.4.5 Ensure audit configuration files mode is configured (Automated) - Default
+### 6.2.4.6 Ensure audit configuration files owner is configured (Automated) - Default
+### 6.2.4.7 Ensure audit configuration files group owner is configured (Automated) - Default
+### 6.2.4.8 Ensure audit tools mode is configured (Automated) - Default
+### 6.2.4.9 Ensure audit tools owner is configured (Automated) - Default
+### 6.2.4.10 Ensure audit tools group owner is configured (Automated) - Default
+
+### 6.3 Configure Integrity Checking
+# dhtech uses a thirdparty epp over AIDE 2026-02-11
+# apt install aide aide-common -y
+# aideinit
+### 6.3.1 Ensure AIDE is installed (Automated) Level1
+### 6.3.2 Ensure filesystem integrity is regularly checked (Automated) - Level1
+### 6.3.3 Ensure cryptographic mechanisms are used to protect the integrity of audit tools (Automated)
+# printf '%s\n' "" "# Audit Tools" "$(readlink -f /sbin/auditctl)
+# p+i+n+u+g+s+b+acl+xattrs+sha512" "$(readlink -f /sbin/auditd)
+# p+i+n+u+g+s+b+acl+xattrs+sha512" "$(readlink -f /sbin/ausearch)
+# p+i+n+u+g+s+b+acl+xattrs+sha512" "$(readlink -f /sbin/aureport)
+# p+i+n+u+g+s+b+acl+xattrs+sha512" "$(readlink -f /sbin/augenrules)
+# p+i+n+u+g+s+b+acl+xattrs+sha512" >> /etc/aide/aide.conf.d/40-audit.conf
+
+# System Maintenance
+## 7.1 Configure system file and directory access
+### 7.1.1 Ensure access to /etc/passwd is configured (Automated) - Default
+# Default values are OK 2026-02-11
+### 7.1.2 Ensure access to /etc/passwd- is configured (Automated) - Default
+# Default values are OK 2026-02-11
+### 7.1.3 Ensure access to /etc/group is configured (Automated) - Default
+# Default values are OK 2026-02-11
+### 7.1.4 Ensure access to /etc/group- is configured (Automated) - Default
+# Default values are OK 2026-02-11
+### 7.1.5 Ensure access to /etc/shadow is configured (Automated) - Default
+# shadow is a ok group for this file 2026-02-05
+### 7.1.6 Ensure access to /etc/shadow- is configured (Automated) - Default
+# shadow is a ok group for this file 2026-02-05
+### 7.1.7 Ensure access to /etc/gshadow is configured (Automated) - Default
+### 7.1.8 Ensure access to /etc/gshadow- is configured (Automated) - Default
+### 7.1.9 Ensure access to /etc/shells is configured (Automated) - Default
+### 7.1.10 Ensure access to /etc/security/opasswd is configured (Automated) - Default
+### 7.1.11 Ensure world writable files and directories are secured (Automated) - Default
+### 7.1.12 Ensure no files or directories without an owner and a group exist (Automated) - Default
+### 7.1.13 Ensure SUID and SGID files are reviewed (Manual) - Default
+
+## 7.2 Local User and Group Settings
+### 7.2.1 Ensure accounts in /etc/passwd use shadowed passwords (Automated) - Default
+### 7.2.2 Ensure /etc/shadow password fields are not empty (Automated) - Default
+### 7.2.3 Ensure all groups in /etc/passwd exist in /etc/group (Automated) - Default
+### 7.2.4 Ensure shadow group is empty (Automated) - Default
+### 7.2.5 Ensure no duplicate UIDs exist (Automated) - Default
+### 7.2.6 Ensure no duplicate GIDs exist (Automated) - Default
+### 7.2.7 Ensure no duplicate user names exist (Automated) - Default
+### 7.2.8 Ensure no duplicate group names exist (Automated) - Default
+### 7.2.9 Ensure local interactive user home directories are configured (Automated) - ok on newly deployed server
+### 7.2.10 Ensure local interactive user dot files access is configured (Automated) - ok on newly deployed server
+## 7.2 Local user and group settings from Debian 12 CIS bench
+### 7.2.11 Ensure root PATH Integrity (Automated) - Default
+### 7.2.12 Ensure root is the only UID 0 account (Automated) - Default
+### 7.2.13 Ensure local interactive user home directories exist (Automated) - Default ok
+### 7.2.14 Ensure local interactive users own their home directories (Automated) - Default ok
+### 7.2.15 Ensure local interactive user home directories are mode 750 or more restrictive (Automated) - there are alot of services here ok on newly deployed server
+### 7.2.16 Ensure no local interactive user has .netrc files (Automated) - ok on newly deployed server
+### 7.2.17 Ensure no local interactive user has .forward files (Automated) - ok on newly deployed server
+### 7.2.18 Ensure no local interactive user has .rhosts files (Automated) - ok on newly deployed server
+### 7.2.19 Ensure local interactive user dot files are not group or world writable (Automated) - ok on newly deployed server 
+
+### Site-specific outside CIS
+# Disable wifi kernel modules
+cat >/etc/modprobe.d/wifi.conf <<EOF
+install rfkill /bin/true
+blacklist rfkill
+install cfg80211 /bin/true
+blacklist cfg80211
+EOF
+
+# disable ipv6 autoconf
+echo "net.ipv6.conf.all.autoconf = 0" >> /etc/sysctl.d/ax-ipv6.conf
+
+# minimal use of swap
+echo "vm.swappiness = 1" > /etc/sysctl.d/ax-swappiness.conf
+
+# arp config
+echo "net.ipv4.conf.all.arp_filter = 1" > /etc/sysctl.d/ax-arp.conf
+echo "net.ipv4.conf.all.arp_announce = 1" >> /etc/sysctl.d/ax-arp.conf
+
+# always synchronize ntp
+sed -i '2itinker panic 0' /etc/ntpsec/ntp.conf
+
+# disable root login to ssh
+#sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+
+# disable reboot on ctrl alt del
+rm /lib/systemd/system/ctrl-alt-del.target
+ln -s /dev/null /lib/systemd/system/ctrl-alt-del.target
+
+# histtimeformat
+echo "HISTTIMEFORMAT='%F %T '" > /etc/profile.d/dh-histtimeformat.sh
+echo "export HISTTIMEFORMAT" >> /etc/profile.d/dh-histtimeformat.sh
+chmod +x /etc/profile.d/dh-histtimeformat.sh
+
+# ntp
+mkdir /var/log/ntpsec
+chown ntpsec:ntpsec /var/log/ntpsec
+sed -i 's/^server/#server/g' /etc/ntpsec/ntp.conf
+sed -i 's/^pool/#pool/g' /etc/ntpsec/ntp.conf
+echo "server 100.65.0.5 iburst" >> /etc/ntpsec/ntp.conf
+echo "server 100.65.0.6 iburst" >> /etc/ntpsec/ntp.conf
+echo "server 100.65.0.7 iburst" >> /etc/ntpsec/ntp.conf
+
+# Only install vmware tools on vmware servers
+if [ "`dmidecode | grep -i vmware | wc -l`" > "0" ]
+then
+  apt-get -y install open-vm-tools
+fi
+
+# Remove unwanted packages here.
+apt-get purge -y os-prober
+
+# Remove quiet from cmdline
+sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="quiet"/GRUB_CMDLINE_LINUX_DEFAULT=""/' /etc/default/grub
+
+# update grub
+update-grub
+
+# set vim as default editor
+update-alternatives --set editor /usr/bin/vim.basic
+
+# switch apt
+sed -i 's|http://|https://|' /etc/apt/sources.list
+#sed -i 's/qbranch/qmgmt/g' /etc/apt/sources.list
+
+# discard for lvm (this is for thin provisioning through all layers)
+sed -i 's/# issue_discards = 0/issue_discards = 1/' /etc/lvm/lvm.conf
+
+# sync to disk
+sync; sync

@@ -1,6 +1,8 @@
 import collections
 import json
 import sqlite3
+import ssl
+import urllib.request
 
 import redis
 import yaml
@@ -211,6 +213,49 @@ def _size(value):
   if value[-1] in suffixes:
     return int(value[:-1]) * (2 ** suffixes[value[-1]])
   return int(value)
+
+
+def _vault_context(cfg):
+  context = ssl.create_default_context(cafile=cfg['vault_cacert'])
+  context.load_cert_chain(cfg['vault_cert'], cfg['vault_key'])
+  return context
+
+
+def _vault_token(cfg, context):
+  if cfg.get('vault_token'):
+    return cfg['vault_token']
+  request = urllib.request.Request(
+      '%s/v1/auth/cert/login' % cfg['vault_addr'], data=b'{}', method='POST')
+  with urllib.request.urlopen(request, timeout=10, context=context) as response:
+    return json.load(response)['auth']['client_token']
+
+
+def vault_write(path, **data):
+  cfg = config()
+  context = _vault_context(cfg) if cfg.get('vault_cacert') else None
+  request = urllib.request.Request(
+      '%s/v1/%s' % (cfg['vault_addr'], path),
+      data=json.dumps(data).encode(),
+      headers={'X-Vault-Token': _vault_token(cfg, context)},
+      method='PUT')
+  urllib.request.urlopen(request, timeout=10, context=context)
+
+
+def vault_read(path):
+  cfg = config()
+  context = _vault_context(cfg) if cfg.get('vault_cacert') else None
+  request = urllib.request.Request(
+      '%s/v1/%s' % (cfg['vault_addr'], path),
+      headers={'X-Vault-Token': _vault_token(cfg, context)})
+  with urllib.request.urlopen(request, timeout=10, context=context) as response:
+    return json.load(response)['data']
+
+
+def vault_login_path(client):
+  """The gen-2 secret path for a host's login credentials."""
+  if client.domain == 'EVENT':
+    return 'services-%s/login:%s' % (get_current_event(), client.hostname)
+  return 'services/login:%s' % client.hostname
 
 
 def get_current_event():

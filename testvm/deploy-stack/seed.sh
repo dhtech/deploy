@@ -129,6 +129,7 @@ if [ ! -f /var/www/data/debian-installer/amd64/linux ]; then
   curl -sfL -o /var/www/data/debian-installer/amd64/initrd.gz "$base/initrd.gz"
 fi
 cp "$stack/dhtech.ipxe" "$stack/nftables-baseline.conf" "$stack/vimrc" /var/www/data/
+cp "$repo/server/backend/debian/post-install-hardening" /var/www/data/
 cp "$stack/preseed" /var/www/data/preseed
 # Operator/jumpgate keys only: the provision server must NOT be able to
 # log in to deployed machines.

@@ -118,6 +118,26 @@ __EOF__
   in-target update-initramfs -k all -u
 fi''')
 
+# --- admin user: operator access (CIS hardening denies root SSH) ---
+admin_pw = metadata.vault_read(metadata.vault_login_path(client)).get(
+    'admin_password', '')
+print('in-target useradd -m -s /bin/bash -G sudo dhtech || true')
+print('mkdir -p /target/home/dhtech/.ssh')
+print('wget -q -O /target/home/dhtech/.ssh/authorized_keys '
+      '"%s/data/authorized_keys"' % base)
+print('in-target chown -R dhtech:dhtech /home/dhtech/.ssh')
+print('chmod 700 /target/home/dhtech/.ssh')
+print('chmod 600 /target/home/dhtech/.ssh/authorized_keys')
+if admin_pw:
+  print('echo "dhtech:%s" | in-target chpasswd' % admin_pw)
+
+# --- CIS hardening (production post-install, versioned in the repo) ---
+print('wget -q -O /target/tmp/dh-hardening "%s/data/post-install-hardening"'
+      % base)
+print('in-target bash /tmp/dh-hardening '
+      '> /target/var/tmp/hardening.log 2>&1 || true')
+print('rm -f /target/tmp/dh-hardening')
+
 # --- application disk: one disk, vgapp VG, one ext4 LV per package ---
 appdisks = metadata.get_appdisks(client.hostname)
 if appdisks:
