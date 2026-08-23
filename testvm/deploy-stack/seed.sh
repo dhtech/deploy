@@ -149,7 +149,7 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (11, 'vault1.colo.notproduction.net', '10.200.0.61'),
     (12, 'puppet1.colo.notproduction.net', '10.200.0.62'),
     (13, 'provision1.colo.notproduction.net', '10.200.0.2'),
-    (14, 'fusion.colo.notproduction.net', '10.200.0.63'),
+    (14, 'fusion1.colo.notproduction.net', '10.200.0.63'),
     (15, 'doc1.colo.notproduction.net', '10.200.0.64'),
     (16, 'ldap1-master.colo.notproduction.net', '10.200.0.65'),
     (17, 'ldap2-master.colo.notproduction.net', '10.200.0.66'),
@@ -257,7 +257,7 @@ host-record=web1.colo.notproduction.net,10.200.0.60
 host-record=vault1.colo.notproduction.net,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
 host-record=puppet1.colo.notproduction.net,10.200.0.62
-host-record=fusion.colo.notproduction.net,10.200.0.63
+host-record=fusion1.colo.notproduction.net,10.200.0.63
 host-record=ldap1-master.colo.notproduction.net,10.200.0.65
 host-record=ldap2-master.colo.notproduction.net,10.200.0.66
 host-record=ldap1.colo.notproduction.net,10.200.0.67
