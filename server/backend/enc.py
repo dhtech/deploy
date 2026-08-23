@@ -67,27 +67,14 @@ def puppet_environment(host):
 with open('/etc/manifest') as f:
   manifest = yaml.safe_load(f)
 
+# Classification only: the ENC maps packages to classes; all class
+# parameters are puppet data (hiera). pkg parameters from ipplan are
+# passed through for future module generators.
 classes = {}
 for pkg, params in pkgs_with_params(hostname):
   spec = (manifest.get('packages', {}).get(pkg) or {}).get('puppet') or {}
   for cls in spec.get('classes', []):
     classes.setdefault(cls, {})
-    for pcls, pvals in (spec.get('params') or {}).items():
-      merged = classes.setdefault(pcls, {})
-      for key, value in (pvals or {}).items():
-        if isinstance(value, list):
-          merged.setdefault(key, [])
-          merged[key] = sorted(set(merged[key]) | set(value))
-        else:
-          merged[key] = value
-    # pkg parameters from ipplan override/extend: port=N -> open_tcp
-    if 'port' in params:
-      for pcls in spec.get('classes', []):
-        merged = classes.setdefault(pcls, {})
-        if 'open_tcp' in merged or pcls == 'dhfirewall':
-          ports = set(merged.get('open_tcp', []))
-          ports.add(params['port'])
-          merged['open_tcp'] = sorted(ports)
 
 output = {'classes': classes if classes else {'dhfirewall': {}}}
 env = puppet_environment(hostname)
