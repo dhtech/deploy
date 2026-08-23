@@ -1,0 +1,28 @@
+<%- | Array[Integer] $open_tcp, Array[String] $jumpgates, Integer $ssh_port | -%>
+#!/usr/sbin/nft -f
+# Managed by puppet (dhfirewall) - local changes will be overwritten.
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority filter; policy drop;
+
+    ct state established,related accept
+    ct state invalid drop
+    iif "lo" accept
+    ip protocol icmp accept
+    meta l4proto ipv6-icmp accept
+    tcp dport <%= $ssh_port %> ip saddr { <%= $jumpgates.join(', ') %> } accept
+<% $open_tcp.each |$port| { -%>
+    tcp dport <%= $port %> accept
+<% } -%>
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy drop;
+  }
+
+  chain output {
+    type filter hook output priority filter; policy accept;
+  }
+}
