@@ -148,6 +148,12 @@ After the next pve-test restart, directly (start.sh forwards
 ssh -i ~/.ssh/id_ecdsa -p 4455 root@127.0.0.1
 ```
 
+The provision-dev machine also runs the deploy stack under development:
+ISC dhcpd on the deploy VLAN, a local redis, provisiond3 (from
+`/root/src/provisiond3`, venv `/opt/provisiond`), and the HTML5 status
+frontend on port 8080 (forwarded as `http://127.0.0.1:8768/` after the
+next pve-test restart).
+
 ## Notes
 
 - Port allocation follows the ~/vms convention: SSH ports count up from

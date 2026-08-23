@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+# JSON status endpoint for the deploy frontend (read-only Redis views).
+# Needs /etc/deploy.yaml to contain redis information.
+
+import json
+
+import redis
+import yaml
+
+
+def connection():
+    with open('/etc/deploy.yaml') as f:
+        config = yaml.safe_load(f)
+    return redis.Redis(**config['redis'])
+
+
+def collect(store):
+    data = {'hosts': [], 'vm_orders': [], 'hw_orders': [], 'vms': [], 'bays': {}}
+
+    for key in store.keys('host-*'):
+        key = key.decode()
+        props = json.loads(store.get(key))
+        hostname = key.split('-', 1)[1]
+        last_log = store.get('last-log-' + hostname)
+        if props.get('installed'):
+            state = 'done' if props.get('provisioned') else 'waiting-for-provision'
+        elif last_log:
+            state = 'installing'
+        else:
+            state = 'starting'
+        data['hosts'].append({
+            'hostname': hostname,
+            'product': props.get('product', ''),
+            'state': state,
+            'log': last_log.decode(errors='replace') if last_log else None,
+            'error': props.get('error'),
+            'ttl': store.ttl(key),
+        })
+
+    for key in store.keys('create-vm-*'):
+        props = json.loads(store.get(key))
+        data['vm_orders'].append({
+            'name': props.get('name'),
+            'manager': props.get('manager'),
+            'error': props.get('error'),
+            'ttl': store.ttl(key),
+        })
+
+    for key in store.keys('install-*'):
+        props = json.loads(store.get(key))
+        data['hw_orders'].append({
+            'name': props.get('name'),
+            'manager': props.get('manager'),
+            'bay': props.get('bay'),
+            'ttl': store.ttl(key),
+        })
+
+    for key in store.keys('vm-*'):
+        key = key.decode()
+        props = json.loads(store.get(key))
+        data['vms'].append({
+            'name': props.get('name'),
+            'manager': props.get('manager'),
+        })
+
+    for key in store.keys('bays-*'):
+        key = key.decode()
+        data['bays'][key.split('-', 1)[1]] = json.loads(store.get(key))
+
+    data['hosts'].sort(key=lambda h: h['hostname'])
+    data['vms'].sort(key=lambda v: (v['manager'] or '', v['name'] or ''))
+    return data
+
+
+print('Content-Type: application/json')
+print('')
+print(json.dumps(collect(connection())))

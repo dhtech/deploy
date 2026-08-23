@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>remote deploy server</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --fg: #1c2128; --card: #ffffff; --muted: #667085;
+    --border: #e3e6ea; --accent: #2456c8; --ok: #1a7f37; --warn: #b54708;
+    --err: #b42318; --mono: ui-monospace, "Cascadia Code", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --fg: #e6e9ee; --card: #1d2229; --muted: #98a2b3;
+      --border: #2c333d; --accent: #7ba3f2; --ok: #4ade80; --warn: #fbbf24;
+      --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 system-ui, sans-serif;
+  }
+  header {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 0.8rem 1.5rem; display: flex; align-items: baseline; gap: 1rem;
+  }
+  header h1 { font-size: 1.1rem; margin: 0; }
+  #updated { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
+  main { max-width: 72rem; margin: 0 auto; padding: 1rem 1.5rem 3rem; }
+  section { margin-top: 1.5rem; }
+  h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+  h3 { font-size: 0.85rem; margin: 0.8rem 0 0.3rem; color: var(--muted); }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; overflow-x: auto;
+  }
+  table { border-collapse: collapse; width: 100%; }
+  th, td {
+    text-align: left; padding: 0.45rem 0.9rem;
+    border-top: 1px solid var(--border); white-space: nowrap;
+  }
+  thead th {
+    border-top: 0; color: var(--muted); font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  td.log { white-space: normal; font-family: var(--mono); font-size: 0.8rem; }
+  td.ttl { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .state { font-weight: 600; }
+  .state.done { color: var(--ok); }
+  .state.waiting-for-provision { color: var(--warn); }
+  .state.installing, .state.starting { color: var(--accent); }
+  .error { color: var(--err); font-family: var(--mono); font-size: 0.8rem; }
+  .empty { padding: 0.7rem 0.9rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>remote deploy server</h1>
+  <span id="updated">connecting…</span>
+</header>
+<main>
+  <section>
+    <h2>Current installs</h2>
+    <div class="card"><div id="hosts" class="empty">—</div></div>
+  </section>
+  <section>
+    <h2>Install orders</h2>
+    <h3>Virtual machines</h3>
+    <div class="card"><div id="vm-orders" class="empty">—</div></div>
+    <h3>Physical</h3>
+    <div class="card"><div id="hw-orders" class="empty">—</div></div>
+  </section>
+  <section>
+    <h2>Known VMs</h2>
+    <div class="card"><div id="vms" class="empty">—</div></div>
+  </section>
+  <section>
+    <h2>Hardware bays</h2>
+    <div id="bays"><div class="card"><div class="empty">—</div></div></div>
+  </section>
+</main>
+<script>
+"use strict";
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+const STATE_LABELS = {
+  "done": "Done",
+  "waiting-for-provision": "Waiting for provision",
+  "installing": "Installing",
+  "starting": "Starting installation",
+};
+
+function table(headers, rows) {
+  if (!rows.length) return '<div class="empty">nothing right now</div>';
+  return "<table><thead><tr>"
+    + headers.map((h) => `<th>${esc(h)}</th>`).join("")
+    + "</tr></thead><tbody>"
+    + rows.map((r) => `<tr>${r}</tr>`).join("")
+    + "</tbody></table>";
+}
+
+function render(data) {
+  document.getElementById("hosts").outerHTML = '<div id="hosts">'
+    + table(["Host", "Product", "State", "TTL"], data.hosts.map((h) => {
+        let state = `<span class="state ${esc(h.state)}">`
+          + esc(STATE_LABELS[h.state] || h.state) + "</span>";
+        if (h.state === "installing" && h.log)
+          state += `<div class="log">${esc(h.log)}</div>`;
+        if (h.error) state += `<div class="error">${esc(h.error)}</div>`;
+        return `<td>${esc(h.hostname)}</td><td>${esc(h.product)}</td>`
+          + `<td style="white-space:normal">${state}</td>`
+          + `<td class="ttl">${esc(h.ttl)}</td>`;
+      })) + "</div>";
+
+  document.getElementById("vm-orders").outerHTML = '<div id="vm-orders">'
+    + table(["Host", "Destination", "TTL"], data.vm_orders.map((o) =>
+        `<td>${esc(o.name)}</td><td>${esc(o.manager)}</td>`
+        + `<td class="ttl">${esc(o.ttl)}</td>`
+        + (o.error ? `<td class="error">${esc(o.error)}</td>` : "")
+      )) + "</div>";
+
+  document.getElementById("hw-orders").outerHTML = '<div id="hw-orders">'
+    + table(["Host", "Destination", "Bay", "TTL"], data.hw_orders.map((o) =>
+        `<td>${esc(o.name)}</td><td>${esc(o.manager)}</td>`
+        + `<td>${esc(o.bay)}</td><td class="ttl">${esc(o.ttl)}</td>`
+      )) + "</div>";
+
+  document.getElementById("vms").outerHTML = '<div id="vms">'
+    + table(["Host", "Provisioner"], data.vms.map((v) =>
+        `<td>${esc(v.name)}</td><td>${esc(v.manager)}</td>`
+      )) + "</div>";
+
+  const bays = Object.entries(data.bays);
+  document.getElementById("bays").innerHTML = bays.length
+    ? bays.map(([mgr, entries]) => "<h3>" + esc(mgr) + '</h3><div class="card">'
+        + table(["Bay", "Serial"], Object.keys(entries).sort().map((bay) =>
+            `<td>${esc(bay)}</td>`
+            + `<td>${esc(entries[bay] ? entries[bay].serial : "")}</td>`
+          )) + "</div>").join("")
+    : '<div class="card"><div class="empty">nothing right now</div></div>';
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("status.json.py", {cache: "no-store"});
+    if (!res.ok) throw new Error(res.status);
+    render(await res.json());
+    document.getElementById("updated").textContent =
+      "updated " + new Date().toLocaleTimeString();
+  } catch (err) {
+    document.getElementById("updated").textContent = "update failed: " + err;
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
