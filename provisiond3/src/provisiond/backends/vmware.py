@@ -262,6 +262,23 @@ class VmwareBackend(Provisioner):
         )
         nic_spec = vim.vm.device.VirtualDeviceSpec(operation="add", device=nic)
 
+        device_change = [scsi_spec, disk_spec, nic_spec]
+        if order.appdisk:
+            appdisk = vim.vm.device.VirtualDisk(
+                key=1,
+                controllerKey=0,
+                unitNumber=1,
+                capacityInKB=int(order.appdisk["size"]) // 1024,
+                backing=vim.vm.device.VirtualDisk.FlatVer2BackingInfo(
+                    fileName=f"[{datastore}]", diskMode="persistent"
+                ),
+            )
+            device_change.append(
+                vim.vm.device.VirtualDeviceSpec(
+                    operation="add", fileOperation="create", device=appdisk
+                )
+            )
+
         return vim.vm.ConfigSpec(
             name=order.name,
             version=HW_VERSION,
@@ -270,7 +287,7 @@ class VmwareBackend(Provisioner):
             numCPUs=order.cpus,
             memoryMB=order.memory // 1024 // 1024,
             files=vim.vm.FileInfo(vmPathName=f"[{datastore}]"),
-            deviceChange=[scsi_spec, disk_spec, nic_spec],
+            deviceChange=device_change,
         )
 
     # -- Provisioner -----------------------------------------------------

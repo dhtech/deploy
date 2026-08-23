@@ -165,6 +165,48 @@ def all_vlans_in_same_domain(hostname):
   conn.close()
 
 
+def getpkgs(hostname):
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT option.value FROM host, option '
+      'WHERE host.node_id = option.node_id '
+      'AND option.name = "pkg" AND host.name = ?', (hostname,))
+  pkgs = c.fetchall()
+  conn.close()
+  return [p[0].split('(', 1)[0] for p in pkgs if not p[0].startswith('-')]
+
+
+def get_appdisk(hostname, manifest_file='/etc/manifest'):
+  """Application-disk spec for a host: union of its packages' appdisk
+  entries (largest size wins; mountpoint conflicts are an error)."""
+  with open(manifest_file) as f:
+    manifest = yaml.safe_load(f)
+  chosen = None
+  for pkg in getpkgs(hostname):
+    entry = (manifest.get('packages', {}).get(pkg) or {}).get('appdisk')
+    if not entry:
+      continue
+    if chosen and chosen['mountpoint'] != entry.get('mountpoint'):
+      raise ValueError('conflicting appdisk mountpoints for %s' % hostname)
+    if not chosen or _size(entry['size']) > _size(chosen['size']):
+      chosen = dict(entry)
+  return chosen
+
+
+def _size(value):
+  """Humanized size (16G, 2TiB, plain int bytes) to bytes."""
+  if isinstance(value, int):
+    return value
+  value = value.upper()
+  if value.endswith('IB'):
+    value = value[:-2]
+  suffixes = {'T': 40, 'G': 30, 'M': 20, 'K': 10}
+  if value[-1] in suffixes:
+    return int(value[:-1]) * (2 ** suffixes[value[-1]])
+  return int(value)
+
+
 def get_current_event():
   conn = sqlite3.connect(DB_FILE)
   c = conn.cursor()

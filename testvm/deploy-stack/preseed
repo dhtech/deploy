@@ -58,17 +58,17 @@ d-i partman-auto/expert_recipe string                                \
                       label{ EFI System Partition }                  \
                       mountpoint{ /boot/efi }                        \
               .                                                      \
-              512 512 1024 ext4                                      \
+              1024 1024 1024 ext4                                      \
                       $primary{ } $bootable{ }                       \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
                       mountpoint{ /boot }                            \
               .                                                      \
-              512 2048 4096 linux-swap                               \
+              4096 4096 4096 linux-swap                               \
                       $lvmok{ } lv_name{ lvswap }                    \
                       method{ swap } format{ }                       \
               .                                                      \
-              256 1024 4096 ext4                                     \
+              4096 4096 4096 ext4                                    \
                       $lvmok{ } lv_name{ lvhome }                    \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
@@ -77,7 +77,7 @@ d-i partman-auto/expert_recipe string                                \
                       options/nosuid{ nosuid }                       \
                       options/noexec{ noexec }                       \
               .                                                      \
-              256 1024 4096 ext4                                     \
+              4096 4096 4096 ext4                                    \
                       $lvmok{ } lv_name{ lvvartmp }                  \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
@@ -86,7 +86,7 @@ d-i partman-auto/expert_recipe string                                \
                       options/nosuid{ nosuid }                       \
                       options/noexec{ noexec }                       \
               .                                                      \
-              256 1024 4096 ext4                                     \
+              4096 4096 4096 ext4                                    \
                       $lvmok{ } lv_name{ lvtmp }                     \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
@@ -95,7 +95,7 @@ d-i partman-auto/expert_recipe string                                \
                       options/nosuid{ nosuid }                       \
                       options/noexec{ noexec }                       \
               .                                                      \
-              512 4096 15360 ext4                                    \
+              15360 15360 15360 ext4                                    \
                       $lvmok{ } lv_name{ lvvarlog }                  \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
@@ -104,7 +104,7 @@ d-i partman-auto/expert_recipe string                                \
                       options/nosuid{ nosuid }                       \
                       options/noexec{ noexec }                       \
               .                                                      \
-              256 1024 4096 ext4                                     \
+              4096 4096 4096 ext4                                    \
                       $lvmok{ } lv_name{ lvvarlogaudit }             \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
@@ -113,7 +113,7 @@ d-i partman-auto/expert_recipe string                                \
                       options/nosuid{ nosuid }                       \
                       options/noexec{ noexec }                       \
               .                                                      \
-              2048 6144 15360 ext4                                   \
+              15360 15360 15360 ext4                                   \
                       $lvmok{ } lv_name{ lvvar }                     \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \
@@ -121,7 +121,7 @@ d-i partman-auto/expert_recipe string                                \
                       options/nodev{ nodev }                         \
                       options/nosuid{ nosuid }                       \
               .                                                      \
-              3072 10000 30000 ext4                                  \
+              1024 1000 30000 ext4                                  \
                       $lvmok{ } lv_name{ lvroot }                    \
                       method{ format } format{ }                     \
                       use_filesystem{ } filesystem{ ext4 }           \

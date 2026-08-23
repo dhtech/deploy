@@ -3,6 +3,9 @@
 # for provisiond daemons to consume.
 # Note: Needs /etc/deploy.yaml to contain redis information
 # Note: Needs /etc/manifest (yaml) to get info regarding hardware
+#
+# The OS disk is fixed at 75G for every deployment; per-application
+# storage is declared as an 'appdisk' in the manifest instead.
 
 import argparse
 import json
@@ -15,6 +18,7 @@ import redis
 import yaml
 
 DB_FILE = '/etc/ipplan.db'
+OS_DISK = '75G'
 
 
 def dehumanize(string):
@@ -56,23 +60,36 @@ def getpkgs(fqdn):
   return [pkg[0].split('(', 1)[0] for pkg in pkgs if not pkg[0].startswith('-')]
 
 
+def getappdisk(pkglist, manifest):
+  """Union of the packages' appdisk entries (largest size wins)."""
+  chosen = None
+  for pkg in pkglist:
+    entry = (manifest['packages'].get(pkg) or {}).get('appdisk')
+    if not entry:
+      continue
+    if chosen and chosen.get('mountpoint') != entry.get('mountpoint'):
+      print('Conflicting appdisk mountpoints in packages', file=sys.stderr)
+      sys.exit(1)
+    if not chosen or dehumanize(str(entry['size'])) > dehumanize(str(chosen['size'])):
+      chosen = dict(entry)
+  if chosen:
+    chosen['size'] = dehumanize(str(chosen['size']))
+  return chosen
+
+
 def getmaxpkgsize(pkglist, manifest):
   packages = manifest['packages']
   cpulist = []
   memorylist = []
-  disklist = []
 
   for pkg in pkglist:
     try:
       size = packages[pkg]['hardware']
       cpus = int(size['cpus'])
       memory = dehumanize(str(size['memory']))
-      disk = dehumanize(str(size['disk']))
       cpulist.append(cpus)
       memorylist.append(memory)
-      disklist.append(disk)
-      print('pkg: %s, cpu %s, memory %s, disk %s' % (
-          pkg, cpus, size['memory'], size['disk']))
+      print('pkg: %s, cpu %s, memory %s' % (pkg, cpus, size['memory']))
     except KeyError:
       print('pkg %s did not have hardware spec, key' % pkg)
     # typeerror is needed for pkg firewall, edgecase
@@ -84,7 +101,7 @@ def getmaxpkgsize(pkglist, manifest):
           file=sys.stderr)
     sys.exit(1)
 
-  return max(cpulist), max(memorylist), max(disklist)
+  return max(cpulist), max(memorylist)
 
 
 def create_vm(args):
@@ -152,6 +169,7 @@ def create_vm(args):
       'memory': memory,
       'datastore': args.datastore,
       'os': os,
+      'appdisk': getattr(args, 'appdisk_spec', None),
       'ipv4': {
         'vlan': vlan,
         'address': ipv4_address,
@@ -213,17 +231,19 @@ if __name__ == '__main__':
     # check if server has hw info in pkg
     pkglist = getpkgs(args.hostname)
     # get max hardware attributes for all specified packages
-    cpus, memory, disk = getmaxpkgsize(pkglist, manifest)
+    cpus, memory = getmaxpkgsize(pkglist, manifest)
 
     if not args.cpus:
       args.cpus = cpus
     if not args.memory:
       args.memory = memory
     if not args.disk:
-      args.disk = disk
+      # OS disk is fixed
+      args.disk = OS_DISK
 
-    print('using for server: cpu %s, memory %s, disk %s' % (
-        args.cpus, args.memory, args.disk))
+    args.appdisk_spec = getappdisk(pkglist, manifest)
+    print('using for server: cpu %s, memory %s, disk %s, appdisk %s' % (
+        args.cpus, args.memory, args.disk, args.appdisk_spec))
     creation, create_key = create_vm(args)
 
   with open('/etc/deploy.yaml') as f:

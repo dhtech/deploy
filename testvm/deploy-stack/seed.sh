@@ -40,27 +40,35 @@ EOF
 chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 
 cat > /etc/manifest <<EOF
+# OS disk is fixed at 75G by deploy-vm; appdisk declares per-application
+# storage (size, filesystem, mountpoint, mount options).
 packages:
   base:
     hardware:
       cpus: 1
       memory: 1G
-      disk: 12G
   web:
     hardware:
       cpus: 2
       memory: 2G
-      disk: 10G
+    appdisk:
+      size: 10G
+      filesystem: ext4
+      mountpoint: /srv/www
+      options: nodev,nosuid
   vault:
     hardware:
       cpus: 2
       memory: 2G
-      disk: 15G
+    appdisk:
+      size: 20G
+      filesystem: xfs
+      mountpoint: /var/lib/openbao
+      options: nodev,nosuid,noexec
   puppetserver:
     hardware:
       cpus: 2
       memory: 3G
-      disk: 20G
 EOF
 
 python3 - <<'EOF'

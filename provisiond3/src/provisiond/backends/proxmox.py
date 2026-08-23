@@ -166,6 +166,9 @@ class ProxmoxBackend(Provisioner):
             "boot": "order=scsi0;net0",
             "smbios1": f"uuid={vm_uuid}",
         }
+        if order.appdisk:
+            appdisk_gib = max(1, math.ceil(int(order.appdisk["size"]) / 1024**3))
+            params["scsi1"] = f"{storage}:{appdisk_gib}"
         if self._config.pool:
             params["pool"] = self._config.pool
 
