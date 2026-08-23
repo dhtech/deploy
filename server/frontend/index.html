@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>remote deploy server</title>
+<title>dhtech deploy</title>
 <style>
   :root {
     --bg: #f5f6f8; --fg: #1c2128; --card: #ffffff; --muted: #667085;
@@ -26,7 +26,16 @@
     background: var(--card); border-bottom: 1px solid var(--border);
     padding: 0.8rem 1.5rem; display: flex; align-items: baseline; gap: 1rem;
   }
-  header h1 { font-size: 1.1rem; margin: 0; }
+  header h1 { font-size: 1.05rem; margin: 0; font-weight: 500; color: var(--muted); }
+  .brand {
+    display: flex; align-items: center; gap: 0.55rem;
+    text-decoration: none; color: var(--fg);
+  }
+  .brand-mark { display: block; }
+  .brand-name {
+    font-size: 1.25rem; font-weight: 750; letter-spacing: -0.02em;
+  }
+  .brand-accent { color: #e8590c; }
   #updated { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
   main { max-width: 72rem; margin: 0 auto; padding: 1rem 1.5rem 3rem; }
   section { margin-top: 1.5rem; }
@@ -57,7 +66,15 @@
 </head>
 <body>
 <header>
-  <h1>remote deploy server</h1>
+  <a class="brand" href="/" aria-label="dhtech deploy">
+    <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28"
+         role="img" aria-hidden="true">
+      <rect x="1" y="1" width="30" height="30" rx="6" fill="#e8590c"/>
+      <path d="M18.5 5 9 18h6l-2.5 9L22 14h-6l2.5-9z" fill="#fff"/>
+    </svg>
+    <span class="brand-name">dh<span class="brand-accent">tech</span></span>
+  </a>
+  <h1>deploy</h1>
   <span id="updated">connecting…</span>
 </header>
 <main>
