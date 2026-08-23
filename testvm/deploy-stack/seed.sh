@@ -111,9 +111,14 @@ packages:
   puppetserver:
     hardware:
       cpus: 2
-      memory: 3G
+      memory: 4G
     puppet:
-      classes: [dhfirewall, 'dhacme::issuer']
+      classes: [dhfirewall, 'dhacme::issuer', 'dhacme::cert', dhpuppetdb,
+                dhpuppetboard, 'dhnginx::puppetboard']
+      params:
+        dhnginx::puppetboard:
+          # who may open the puppetboard website (PAM group gate)
+          allow_group: tech
   lam:
     hardware:
       cpus: 2
@@ -223,6 +228,7 @@ c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (13, 'pkg', 'jumpgate'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
+    (12, 'pkg', 'login'), (12, 'webname', 'puppet.dh.notproduction.net'),
     (14, 'os', 'debian'), (14, 'pkg', 'lam'),
     (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
     (16, 'os', 'debian'), (16, 'pkg', 'ldap(role=master,id=1)'),
@@ -332,6 +338,7 @@ host-record=ldap1-master.colo.notproduction.net,10.200.0.65
 host-record=ldap2-master.colo.notproduction.net,10.200.0.66
 host-record=ldap1.colo.notproduction.net,10.200.0.67
 host-record=ldap2.colo.notproduction.net,10.200.0.68
+host-record=puppet.dh.notproduction.net,10.200.0.62
 host-record=pve1.colo.notproduction.net,10.10.10.1
 host-record=pve1.dh.notproduction.net,10.10.10.1
 host-record=pve2.dh.notproduction.net,10.10.10.3
