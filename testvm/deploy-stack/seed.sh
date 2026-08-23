@@ -60,7 +60,7 @@ packages:
     hardware:
       cpus: 2
       memory: 3G
-      disk: 15G
+      disk: 20G
 EOF
 
 python3 - <<'EOF'
@@ -86,6 +86,7 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (10, 'web1.test.lan', '10.200.0.60'),
     (11, 'vault1.test.lan', '10.200.0.61'),
     (12, 'puppet1.test.lan', '10.200.0.62'),
+    (13, 'provision-dev.test.lan', '10.200.0.2'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),

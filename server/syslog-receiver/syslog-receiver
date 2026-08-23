@@ -27,6 +27,10 @@ class SyslogUDPHandler(socketserver.BaseRequestHandler):
     res = c.fetchone()
     conn.close()
     hostname = res[0] if res else None
+    if not hostname:
+      # Installer on the deployment VLAN: mapping recorded by early.py
+      mapped = r.get('install-ip-' + client)
+      hostname = mapped.decode() if mapped else None
 
     if hostname:
       r.setex('last-log-' + hostname, 3600, data)
