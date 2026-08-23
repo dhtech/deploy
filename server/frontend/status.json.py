@@ -40,6 +40,7 @@ def collect(store):
         data['hosts'].append({
             'hostname': hostname,
             'duration': duration,
+            'finished': finished,
             'product': props.get('product', ''),
             'state': state,
             'log': last_log.decode(errors='replace') if last_log else None,
