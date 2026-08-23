@@ -145,9 +145,15 @@
         <dt><span class="state waiting-for-provision">Waiting for provision</span></dt>
         <dd>Install finished; waiting for the provisioner to move the machine
         to its production VLAN.</dd>
+        <dt><span class="state converging">Converging (puppet)</span></dt>
+        <dd>On the production VLAN, booting the installed system; waiting
+        for the machine to enroll in puppet.</dd>
+        <dt><span class="state converging">Puppet CA ok</span></dt>
+        <dd>The machine's certificate was signed (one-time enrollment token
+        accepted); the first puppet run is in progress.</dd>
         <dt><span class="state done">Done</span></dt>
-        <dd>Moved to production. The machine is booting its installed system;
-        puppet takes over from here.</dd>
+        <dd>The first puppet run completed successfully — the machine has
+        converged to its role. Timestamped with the report time.</dd>
       </dl>
       <p>A red line under a state is an <span class="error">error</span>
       reported by the provisioner — the order stays visible (with its TTL
@@ -264,7 +270,7 @@ const STATE_LABELS = {
   "waiting-for-provision": "Waiting for provision",
   "installing": "Installing",
   "converging": "Converging (puppet)",
-  "puppet-ssl": "SSL ok (puppet)",
+  "puppet-ssl": "Puppet CA ok",
   "starting": "Starting installation",
 };
 
