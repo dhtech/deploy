@@ -74,6 +74,38 @@ MEMORY=8G CPUS=2 ./start.sh
 
 Shut down cleanly from inside (`poweroff`) or via the web UI.
 
+## Guests
+
+### provision-dev (VMID 100)
+
+Debian 13 provision server for development, running as a guest inside
+this Proxmox instance. Built from the official `debian-13-nocloud-amd64`
+image (no cloud-init), customized offline on the pve host with
+`virt-customize` (guestfs-tools):
+
+- 2 GiB RAM, 2 vCPUs, 20 GiB disk (`local-lvm:vm-100-disk-0`)
+- Static IP `10.0.2.16/24`, gw `10.0.2.2`, DNS `10.0.2.3`
+  (static on purpose: slirp DHCP could hand out `10.0.2.15` and collide
+  with the pve host itself)
+- Hostname `provision-dev`; `openssh-server` installed into the image,
+  root SSH key-only (same key as everything else)
+- Serial console: `qm terminal 100` on the pve host
+- Starts automatically with the pve host (`onboot 1`)
+
+SSH from the workstation, jumping through pve-test:
+
+```sh
+ssh -o ProxyCommand="ssh -i ~/.ssh/id_ecdsa -p 4454 -W %h:%p root@127.0.0.1" \
+    -i ~/.ssh/id_ecdsa root@10.0.2.16
+```
+
+After the next pve-test restart, directly (start.sh forwards
+`127.0.0.1:4455` to `10.0.2.16:22`):
+
+```sh
+ssh -i ~/.ssh/id_ecdsa -p 4455 root@127.0.0.1
+```
+
 ## Notes
 
 - Port allocation follows the ~/vms convention: SSH ports count up from
