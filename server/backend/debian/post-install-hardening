@@ -853,7 +853,7 @@ then
 fi
 
 # Remove unwanted packages here.
-apt-get purge -y os-prober
+apt-get purge -y os-prober laptop-detect
 
 # Remove quiet from cmdline
 sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="quiet"/GRUB_CMDLINE_LINUX_DEFAULT=""/' /etc/default/grub

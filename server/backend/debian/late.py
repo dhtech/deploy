@@ -93,10 +93,6 @@ print('in-target systemctl enable puppet || true')
 # --- misc goodies (gen-2 parity) ---
 print('echo "APT::Install-Recommends \\"0\\";" '
       '> /target/etc/apt/apt.conf.d/70debconf')
-# Installer cruft: hw-detect drops laptop-detect on every machine and
-# grub can pull os-prober; neither belongs on a server.
-print('in-target apt-get -y -qq purge laptop-detect os-prober '
-      '2>/dev/null || true')
 print('printf "precedence ::ffff:0:0/96  100\\n" > /target/etc/gai.conf')
 print('echo "net.ipv6.conf.all.autoconf=0" >> /target/etc/sysctl.conf')
 print('rm -f /target/etc/apt/apt.conf')
