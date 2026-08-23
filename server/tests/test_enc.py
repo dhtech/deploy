@@ -11,18 +11,21 @@ def test_ldap_master_params(ipplan, manifest):
     assert server['master_uris'] == [
         'ldaps://ldap1-master.test', 'ldaps://ldap2-master.test']
     assert server['vault_addr'] == 'https://vault1.test:8200'
-    # site flows: masters serve only the directory (ldap fleet + lam hosts)
+    # flows: masters serve ONLY the directory - replication (mirror
+    # partner + slaves) and admin writes (lam); no plain site clients
     assert classes['dhfirewall']['open_tcp_scoped'] == {
-        636: ['10.200.0.65', '10.200.0.66', '10.200.0.67']}
+        636: ['10.200.0.63', '10.200.0.66', '10.200.0.67']}
 
 
 def test_ldap_slave_defaults(ipplan, manifest):
     classes = enc.classify('ldap1.test', manifest)
     assert classes['dhldap::server']['role'] == 'slave'
     assert 'server_id' not in classes['dhldap::server']
-    # site flows: a slave serves all of its site's networks
-    # (network names are <domain>@<site>; fixture has colo@prod only)
-    assert classes['dhfirewall']['open_tcp_scoped'] == {636: ['10.200.0.0/24']}
+    # flows: a slave serves the declared ldaps clients of its OWN site
+    # (login/vault/pve; pve1 sits on the mgmt net outside the site
+    # CIDR, the flow still finds it; evtbox1 is another site - no)
+    assert classes['dhfirewall']['open_tcp_scoped'] == {
+        636: ['10.10.10.1', '10.200.0.60', '10.200.0.61']}
 
 
 def test_web_port_from_pkg_arg(ipplan, manifest):
@@ -50,7 +53,29 @@ def test_pve_installs_cert_no_firewall(ipplan, manifest):
     assert classes['dhpve']['cert_name'] == 'pve.dh.example'
     assert classes['dhacme::cert']['reload_cmd'] == (
         '/usr/local/sbin/dh-pve-cert-install')
+    # pve manages its own firewall; being an ldaps CLIENT must not
+    # drag dhfirewall in
     assert 'dhfirewall' not in classes
+
+
+def test_pve_ldap_realm_params(ipplan, manifest):
+    classes = enc.classify('pve1.test', manifest)
+    pve = classes['dhpve']
+    # realm against the site slaves; who may log in comes from the
+    # manifest params (policy), topology from the generator
+    assert pve['ldap_servers'] == ['ldap1.test']
+    assert pve['ldap_base'] == 'dc=dreamhack,dc=se'
+    assert pve['admin_group_dn'] == 'cn=g,dc=x'
+    assert pve['admin_role'] == 'Administrator'
+
+
+def test_login_host_flows_only_reach_same_site(ipplan, manifest):
+    # evtbox1 declares client ldaps but sits in the EVENT site: it must
+    # not appear on the colo slave (see test_ldap_slave_defaults) and
+    # it serves nothing itself
+    classes = enc.classify('evtbox1.test', manifest)
+    assert 'dhfirewall' not in classes or (
+        'open_tcp_scoped' not in classes['dhfirewall'])
 
 
 def test_jumpgates_from_ipplan(ipplan, manifest):

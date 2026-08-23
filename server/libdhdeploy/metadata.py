@@ -280,7 +280,7 @@ def site_cidrs(hostname):
 
 
 def all_hosts_pkgs():
-    """{hostname: [pkg names]} for every host carrying pkg options."""
+    """{hostname: [(pkg, params)]} for every host carrying pkg options."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
@@ -290,7 +290,7 @@ def all_hosts_pkgs():
     result = collections.defaultdict(list)
     for host, raw in c.fetchall():
         if not raw.startswith('-'):
-            result[host].append(parse_pkg(raw)[0])
+            result[host].append(parse_pkg(raw))
     conn.close()
     return dict(result)
 

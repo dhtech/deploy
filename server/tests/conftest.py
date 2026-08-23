@@ -16,8 +16,10 @@ sys.path.insert(0, os.path.join(HERE, '..', 'backend'))
 _lib = types.ModuleType('lib')
 sys.path.insert(0, os.path.join(HERE, '..'))
 _lib.metadata = importlib.import_module('libdhdeploy.metadata')
+_lib.flows = importlib.import_module('libdhdeploy.flows')
 sys.modules['lib'] = _lib
 sys.modules['lib.metadata'] = _lib.metadata
+sys.modules['lib.flows'] = _lib.flows
 
 
 @pytest.fixture
@@ -38,26 +40,33 @@ def ipplan(tmp_path, monkeypatch):
     ''')
     c.execute("INSERT INTO network VALUES (1, 'colo@prod', 200, "
               "'10.200.0.2', '255.255.255.0', 24, NULL, NULL)")
+    c.execute("INSERT INTO network VALUES (2, 'EVENT@prod', 300, "
+              "'10.201.0.2', '255.255.255.0', 24, NULL, NULL)")
     hosts = [
-        (13, 'provision1.test', '10.200.0.2'),
-        (11, 'vault1.test', '10.200.0.61'),
-        (12, 'puppet1.test', '10.200.0.62'),
-        (16, 'ldap1-master.test', '10.200.0.65'),
-        (17, 'ldap2-master.test', '10.200.0.66'),
-        (18, 'ldap1.test', '10.200.0.67'),
-        (10, 'web1.test', '10.200.0.60'),
-        (20, 'pve1.test', '10.10.10.1'),
+        (13, 'provision1.test', '10.200.0.2', 1),
+        (11, 'vault1.test', '10.200.0.61', 1),
+        (12, 'puppet1.test', '10.200.0.62', 1),
+        (14, 'directory1.test', '10.200.0.63', 1),
+        (16, 'ldap1-master.test', '10.200.0.65', 1),
+        (17, 'ldap2-master.test', '10.200.0.66', 1),
+        (18, 'ldap1.test', '10.200.0.67', 1),
+        (10, 'web1.test', '10.200.0.60', 1),
+        (20, 'pve1.test', '10.10.10.1', 1),
+        (30, 'evtbox1.test', '10.201.0.60', 2),
     ]
-    c.executemany('INSERT INTO host VALUES (?, ?, ?, NULL, 1)', hosts)
+    c.executemany('INSERT INTO host VALUES (?, ?, ?, NULL, ?)', hosts)
     c.executemany('INSERT INTO option VALUES (?, ?, ?)', [
         (13, 'pkg', 'jumpgate'),
         (11, 'pkg', 'vault'), (11, 'webname', 'vault.dh.example'),
         (12, 'pkg', 'puppetserver'),
+        (14, 'pkg', 'lam'),
         (16, 'pkg', 'ldap(role=master,id=1)'),
         (17, 'pkg', 'ldap(role=master,id=2)'),
         (18, 'pkg', 'ldap'),
         (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
+        (10, 'pkg', 'login'),
         (20, 'pkg', 'pve'), (20, 'webname', 'pve.dh.example'),
+        (30, 'pkg', 'login'),
     ])
     conn.commit()
     conn.close()
@@ -69,15 +78,35 @@ def ipplan(tmp_path, monkeypatch):
 def manifest():
     return {
         'globals': {'acme': {'email': 'a@example', 'server': 'https://acme'}},
+        'flows': ['ldaprepl', 'ldapwrite'],
+        'services': {
+            'ldaps': {'destport': ['636/tcp']},
+        },
         'packages': {
             'base': {'puppet': {'classes': ['dhfirewall']}},
             'jumpgate': {},
             'web': {'puppet': {'classes': ['dhfirewall']}},
-            'vault': {'puppet': {'classes': [
-                'dhfirewall', 'dhacme::cert', 'dhnginx::vault']}},
+            'login': {'client': ['ldaps'],
+                      'puppet': {'classes': ['dhlogin']}},
+            'vault': {'client': ['ldaps'],
+                      'puppet': {'classes': [
+                          'dhfirewall', 'dhacme::cert', 'dhnginx::vault']}},
             'puppetserver': {'puppet': {'classes': [
                 'dhfirewall', 'dhacme::issuer']}},
-            'ldap': {'puppet': {'classes': ['dhfirewall', 'dhldap::server']}},
-            'pve': {'puppet': {'classes': ['dhacme::cert', 'dhpve']}},
+            'lam': {'client': ['ldapwrite-ldaps'],
+                    'puppet': {'classes': [
+                        'dhfirewall', 'dhacme::cert', 'dhnginx::lam',
+                        'dhlam']}},
+            'ldap': {'server': ['ldaps'],
+                     'client': ['ldaprepl-ldaps'],
+                     'puppet': {'classes': ['dhfirewall',
+                                            'dhldap::server']}},
+            'ldap(role=master)': {'server': ['ldaprepl-ldaps',
+                                             'ldapwrite-ldaps']},
+            'pve': {'client': ['ldaps'],
+                    'puppet': {'classes': ['dhacme::cert', 'dhpve'],
+                               'params': {'dhpve': {
+                                   'admin_group_dn': 'cn=g,dc=x',
+                                   'admin_role': 'Administrator'}}}},
         },
     }

@@ -5,6 +5,10 @@
 # client talking to the NEAREST server - specs only pair up when both
 # sides name the same flow. Cross-site flows (ldaprepl, ldapwrite) are
 # named explicitly on both ends.
+#
+# A manifest entry may be parameterized like the ipplan pkg syntax:
+# an 'ldap(role=master)' entry overrides, per key, the base 'ldap'
+# entry for hosts whose pkg params match.
 
 import collections
 
@@ -34,6 +38,21 @@ def _tcp_ports(service_def):
     return ports
 
 
+def _specs(packages, pkg, params, access):
+    """A pkg's client/server specs: a parameterized manifest entry like
+    'ldap(role=master)' overrides the base entry's list for hosts whose
+    pkg params match it."""
+    for key in sorted(packages):
+        if '(' not in key:
+            continue
+        name, want = metadata.parse_pkg(key)
+        entry = packages.get(key) or {}
+        if (name == pkg and access in entry
+                and all(params.get(k) == v for k, v in want.items())):
+            return entry[access]
+    return (packages.get(pkg) or {}).get(access, [])
+
+
 def firewall_params(hostname, manifest):
     """dhfirewall parameters for a host derived from the manifest's
     client/server flow declarations: each service this host serves gets
@@ -43,8 +62,8 @@ def firewall_params(hostname, manifest):
     services = manifest.get('services', {})
 
     server_specs = []
-    for pkg in metadata.getpkgs(hostname):
-        server_specs.extend((packages.get(pkg) or {}).get('server', []))
+    for pkg, params in metadata.pkgs_with_params(hostname):
+        server_specs.extend(_specs(packages, pkg, params, 'server'))
     if not server_specs:
         return {}
 
@@ -57,8 +76,8 @@ def firewall_params(hostname, manifest):
         ip = metadata.host_ip(other)
         if not ip:
             continue
-        for pkg in pkgs:
-            for spec in (packages.get(pkg) or {}).get('client', []):
+        for pkg, params in pkgs:
+            for spec in _specs(packages, pkg, params, 'client'):
                 clients[_parse_spec(spec, site)].add(ip)
 
     my_site = metadata.host_site(hostname)

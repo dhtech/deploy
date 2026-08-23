@@ -17,6 +17,7 @@ cp "$repo/server/backend/finish.py" "$repo/server/backend/enc.py" "$repo/server/
 cp -r "$repo/server/backend/modules" /var/www/deploy/
 mkdir -p /var/www/deploy/lib
 cp "$repo/server/libdhdeploy/metadata.py" /var/www/deploy/lib/
+cp "$repo/server/libdhdeploy/flows.py" /var/www/deploy/lib/
 touch /var/www/deploy/lib/__init__.py
 chmod -R a+rX /var/www/deploy
 find /var/www/deploy -name '*.py' -exec chmod 755 {} +
@@ -53,6 +54,18 @@ globals:
   acme:
     email: acme@notproduction.net
     server: https://acme-v02.api.letsencrypt.org/directory
+# Firewall flows (gen-2 model): packages declare client/server roles
+# on services; a spec is 'service' or 'flow-service' and the default
+# flow is the host's site - that is what pairs a client with the
+# NEAREST server. Cross-site flows are named on both ends.
+flows:
+  - ldaprepl   # directory replication (slaves + mirror partners -> masters)
+  - ldapwrite  # directory admin writes (LAM -> masters)
+services:
+  ldaps:
+    description: directory over TLS
+    destport:
+      - 636/tcp
 packages:
   jumpgate:
     hardware:
@@ -66,6 +79,8 @@ packages:
     hardware:
       cpus: 1
       memory: 1G
+    client:
+      - ldaps
     puppet:
       classes: [dhlogin]
       params:
@@ -89,6 +104,8 @@ packages:
       size: 20G
       mountpoint: /var/lib/openbao
       options: nodev,nosuid,noexec
+    client:
+      - ldaps
     puppet:
       classes: [dhfirewall, 'dhacme::cert', 'dhnginx::vault']
   puppetserver:
@@ -101,6 +118,8 @@ packages:
     hardware:
       cpus: 2
       memory: 2G
+    client:
+      - ldapwrite-ldaps
     puppet:
       classes: [dhfirewall, 'dhacme::cert', 'dhnginx::lam', 'dhlam']
   ldap:
@@ -111,8 +130,19 @@ packages:
       size: 10G
       mountpoint: /var/lib/ldap
       options: nodev,nosuid,noexec
+    # slaves serve the site (default flow); the whole fleet replicates
+    # from the masters
+    server:
+      - ldaps
+    client:
+      - ldaprepl-ldaps
     puppet:
       classes: [dhfirewall, 'dhldap::server']
+  # masters serve ONLY the directory: replication + admin writes
+  ldap(role=master):
+    server:
+      - ldaprepl-ldaps
+      - ldapwrite-ldaps
   trac:
     hardware:
       cpus: 2
@@ -127,8 +157,16 @@ packages:
     hardware:
       cpus: 1
       memory: 1G
+    client:
+      - ldaps
     puppet:
       classes: ['dhacme::cert', 'dhpve']
+      params:
+        dhpve:
+          # who may log in to the pve web UI (realm sync scope) and
+          # what they get - policy, so it lives here
+          admin_group_dn: cn=services-colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se
+          admin_role: Administrator
   svn:
     hardware:
       cpus: 2
