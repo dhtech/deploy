@@ -178,7 +178,7 @@ The public zone (Route 53) points these at 127.0.0.1 already; the local
 hosts entries make them work offline too. Paste into `/etc/hosts`:
 
 ```
-# dh lab web services
+# dhtech lab web services
 127.0.0.1 vault.dh.notproduction.net
 127.0.0.1 pve1.dh.notproduction.net
 127.0.0.1 pve2.dh.notproduction.net
