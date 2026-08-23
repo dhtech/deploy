@@ -43,22 +43,20 @@ d-i clock-setup/ntp boolean true
 # scaled to fit small test disks; priorities/maximums approach the
 # production layout on real hardware.
 # partman-auto/method is set by early.py (lvm; crypto for EVENT hosts)
-# The OS always lives on the LARGEST disk; the appdisk is handled by the
-# late script, never by partman. Device names are nondeterministic with
-# two virtio-scsi disks (the appdisk can enumerate as sda — seen live:
-# the OS installed onto an 11G appdisk after "too small ... skipping"),
-# so partman/early_command pins the target by size. The static line
-# below is only a fallback if that command fails.
+# The OS always lives on the first disk BY BUS PATH (scsi0 / first
+# controller); the appdisk is handled by the late script, never by
+# partman. Kernel device names are nondeterministic with two virtio-scsi
+# disks (the appdisk can enumerate as sda — seen live: the OS installed
+# onto an 11G appdisk after "too small ... skipping"), so
+# partman/early_command pins the target via the stable by-path id.
+# The static line below is only a fallback if that command fails.
 d-i partman-auto/disk string /dev/sda
 d-i partman/early_command string \
-    big=""; bigsize=0; \
-    for dev in $(list-devices disk); do \
-      b=${dev##*/}; s=$(cat /sys/block/$b/size 2>/dev/null || echo 0); \
-      if [ "$s" -gt "$bigsize" ]; then bigsize=$s; big=$dev; fi; \
-    done; \
-    if [ -n "$big" ]; then \
-      debconf-set partman-auto/disk "$big"; \
-      debconf-set grub-installer/bootdev "$big"; \
+    target=$(ls /dev/disk/by-path/*-scsi-* 2>/dev/null | grep -v -- -part | sort | head -1); \
+    [ -n "$target" ] && target=$(readlink -f "$target"); \
+    if [ -n "$target" ]; then \
+      debconf-set partman-auto/disk "$target"; \
+      debconf-set grub-installer/bootdev "$target"; \
     fi
 d-i partman-auto-lvm/guided_size string max
 d-i partman-lvm/device_remove_lvm boolean true
