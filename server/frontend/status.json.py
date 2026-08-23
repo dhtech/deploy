@@ -39,6 +39,7 @@ def collect(store):
             duration = int((finished or time.time()) - started)
         data['hosts'].append({
             'hostname': hostname,
+            'started': started,
             'duration': duration,
             'finished': finished,
             'product': props.get('product', ''),
@@ -47,14 +48,6 @@ def collect(store):
             'error': props.get('error'),
             'ttl': store.ttl(key),
         })
-
-    # active installs first (oldest on top), finished last (newest first)
-    state_rank = {'starting': 0, 'installing': 0,
-                  'waiting-for-provision': 1, 'done': 2}
-    data['hosts'].sort(key=lambda h: (
-        state_rank.get(h['state'], 0),
-        -(h['finished'] or 0) if h['state'] == 'done'
-        else (h['duration'] is None, -(h['duration'] or 0))))
 
     for key in store.keys('create-vm-*'):
         try:
@@ -98,7 +91,8 @@ def collect(store):
         key = key.decode()
         data['bays'][key.split('-', 1)[1]] = json.loads(store.get(key))
 
-    data['hosts'].sort(key=lambda h: h['hostname'])
+    # entry order: the sequence installs were started in
+    data['hosts'].sort(key=lambda h: h['started'] or 0)
     data['vms'].sort(key=lambda v: (v['manager'] or '', v['name'] or ''))
     return data
 
