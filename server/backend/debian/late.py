@@ -111,15 +111,15 @@ fi''')
 # --- application disk: format and mount (declared in the manifest) ---
 appdisk = metadata.get_appdisk(client.hostname)
 if appdisk:
-  fs = appdisk.get('filesystem', 'ext4')
+  # ext4 only, by policy
   mnt = appdisk['mountpoint']
   opts = appdisk.get('options', 'defaults')
   print('if [ -b /dev/sdb ] && ! blkid /dev/sdb >/dev/null 2>&1; then')
-  print('  in-target mkfs.%s /dev/sdb' % fs)
+  print('  in-target mkfs.ext4 -q /dev/sdb')
   print('fi')
   print('uuid=$(blkid -s UUID -o value /dev/sdb)')
   print('mkdir -p /target%s' % mnt)
-  print('echo "UUID=$uuid %s %s %s 0 2" >> /target/etc/fstab' % (mnt, fs, opts))
+  print('echo "UUID=$uuid %s ext4 %s 0 2" >> /target/etc/fstab' % (mnt, opts))
 
 # --- signal finish: provisiond moves us to the production VLAN ---
 print('wget -q -O /dev/null "%s/provision.py?hack_ip=%s" || true' % (base, ip))

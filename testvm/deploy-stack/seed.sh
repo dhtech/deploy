@@ -41,7 +41,7 @@ chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 
 cat > /etc/manifest <<EOF
 # OS disk is fixed at 75G by deploy-vm; appdisk declares per-application
-# storage (size, filesystem, mountpoint, mount options).
+# storage (size, mountpoint, mount options; ext4 only by policy).
 packages:
   base:
     hardware:
@@ -53,7 +53,6 @@ packages:
       memory: 2G
     appdisk:
       size: 10G
-      filesystem: ext4
       mountpoint: /srv/www
       options: nodev,nosuid
   vault:
@@ -62,7 +61,6 @@ packages:
       memory: 2G
     appdisk:
       size: 20G
-      filesystem: xfs
       mountpoint: /var/lib/openbao
       options: nodev,nosuid,noexec
   puppetserver:
