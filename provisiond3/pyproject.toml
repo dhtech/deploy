@@ -14,6 +14,7 @@ dependencies = [
     "redis~=5.2",
     "hvac~=2.3",
     "PyYAML~=6.0",
+    "pyghmi~=1.6",
 ]
 
 [project.optional-dependencies]

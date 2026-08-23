@@ -20,13 +20,60 @@ from typing import cast
 
 import redis
 
-from provisiond.backends.base import Capability, Provisioner, VmInfo
+from provisiond.backends.base import Capability, HwProvisioner, Provisioner, VmInfo
 from provisiond.orders import CreateOrder, HostRecord, write_error
 
 RUN_INTERVAL = 7
 INVENTORY_TTL = 600
 
 log = logging.getLogger(__name__)
+
+
+class HwManagerLoop:
+    """Drives one hardware backend (OCP): bays inventory + one-shot netboot."""
+
+    def __init__(
+        self,
+        backend: HwProvisioner,
+        conn: redis.Redis,
+        interval: int = RUN_INTERVAL,
+    ) -> None:
+        self.backend = backend
+        self.redis = conn
+        self.interval = interval
+        self.thread = threading.Thread(
+            target=self.run, name=f"manager-{backend.name}", daemon=True
+        )
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def run(self) -> None:
+        while True:
+            try:
+                self.iterate()
+            except Exception:
+                log.exception("[%s] exception in manager loop", self.backend.name)
+            time.sleep(self.interval)
+
+    def iterate(self) -> None:
+        bays = self.backend.scrape_bays()
+        self.redis.setex(f"bays-{self.backend.name}", INVENTORY_TTL, json.dumps(bays))
+
+        for bay_id, info in bays.items():
+            if not info or not info.get("serial"):
+                continue
+            key = f"install-{info['serial']}"
+            raw = cast("bytes | None", self.redis.get(key))
+            if raw is None:
+                continue
+            install = json.loads(raw)
+            if install.get("initialized", True):
+                continue
+            self.backend.initialize(bay_id, info, install)
+            install["initialized"] = True
+            self.redis.setex(key, 3600, json.dumps(install))
+            log.info("[%s] initialized netboot for %s", self.backend.name, bay_id)
 
 
 class VmManagerLoop:

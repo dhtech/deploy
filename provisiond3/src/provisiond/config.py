@@ -34,7 +34,7 @@ class VaultConfig:
 @dataclass(frozen=True)
 class ManagerConfig:
     name: str
-    type: str  # proxmox | vmware (c7000/ocp arrive in M5)
+    type: str  # proxmox | vmware | ocp
     deploy_vlan: int = 0
     # True = system CAs, path = CA bundle, False = no verification (lab only)
     verify_tls: bool | str = True
@@ -50,6 +50,8 @@ class ManagerConfig:
     fqdn: str | None = None
     username: SecretRef = None
     password: SecretRef = None
+    # ocp: name -> {mac, ip}
+    machines: dict[str, dict[str, str]] | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,9 @@ def _manager(data: dict[str, Any]) -> ManagerConfig:
     elif mgr.type == "vmware":
         if not mgr.host or mgr.username is None or mgr.password is None:
             raise ConfigError(f"manager {mgr.name}: vmware needs host, username, password")
+    elif mgr.type == "ocp":
+        if not mgr.machines or mgr.username is None or mgr.password is None:
+            raise ConfigError(f"manager {mgr.name}: ocp needs machines, username, password")
     else:
         raise ConfigError(f"manager {mgr.name}: unknown type {mgr.type!r}")
     if mgr.verify_tls is False:

@@ -71,3 +71,23 @@ class Provisioner(ABC):
     def configure_vcenter(self, request: dict[str, object]) -> None:
         """Handle a configure-vcenter-* request."""
         raise ProvisionerError(f"manager {self.name} cannot configure vcenter")
+
+
+class HwProvisioner(ABC):
+    """One hardware manager endpoint (blade chassis, IPMI fleet).
+
+    Consumes ``install-<serial>`` keys and publishes ``bays-<manager>``;
+    the daemon owns that Redis choreography.
+    """
+
+    name: str
+
+    @abstractmethod
+    def scrape_bays(self) -> dict[str, dict[str, object] | None]:
+        """Return bay-id -> info ({'serial': ...} etc.) or None if empty."""
+
+    @abstractmethod
+    def initialize(
+        self, bay_id: str, info: dict[str, object], install: dict[str, object]
+    ) -> None:
+        """One-time netboot+power setup for a machine pending install."""

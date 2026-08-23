@@ -11,7 +11,8 @@ import redis
 
 from provisiond import config as config_mod
 from provisiond.backends import create_backend
-from provisiond.daemon import VmManagerLoop
+from provisiond.backends.base import HwProvisioner
+from provisiond.daemon import HwManagerLoop, VmManagerLoop
 from provisiond.secrets import Secrets
 
 log = logging.getLogger("provisiond")
@@ -47,9 +48,13 @@ def main(argv: list[str] | None = None) -> int:
 
     for manager in cfg.managers:
         backend = create_backend(manager, secrets)
-        loop = VmManagerLoop(
-            backend, conn, deploy_vlan=manager.deploy_vlan, fqdn=manager.fqdn
-        )
+        loop: VmManagerLoop | HwManagerLoop
+        if isinstance(backend, HwProvisioner):
+            loop = HwManagerLoop(backend, conn)
+        else:
+            loop = VmManagerLoop(
+                backend, conn, deploy_vlan=manager.deploy_vlan, fqdn=manager.fqdn
+            )
         log.info("starting manager loop %s (%s)", manager.name, manager.type)
         loop.start()
 

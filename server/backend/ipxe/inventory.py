@@ -1,60 +1,58 @@
-#!/usr/bin/env python2
-# Accept inventory data from iPXE and looks up the hostname to use.
-# This replaces inventoryd and inventory.py
-# TODO(bluecmd): Remove mention of inventoryd and inventory.py
+#!/usr/bin/env python3
+# Accept inventory data from iPXE and look up the hostname to use.
+#
+# Identity contract (provisiond3): every VM the provisioner creates is
+# published as 'vm-<manager>-<smbios-uuid-lowercase>' in Redis; physical
+# machines are keyed 'install-<serial>'. Lookup order is UUID first, then
+# serial - no SMBIOS manufacturer sniffing (the old contract only matched
+# VMs whose manufacturer contained 'vmware').
+#
 # Note: Needs /etc/deploy.yaml to contain redis information
 
 import json
 import os
+import urllib.parse
+
 import redis
-import syslog
-import urlparse
 import yaml
 
-from lib import metadata
+
+def connection():
+    with open('/etc/deploy.yaml') as f:
+        config = yaml.safe_load(f)
+    return redis.Redis(**config['redis'])
 
 
 def handle(contents):
-  r = metadata.connection()
+    r = connection()
 
-  data = {
-      'uuid': contents['uuid'][0],
-      'manufacturer': contents['manufacturer'][0],
-      'serial': contents['serial'][0]
-     }
+    uuid = contents.get('uuid', [''])[0].lower()
+    serial = contents.get('serial', [''])[0].strip()
 
-  request_json = None
-  if 'vmware' in data['manufacturer'].lower():
-    keys = r.keys('vmware-*-' + data['uuid'].lower())
-    if not keys:
-      return
-    key = keys[0]
-    request_json = r.get(key)
-  else:
-    # If platform not known, use serial number
-    request_json = r.get('install-' + data['serial'].strip())
+    request_json = None
+    if uuid:
+        keys = r.keys('vm-*-' + uuid)
+        if keys:
+            request_json = r.get(keys[0])
+    if request_json is None and serial:
+        request_json = r.get('install-' + serial)
 
-  if 'hostname' in contents:
-    hostname = contents['hostname'][0].lower()
-  elif request_json:
-    request = json.loads(request_json)
-    hostname = request['name']
-  else:
-    return
-  return hostname
+    if 'hostname' in contents:
+        return contents['hostname'][0].lower()
+    if request_json:
+        return json.loads(request_json)['name']
+    return None
 
 
-query_string = urlparse.parse_qs(os.environ['QUERY_STRING'])
+query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
 hostname = handle(query_string)
 
-print ''
-print '#!ipxe'
+print('')
+print('#!ipxe')
 if hostname:
-  print 'set hostname %s' % hostname
+    print('set hostname %s' % hostname)
 else:
-  # TODO(bluecmd): Enable this to allow users to enter hostname on
-  # non-managed hosts
-  print 'echo No hostname found, please enter hostname (FQDN):'
-  print 'read hostname'
+    print('echo No hostname found, please enter hostname (FQDN):')
+    print('read hostname')
 
-print 'echo I am ${hostname}'
+print('echo I am ${hostname}')
