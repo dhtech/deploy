@@ -131,6 +131,7 @@ fi
 cp "$stack/dhtech.ipxe" "$stack/nftables-baseline.conf" "$stack/vimrc" /var/www/data/
 cp "$stack/preseed" /var/www/data/preseed
 cp /root/.ssh/authorized_keys /var/www/data/authorized_keys
+[ -f /root/.ssh/id_ed25519.pub ] && cat /root/.ssh/id_ed25519.pub >> /var/www/data/authorized_keys
 chmod -R a+rX /var/www/data
 
 # --- TFTP: iPXE EFI binary ------------------------------------------------
