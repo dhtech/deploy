@@ -324,16 +324,16 @@ name=deploy.dh.notproduction.net
 D=/etc/deploy-ssl
 TOKEN=$(curl -sf --cacert "$D/puppet-ca.pem" --cert "$D/node.pem" --key "$D/node.key" \
   -XPOST "https://vault1.colo.notproduction.net:8200/v1/auth/cert/login" | \
-  python3 -c "import json,sys; print(json.load(sys.stdin)['"'"'auth'"'"']['"'"'client_token'"'"'])")
+  python3 -c "import json,sys; print(json.load(sys.stdin)['auth']['client_token'])")
 mkdir -p /etc/dh-certs
 umask 077
 curl -sf --cacert "$D/puppet-ca.pem" -H "X-Vault-Token: $TOKEN" \
   "https://vault1.colo.notproduction.net:8200/v1/services/certs:$name" | \
   python3 -c "
 import json, sys
-d = json.load(sys.stdin)['"'"'data'"'"']
-open('"'"'/etc/dh-certs/$name.fullchain.pem.new'"'"', '"'"'w'"'"').write(d['"'"'certificate'"'"'] + d['"'"'chain'"'"'])
-open('"'"'/etc/dh-certs/$name.key.new'"'"', '"'"'w'"'"').write(d['"'"'private_key'"'"'])"
+d = json.load(sys.stdin)['data']
+open('/etc/dh-certs/$name.fullchain.pem.new', 'w').write(d['certificate'] + d['chain'])
+open('/etc/dh-certs/$name.key.new', 'w').write(d['private_key'])"
 if ! cmp -s /etc/dh-certs/$name.fullchain.pem.new /etc/dh-certs/$name.fullchain.pem 2>/dev/null; then
   mv /etc/dh-certs/$name.fullchain.pem.new /etc/dh-certs/$name.fullchain.pem
   mv /etc/dh-certs/$name.key.new /etc/dh-certs/$name.key
