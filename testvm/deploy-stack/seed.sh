@@ -25,7 +25,7 @@ install -m 755 "$repo/utils/deploy-vm" /usr/local/bin/deploy-vm
 
 # --- config: deploy.yaml, manifest, ipplan.db ----------------------------
 # Preserve live-provisioned secret-store settings across reseeds
-vault_lines=$(grep -E "^vault_(addr|token):" /etc/deploy.yaml 2>/dev/null || true)
+vault_lines=$(grep -E "^vault_(addr|token|cacert|cert|key):" /etc/deploy.yaml 2>/dev/null || true)
 cat > /etc/deploy.yaml <<EOF
 redis:
   host: localhost

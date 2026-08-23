@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import string
+import ssl
 import urllib.parse
 import urllib.request
 
@@ -43,14 +44,33 @@ else:
   luks_path = 'services/luks:%s' % client.hostname
 
 
+def _vault_context():
+  """TLS context: trust the puppet CA, present our puppet node cert."""
+  ctx = ssl.create_default_context(cafile=config['vault_cacert'])
+  ctx.load_cert_chain(config['vault_cert'], config['vault_key'])
+  return ctx
+
+
+def _vault_token(ctx):
+  """Machine identity: TLS cert auth (puppet node cert), gen-2 contract."""
+  if config.get('vault_token'):
+    return config['vault_token']
+  request = urllib.request.Request(
+      '%s/v1/auth/cert/login' % config['vault_addr'], data=b'{}',
+      method='POST')
+  with urllib.request.urlopen(request, timeout=10, context=ctx) as response:
+    return json.load(response)['auth']['client_token']
+
+
 def vault_write(path, **data):
   """KV v1 write over the plain HTTP API - no client dependency needed."""
+  ctx = _vault_context() if config.get('vault_cacert') else None
   request = urllib.request.Request(
       '%s/v1/%s' % (config['vault_addr'], path),
       data=json.dumps(data).encode(),
-      headers={'X-Vault-Token': config['vault_token']},
+      headers={'X-Vault-Token': _vault_token(ctx)},
       method='PUT')
-  urllib.request.urlopen(request, timeout=10)
+  urllib.request.urlopen(request, timeout=10, context=ctx)
 
 
 vault_write(vault_path, root_password=root_pw)
