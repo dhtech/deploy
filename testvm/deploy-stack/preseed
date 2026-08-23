@@ -52,13 +52,17 @@ d-i clock-setup/ntp boolean true
 # The static line below is only a fallback if that command fails.
 d-i partman-auto/disk string /dev/sda
 d-i partman/early_command string \
-    target=$(for b in /sys/block/sd* /sys/block/vd*; do \
+    target=""; \
+    for l in /dev/disk/by-path/*scsi-0:0:0:0; do \
+      [ -e "$l" ] && [ -z "$target" ] && target=$(readlink -f "$l"); \
+    done; \
+    [ -n "$target" ] || target=/dev/$(for b in /sys/block/sd* /sys/block/vd*; do \
         [ -d "$b" ] || continue; \
         echo "$(readlink -f "$b") ${b##*/}"; \
       done | sort | head -1 | sed "s/.* //"); \
     if [ -n "$target" ]; then \
-      debconf-set partman-auto/disk "/dev/$target"; \
-      debconf-set grub-installer/bootdev "/dev/$target"; \
+      debconf-set partman-auto/disk "$target"; \
+      debconf-set grub-installer/bootdev "$target"; \
     fi
 d-i partman-auto-lvm/guided_size string max
 d-i partman-lvm/device_remove_lvm boolean true

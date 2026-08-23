@@ -158,15 +158,20 @@ if appdisks:
   # the chroot lvcreate hangs forever waiting for udev sync.
   # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
   print('export LVM_SUPPRESS_FD_WARNINGS=1')
-  # Kernel device names are nondeterministic with two virtio-scsi disks —
-  # order by physical bus path (work convention; via /sys, because
-  # /dev/disk/by-path is not available in the d-i environment): first
-  # disk = OS (matches the preseed partman pin), second = appdisk.
-  print('appdev=$(for b in /sys/block/sd* /sys/block/vd*; do'
-        ' [ -d "$b" ] || continue;'
+  # Kernel device names are nondeterministic with two disks — the appdisk
+  # is unit 1 on the SCSI bus (work convention: find disk by SCSI path).
+  # virtio-scsi puts the unit in the LUN field (scsi-0:0:0:1), VMware
+  # pvscsi in the target field (scsi-0:0:1:0); match both. Fallback:
+  # second disk in /sys bus-path order, should by-path be absent.
+  print('appdev=""')
+  print('for l in /dev/disk/by-path/*scsi-0:0:1:0'
+        ' /dev/disk/by-path/*scsi-0:0:0:1; do')
+  print('  [ -e "$l" ] && [ -z "$appdev" ] && appdev=$(readlink -f "$l")')
+  print('done')
+  print('[ -n "$appdev" ] || appdev=/dev/$(for b in /sys/block/sd*'
+        ' /sys/block/vd*; do [ -d "$b" ] || continue;'
         ' echo "$(readlink -f "$b") ${b##*/}";'
         ' done | sort | sed -n 2p | sed "s/.* //")')
-  print('[ -n "$appdev" ] && appdev="/dev/$appdev"')
   print('if [ -n "$appdev" ] && ! pvs "$appdev" >/dev/null 2>&1; then')
   print('  pvcreate "$appdev"')
   print('  vgcreate vgapp "$appdev"')
