@@ -78,10 +78,13 @@ packages:
       cpus: 2
       memory: 3G
     puppet:
-      classes: [dhfirewall]
+      classes: [dhfirewall, 'dhacme::issuer']
       params:
         dhfirewall:
           open_tcp: [8140]
+        'dhacme::issuer':
+          domains: ['*.dh.notproduction.net', 'dh.notproduction.net']
+          email: acme@notproduction.net
 EOF
 
 python3 - <<'EOF'
