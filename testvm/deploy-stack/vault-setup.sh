@@ -34,7 +34,7 @@ fi
 cat > /etc/openbao/openbao.hcl <<EOF
 # Test-env OpenBao: raft single node, TLS disabled (lab only - prod gets
 # TLS with the puppet CA and cert auth).
-ui = false
+ui = true
 
 storage "raft" {
   path    = "/opt/openbao/data"
