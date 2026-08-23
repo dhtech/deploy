@@ -169,4 +169,5 @@ next pve-test restart).
 Reserved forwards: `127.0.0.1:8443` → vault website (nginx/LE on
 vault1:443 via provision-dev DNAT 443); `127.0.0.1:8444` →
 provision-dev:444, reserved for the future FusionDirectory/LDAP web UI
-(DNAT to be added when ldap1 is deployed).
+(DNAT to be added when ldap1 is deployed); `127.0.0.1:8445` →
+provision-dev:445, reserved for the future Trac web UI.
