@@ -111,17 +111,18 @@ fi''')
 # --- application disk: one disk, vgapp VG, one ext4 LV per package ---
 appdisks = metadata.get_appdisks(client.hostname)
 if appdisks:
-  # LVM_SUPPRESS_FD_WARNINGS: d-i's log-output wrapper leaves fds open
-  # and lvm noisily warns about them (harmless).
+  # LVM runs in the OUTER d-i environment (like partman does): inside
+  # the chroot lvcreate hangs forever waiting for udev sync.
+  # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
   print('export LVM_SUPPRESS_FD_WARNINGS=1')
-  print('if [ -b /dev/sdb ] && ! in-target pvs /dev/sdb >/dev/null 2>&1; then')
-  print('  in-target pvcreate /dev/sdb')
-  print('  in-target vgcreate vgapp /dev/sdb')
+  print('if [ -b /dev/sdb ] && ! pvs /dev/sdb >/dev/null 2>&1; then')
+  print('  pvcreate /dev/sdb')
+  print('  vgcreate vgapp /dev/sdb')
   print('fi')
   for disk in appdisks:
     mib = max(4, int(disk['size']) // 1024**2)
-    print('in-target lvcreate -y -L %dM -n %s vgapp' % (mib, disk['lv']))
-    print('in-target mkfs.ext4 -q /dev/vgapp/%s' % disk['lv'])
+    print('lvcreate -y -L %dM -n %s vgapp' % (mib, disk['lv']))
+    print('mkfs.ext4 -q /dev/vgapp/%s' % disk['lv'])
     print('mkdir -p /target%s' % disk['mountpoint'])
     print('echo "/dev/vgapp/%s %s ext4 %s 0 2" >> /target/etc/fstab'
           % (disk['lv'], disk['mountpoint'], disk['options']))
