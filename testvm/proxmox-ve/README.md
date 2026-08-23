@@ -171,3 +171,26 @@ vault1:443 via provision1 DNAT 443); `127.0.0.1:8444` →
 provision1:444, reserved for the future FusionDirectory/LDAP web UI
 (DNAT to be added when ldap1 is deployed); `127.0.0.1:8445` →
 provision1:445, reserved for the future Trac web UI.
+
+## Web service names (workstation /etc/hosts)
+
+The public zone (Route 53) points these at 127.0.0.1 already; the local
+hosts entries make them work offline too. Paste into `/etc/hosts`:
+
+```
+# dh lab web services
+127.0.0.1 vault.dh.notproduction.net pve.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net
+```
+
+| URL | Service |
+|---|---|
+| <https://vault.dh.notproduction.net:8443/ui> | OpenBao website (Let's Encrypt) |
+| <https://pve.dh.notproduction.net:8006> | Proxmox web UI (Let's Encrypt) |
+| <https://fusion.dh.notproduction.net:8444> | FusionDirectory (planned) |
+| <https://doc.dh.notproduction.net:8445> | Trac + SVN (planned) |
+
+Machine names (`*.colo.notproduction.net`) resolve only inside the lab
+(dnsmasq on provision1); machine TLS is the puppet CA
+(`Puppet CA: puppet1.colo.notproduction.net`) — import
+`puppet1:/etc/puppet/puppetserver/ca/ca_crt.pem` into the browser if
+you also want the OpenBao `:8200` listener trusted.
