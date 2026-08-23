@@ -95,6 +95,7 @@
   </a>
   <nav class="tabs">
     <a href="#deploy" data-tab="deploy" class="active">Deploy</a>
+    <a href="#develop" data-tab="develop">Develop</a>
     <a href="#help" data-tab="help">Help</a>
   </nav>
   <span id="updated">connecting…</span>
@@ -175,18 +176,68 @@
       </dl>
     </div>
 </div>
+<div id="panel-develop" hidden>
+    <div class="help-body">
+      <h4>Web services</h4>
+      <p>Every public website terminates on your workstation's port
+      forwards. The names need the hosts-file entries below.</p>
+      <table>
+        <thead><tr><th>Service</th><th>URL</th><th>Certificate</th></tr></thead>
+        <tbody>
+          <tr><td>Deploy status (this page)</td>
+              <td><a href="http://localhost:8768/">localhost:8768</a></td>
+              <td>—</td></tr>
+          <tr><td>Proxmox web UI</td>
+              <td><a href="https://pve.dh.notproduction.net:8006/">pve.dh.notproduction.net:8006</a></td>
+              <td>Let's Encrypt</td></tr>
+          <tr><td>Vault website (OpenBao UI)</td>
+              <td><a href="https://vault.dh.notproduction.net:8443/ui">vault.dh.notproduction.net:8443/ui</a></td>
+              <td>Let's Encrypt</td></tr>
+          <tr><td>OpenBao machine listener</td>
+              <td><a href="https://localhost:8200/ui">localhost:8200/ui</a></td>
+              <td>puppet CA (import to trust)</td></tr>
+          <tr><td>FusionDirectory</td>
+              <td><a href="https://fusion.dh.notproduction.net:8444/">fusion.dh.notproduction.net:8444</a></td>
+              <td>Let's Encrypt (site pending)</td></tr>
+          <tr><td>Trac + SVN (doc)</td>
+              <td><a href="https://doc.dh.notproduction.net:8445/">doc.dh.notproduction.net:8445</a></td>
+              <td>Let's Encrypt (site pending)</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Hosts-file entries</h4>
+      <p>The public DNS zone already points these names at
+      <code>127.0.0.1</code>, but local entries make them work offline
+      too. Append to <code>/etc/hosts</code>
+      (<code>sudo nano /etc/hosts</code> — Windows:
+      <code>C:\Windows\System32\drivers\etc\hosts</code>):</p>
+      <pre style="background: var(--bg); padding: 0.6rem 0.9rem;
+                  border-radius: 6px; overflow-x: auto;
+                  font-family: var(--mono); font-size: 0.82rem;"># dh lab web services
+127.0.0.1 vault.dh.notproduction.net pve.dh.notproduction.net fusion.dh.notproduction.net doc.dh.notproduction.net</pre>
+
+      <h4>Machine names</h4>
+      <p>Machines (<code>*.colo.notproduction.net</code>) resolve only
+      inside the lab and use the puppet CA
+      (<code>Puppet CA: puppet1.colo.notproduction.net</code>). Import
+      <code>puppet1:/etc/puppet/puppetserver/ca/ca_crt.pem</code> into
+      the browser to trust the OpenBao <code>:8200</code> listener.</p>
+    </div>
+</div>
 </main>
 <script>
 "use strict";
 
 function showTab(name) {
-  document.getElementById("panel-deploy").hidden = name !== "deploy";
-  document.getElementById("panel-help").hidden = name !== "help";
+  for (const t of ["deploy", "develop", "help"])
+    document.getElementById("panel-" + t).hidden = t !== name;
   for (const a of document.querySelectorAll("nav.tabs a"))
     a.classList.toggle("active", a.dataset.tab === name);
 }
-const tabFromHash = () =>
-  showTab(location.hash === "#help" ? "help" : "deploy");
+const tabFromHash = () => {
+  const name = location.hash.replace("#", "");
+  showTab(["develop", "help"].includes(name) ? name : "deploy");
+};
 window.addEventListener("hashchange", tabFromHash);
 tabFromHash();
 
