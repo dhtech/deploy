@@ -25,6 +25,17 @@ def generate(host, params, manifest):
   }
 
 
+def slave_uris():
+  """Application read/auth endpoints: the site's slave pair. Policy:
+  applications bind to slaves; writes and directory admin (LAM) go to
+  the masters. Falls back to the masters while a site has no slaves."""
+  slaves = [h for h, p in metadata.hosts_with_pkg('ldap')
+            if p.get('role') != 'master']
+  if slaves:
+    return ['ldaps://%s' % h for h in sorted(slaves)]
+  return ['ldaps://%s' % h for h, _ in metadata.hosts_with_pkg('ldap')]
+
+
 def vault_addr():
   vaults = metadata.hosts_with_pkg('vault')
   return 'https://%s:8200' % vaults[0][0] if vaults else None

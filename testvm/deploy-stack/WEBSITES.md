@@ -82,9 +82,9 @@ the real ipplan file). Current inventory:
 | `ldap2.colo.notproduction.net` | 10.200.0.68 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | planned |
 
 Directory topology: two mirror-mode **masters** in colo take all writes
-(FusionDirectory, apps, admin); **every site — colo included — runs a
-pair of read-only slaves** (syncrepl from both masters over ldaps,
-puppet-CA verified) for resilient local reads. ldaps 636 only, no
+and directory administration (LAM); **applications read and
+authenticate against their site's read-only slave pair** (syncrepl from
+both masters over ldaps, puppet-CA verified). ldaps 636 only, no
 plaintext 389. Suffixes `dc=tech,dc=dreamhack,dc=se` (permanent) and
 `dc=event,dc=dreamhack,dc=se` (permanent, flat). Secrets live in
 OpenBao on the dedicated `services-ldap` mount, readable **only** by
