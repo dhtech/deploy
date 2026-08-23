@@ -30,7 +30,6 @@ import sys
 
 SKIP_SUBTREE_MARKERS = ('ou=fusiondirectory', 'ou=aclroles',
                         'ou=templates', 'ou=snapshots', 'ou=snapshots,')
-SKIP_CLASSES = ('gosaRole', 'gosaAcl', 'gosaCacheEntry')
 DROP_CLASS_PREFIXES = ('gosa', 'fd')
 KEEP_ATTRS = {
     'objectclass', 'dc', 'o', 'ou', 'uid', 'cn', 'sn', 'givenname',
@@ -125,9 +124,6 @@ def transform(stream, out):
       skipped += 1
       continue
     ocs = [v for a, v, b in attrs if a.lower() == 'objectclass']
-    if any(oc in SKIP_CLASSES for oc in ocs):
-      skipped += 1
-      continue
     # FD service accounts directly under the root (cn=... at the root,
     # and the FD-era users/groups in the root-level ou=people/ou=groups)
     if low.startswith('cn=') and low.count(',dc=') == 2:
@@ -158,12 +154,21 @@ def transform(stream, out):
   pruned_members = 0
   for dn, attrs in entries:
     out.write('dn: %s\n' % dn)
+    is_gon = any(a.lower() == 'objectclass' and v == 'groupOfNames'
+                 for a, v, b in attrs)
+    members_out = 0
     for attr, value, is_b64 in attrs:
-      if attr.lower() == 'member' and value.lower() not in kept_dns:
-        pruned_members += 1
-        continue
+      if attr.lower() == 'member':
+        if value.lower() not in kept_dns:
+          pruned_members += 1
+          continue
+        members_out += 1
       sep = ':: ' if is_b64 else ': '
       out.write('%s%s%s\n' % (attr, sep, value))
+    if is_gon and members_out == 0:
+      # groupOfNames requires at least one member; self-reference is the
+      # standard placeholder when every real member was pruned
+      out.write('member: %s\n' % dn)
     out.write('\n')
     written += 1
   print('directory-import: %d entries written, %d skipped, '
