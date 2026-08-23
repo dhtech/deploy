@@ -48,6 +48,14 @@ def collect(store):
             'ttl': store.ttl(key),
         })
 
+    # active installs first (oldest on top), finished last (newest first)
+    state_rank = {'starting': 0, 'installing': 0,
+                  'waiting-for-provision': 1, 'done': 2}
+    data['hosts'].sort(key=lambda h: (
+        state_rank.get(h['state'], 0),
+        -(h['finished'] or 0) if h['state'] == 'done'
+        else (h['duration'] is None, -(h['duration'] or 0))))
+
     for key in store.keys('create-vm-*'):
         try:
             props = json.loads(store.get(key))
