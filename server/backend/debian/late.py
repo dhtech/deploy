@@ -159,12 +159,14 @@ if appdisks:
   # LVM_SUPPRESS_FD_WARNINGS silences harmless fd-leak noise.
   print('export LVM_SUPPRESS_FD_WARNINGS=1')
   # Kernel device names are nondeterministic with two virtio-scsi disks —
-  # select by stable bus path (work convention, cf. the VMware ansible
-  # pattern *scsi-0:0:<unit>:0): sorted by-path, first disk = OS
-  # (matches the preseed partman pin), second = appdisk.
-  print('appdev=$(ls /dev/disk/by-path/*-scsi-* 2>/dev/null'
-        ' | grep -v -- -part | sort | sed -n 2p)')
-  print('[ -n "$appdev" ] && appdev=$(readlink -f "$appdev")')
+  # order by physical bus path (work convention; via /sys, because
+  # /dev/disk/by-path is not available in the d-i environment): first
+  # disk = OS (matches the preseed partman pin), second = appdisk.
+  print('appdev=$(for b in /sys/block/sd* /sys/block/vd*; do'
+        ' [ -d "$b" ] || continue;'
+        ' echo "$(readlink -f "$b") ${b##*/}";'
+        ' done | sort | sed -n 2p | sed "s/.* //")')
+  print('[ -n "$appdev" ] && appdev="/dev/$appdev"')
   print('if [ -n "$appdev" ] && ! pvs "$appdev" >/dev/null 2>&1; then')
   print('  pvcreate "$appdev"')
   print('  vgcreate vgapp "$appdev"')
