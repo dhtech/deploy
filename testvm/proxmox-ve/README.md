@@ -182,7 +182,7 @@ hosts entries make them work offline too. Paste into `/etc/hosts`:
 127.0.0.1 vault.dh.notproduction.net
 127.0.0.1 pve1.dh.notproduction.net
 127.0.0.1 pve2.dh.notproduction.net
-127.0.0.1 fusion.dh.notproduction.net
+127.0.0.1 directory.dh.notproduction.net
 127.0.0.1 doc.dh.notproduction.net
 127.0.0.1 deploy.dh.notproduction.net
 ```
@@ -191,7 +191,7 @@ hosts entries make them work offline too. Paste into `/etc/hosts`:
 |---|---|
 | <https://vault.dh.notproduction.net:8443/ui> | OpenBao website (Let's Encrypt) |
 | <https://pve1.dh.notproduction.net:8006> | Proxmox web UI (Let's Encrypt) |
-| <https://fusion.dh.notproduction.net:8444> | FusionDirectory (planned) |
+| <https://directory.dh.notproduction.net:8444> | Directory UI — LAM (planned) |
 | <https://doc.dh.notproduction.net:8445> | Trac + SVN (planned) |
 | <https://deploy.dh.notproduction.net:8446> | Deploy status (after next restart) |
 
