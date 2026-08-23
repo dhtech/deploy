@@ -26,7 +26,13 @@
     background: var(--card); border-bottom: 1px solid var(--border);
     padding: 0.8rem 1.5rem; display: flex; align-items: center; gap: 1rem;
   }
-  header h1 { font-size: 1.05rem; margin: 0; font-weight: 500; color: var(--muted); }
+  nav.tabs { display: flex; gap: 0.25rem; }
+  nav.tabs a {
+    padding: 0.3rem 0.85rem; border-radius: 6px; text-decoration: none;
+    color: var(--muted); font-weight: 600; font-size: 0.9rem;
+  }
+  nav.tabs a.active { background: var(--bg); color: var(--fg); }
+  nav.tabs a:hover { color: var(--fg); }
   .brand {
     display: flex; align-items: center; gap: 0.55rem;
     text-decoration: none; color: var(--fg);
@@ -62,16 +68,10 @@
   .state.installing, .state.starting { color: var(--accent); }
   .error { color: var(--err); font-family: var(--mono); font-size: 0.8rem; }
   .empty { padding: 0.7rem 0.9rem; color: var(--muted); }
-  details.help {
-    margin-top: 1.5rem; background: var(--card);
-    border: 1px solid var(--border); border-radius: 8px;
+  .help-body {
+    margin-top: 1.5rem; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.4rem 1.1rem 1rem; font-size: 0.88rem;
   }
-  details.help summary {
-    padding: 0.7rem 0.9rem; cursor: pointer; font-weight: 600;
-    color: var(--muted); user-select: none;
-  }
-  details.help[open] summary { border-bottom: 1px solid var(--border); }
-  .help-body { padding: 0.4rem 1.1rem 1rem; font-size: 0.88rem; }
   .help-body h4 { margin: 0.9rem 0 0.25rem; font-size: 0.85rem; }
   .help-body dl { margin: 0.3rem 0; }
   .help-body dt { font-weight: 600; margin-top: 0.45rem; }
@@ -93,10 +93,14 @@
     </svg>
     <span class="brand-name">dh<span class="brand-accent">tech</span></span>
   </a>
-  <h1>deploy</h1>
+  <nav class="tabs">
+    <a href="#deploy" data-tab="deploy" class="active">Deploy</a>
+    <a href="#help" data-tab="help">Help</a>
+  </nav>
   <span id="updated">connecting…</span>
 </header>
 <main>
+<div id="panel-deploy">
   <section>
     <h2>Current installs</h2>
     <div class="card"><div id="hosts" class="empty">—</div></div>
@@ -116,8 +120,8 @@
     <h2>Hardware bays</h2>
     <div id="bays"><div class="card"><div class="empty">—</div></div></div>
   </section>
-  <details class="help">
-    <summary>Help — what am I looking at?</summary>
+</div>
+<div id="panel-help" hidden>
     <div class="help-body">
       <h4>The deploy flow</h4>
       <p>An operator runs <code>deploy-vm &lt;fqdn&gt; &lt;provisioner&gt;</code>.
@@ -170,10 +174,21 @@
         chassis, OCP), with serials used for install matching.</dd>
       </dl>
     </div>
-  </details>
+</div>
 </main>
 <script>
 "use strict";
+
+function showTab(name) {
+  document.getElementById("panel-deploy").hidden = name !== "deploy";
+  document.getElementById("panel-help").hidden = name !== "help";
+  for (const a of document.querySelectorAll("nav.tabs a"))
+    a.classList.toggle("active", a.dataset.tab === name);
+}
+const tabFromHash = () =>
+  showTab(location.hash === "#help" ? "help" : "deploy");
+window.addEventListener("hashchange", tabFromHash);
+tabFromHash();
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
   (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));

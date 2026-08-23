@@ -20,6 +20,10 @@ touch /var/www/deploy/lib/__init__.py
 chmod -R a+rX /var/www/deploy
 find /var/www/deploy -name '*.py' -exec chmod 755 {} +
 
+# --- status frontend ------------------------------------------------------
+install -m 644 "$repo/server/frontend/index.html" /var/www/index.html
+install -m 755 "$repo/server/frontend/status.json.py" /var/www/status.json.py
+
 # --- operator CLI ---------------------------------------------------------
 install -m 755 "$repo/utils/deploy-vm" /usr/local/bin/deploy-vm
 
