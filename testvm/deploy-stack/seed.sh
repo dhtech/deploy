@@ -116,6 +116,7 @@ table ip nat {
     type nat hook postrouting priority srcnat;
     oifname "ens18" ip saddr 10.100.0.0/24 masquerade
     oifname "ens18" ip saddr 10.200.0.0/24 masquerade
+    oifname "ens21" ip daddr 10.200.0.61 tcp dport 8200 masquerade
   }
 }
 table ip deploynat {
