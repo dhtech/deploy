@@ -108,10 +108,8 @@ Using the reserved FusionDirectory slot as the example:
 2. **Deploy**: `deploy-vm fusion1.colo.notproduction.net coloc` (~4 min).
 3. **Puppet repo** (`~/repos/dh/local/puppet`):
    - hiera `data/common.yaml`: append the new name to
-     `dhacme::issuer::domains`? No — single certs: add the domain to the
-     issuer by adding a second `dhacme::issuer` cert run, or reuse the
-     class per-domain (current issuer handles one cert; extend when the
-     second site lands).
+     `dhacme::issuer::domains` — the issuer runs one lego order and one
+     publish per domain (single-name certs).
    - hiera `data/nodes/fusion1.colo.notproduction.net.yaml`: `dhfirewall::open_tcp:
      [443, 636]`, `dhacme::cert::cert_name: 'fusion.dh.notproduction.net'`.
    - a `dhnginx::<service>` class (copy `dhnginx/manifests/vault.pp`).
