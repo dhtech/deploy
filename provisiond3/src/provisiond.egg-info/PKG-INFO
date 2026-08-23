@@ -9,6 +9,7 @@ Requires-Dist: pyvmomi~=8.0
 Requires-Dist: redis~=5.2
 Requires-Dist: hvac~=2.3
 Requires-Dist: PyYAML~=6.0
+Requires-Dist: pyghmi~=1.6
 Provides-Extra: dev
 Requires-Dist: pytest~=8.3; extra == "dev"
 Requires-Dist: pytest-cov; extra == "dev"

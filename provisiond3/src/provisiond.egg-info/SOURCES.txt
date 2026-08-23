@@ -3,6 +3,7 @@ src/provisiond/__init__.py
 src/provisiond/__main__.py
 src/provisiond/config.py
 src/provisiond/daemon.py
+src/provisiond/ipplan.py
 src/provisiond/orders.py
 src/provisiond/secrets.py
 src/provisiond.egg-info/PKG-INFO
@@ -12,6 +13,13 @@ src/provisiond.egg-info/requires.txt
 src/provisiond.egg-info/top_level.txt
 src/provisiond/backends/__init__.py
 src/provisiond/backends/base.py
+src/provisiond/backends/ocp.py
+src/provisiond/backends/proxmox.py
+src/provisiond/backends/vcsa.py
+src/provisiond/backends/vmware.py
 tests/test_config.py
 tests/test_daemon.py
+tests/test_hw.py
 tests/test_orders.py
+tests/test_proxmox.py
+tests/test_vmware.py
