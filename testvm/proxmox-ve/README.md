@@ -165,3 +165,8 @@ next pve-test restart).
   `./provision.sh` and `./install.sh`. The ISO download and tools are kept.
 - ISO version, checksums, and every other pinned value live at the top of
   `provision.sh`.
+
+Reserved forwards: `127.0.0.1:8443` → vault website (nginx/LE on
+vault1:443 via provision-dev DNAT 443); `127.0.0.1:8444` →
+provision-dev:444, reserved for the future FusionDirectory/LDAP web UI
+(DNAT to be added when ldap1 is deployed).
