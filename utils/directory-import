@@ -36,6 +36,7 @@ KEEP_ATTRS = {
     'mail', 'uidnumber', 'gidnumber', 'homedirectory', 'loginshell',
     'sshpublickey', 'member', 'memberuid', 'description', 'l',
     'jpegphoto', 'dhshoesize', 'dhshirtsize', 'dhhelmetsize',
+    'dharrivaldate', 'dhdeparturedate',
 }
 KEEP_ATTR_PREFIXES = ('shadow',)
 # containers dh-ldap-config seeds on the masters - never import them:
