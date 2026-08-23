@@ -104,7 +104,7 @@ if [ ! -f pve-auto.iso ]; then
 fi
 
 if [ ! -f pve-test.qcow2 ]; then
-  qemu-img create -f qcow2 pve-test.qcow2 200G
+  qemu-img create -f qcow2 pve-test.qcow2 300G
 fi
 
 chmod 600 pve-test.qcow2
