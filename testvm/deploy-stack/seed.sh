@@ -14,6 +14,7 @@ apt-get -qq install -y ipxe dnsmasq nftables apt-cacher-ng >/dev/null
 mkdir -p /var/www/deploy
 cp -r "$repo/server/backend/ipxe" "$repo/server/backend/debian" /var/www/deploy/
 cp "$repo/server/backend/finish.py" "$repo/server/backend/enc.py" "$repo/server/backend/autosign.py" "$repo/server/backend/enrollments.py" /var/www/deploy/
+cp -r "$repo/server/backend/modules" /var/www/deploy/
 mkdir -p /var/www/deploy/lib
 cp "$repo/server/libdhdeploy/metadata.py" /var/www/deploy/lib/
 touch /var/www/deploy/lib/__init__.py
@@ -46,7 +47,17 @@ chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 cat > /etc/manifest <<EOF
 # OS disk is fixed at 75G by deploy-vm; appdisk declares per-application
 # storage (size, mountpoint, mount options; ext4 only by policy).
+# puppet: classes come from here; parameters come from the per-pkg ENC
+# generators (ipplan topology) plus optional static params blocks here.
+globals:
+  acme:
+    email: acme@notproduction.net
+    server: https://acme-v02.api.letsencrypt.org/directory
 packages:
+  jumpgate:
+    hardware:
+      cpus: 1
+      memory: 1G
   base:
     hardware:
       cpus: 1
@@ -160,15 +171,22 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
+    (13, 'pkg', 'jumpgate'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
     (14, 'os', 'debian'), (14, 'pkg', 'fusiondirectory'),
     (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
-    (16, 'os', 'debian'), (16, 'pkg', 'ldap'),
-    (17, 'os', 'debian'), (17, 'pkg', 'ldap'),
+    (16, 'os', 'debian'), (16, 'pkg', 'ldap(role=master,id=1)'),
+    (17, 'os', 'debian'), (17, 'pkg', 'ldap(role=master,id=2)'),
     (18, 'os', 'debian'), (18, 'pkg', 'ldap'),
     (19, 'os', 'debian'), (19, 'pkg', 'ldap'),
     (20, 'os', 'debian'), (20, 'pkg', 'pve'),
+    # public website names (webname): drives certs, nginx server_name,
+    # the issuer domain list - single source of truth
+    (11, 'webname', 'vault.dh.notproduction.net'),
+    (14, 'webname', 'fusion.dh.notproduction.net'),
+    (15, 'webname', 'doc.dh.notproduction.net'),
+    (20, 'webname', 'pve.dh.notproduction.net'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()

@@ -179,6 +179,88 @@ def getpkgs(hostname):
   return [p[0].split('(', 1)[0] for p in pkgs if not p[0].startswith('-')]
 
 
+def parse_pkg(raw):
+  """'ldap(role=master,id=1)' -> ('ldap', {'role': 'master', 'id': 1})."""
+  name, _, rest = raw.partition('(')
+  params = {}
+  if rest.endswith(')'):
+    for pair in rest[:-1].split(','):
+      if '=' in pair:
+        key, value = pair.split('=', 1)
+        value = value.strip()
+        params[key.strip()] = int(value) if value.isdigit() else value
+  return name, params
+
+
+def pkgs_with_params(hostname):
+  """All pkg options of a host with their parsed parameters."""
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT option.value FROM host, option '
+      'WHERE host.node_id = option.node_id '
+      'AND option.name = "pkg" AND host.name = ?', (hostname,))
+  rows = [r[0] for r in c.fetchall()]
+  conn.close()
+  return [parse_pkg(raw) for raw in rows if not raw.startswith('-')]
+
+
+def hosts_with_pkg(pkg):
+  """All (hostname, params) carrying a pkg, sorted by hostname.
+  ipplan is the single source of truth for topology questions like
+  'which machines are the ldap masters'."""
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT host.name, option.value FROM host, option '
+      'WHERE host.node_id = option.node_id AND option.name = "pkg" '
+      'ORDER BY host.name')
+  result = []
+  for host, raw in c.fetchall():
+    if raw.startswith('-'):
+      continue
+    name, params = parse_pkg(raw)
+    if name == pkg:
+      result.append((host, params))
+  conn.close()
+  return result
+
+
+def host_option(hostname, name):
+  """A single ipplan option of a host (e.g. webname), or None."""
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT option.value FROM host, option '
+      'WHERE host.node_id = option.node_id '
+      'AND option.name = ? AND host.name = ?', (name, hostname))
+  res = c.fetchone()
+  conn.close()
+  return res[0] if res else None
+
+
+def all_host_options(name):
+  """{hostname: value} for every host carrying the option, sorted."""
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT host.name, option.value FROM host, option '
+      'WHERE host.node_id = option.node_id AND option.name = ? '
+      'ORDER BY host.name', (name,))
+  result = dict(c.fetchall())
+  conn.close()
+  return result
+
+
+def host_ip(hostname):
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute('SELECT ipv4_addr_txt FROM host WHERE name = ?', (hostname,))
+  res = c.fetchone()
+  conn.close()
+  return res[0] if res else None
+
+
 def get_appdisks(hostname, manifest_file='/etc/manifest'):
   """Application LVs for a host: one per appdisk-bearing package, keyed
   by mountpoint (same mountpoint from several packages: max size wins).

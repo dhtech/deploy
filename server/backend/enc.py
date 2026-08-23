@@ -1,85 +1,80 @@
 #!/usr/bin/env python3
 # External Node Classifier endpoint for the puppetserver.
-# Maps a host's ipplan pkg options (including their parameters, e.g.
-# "web(port=80)") to puppet classes and parameters, emitted as ENC YAML.
 #
-# The class mapping lives in /etc/manifest under packages.<pkg>.puppet:
-#   packages:
-#     web:
-#       puppet:
-#         classes: [dhfirewall]
-#         params:
-#           dhfirewall:
-#             open_tcp: [80]
+# ipplan and the manifest are the single source of truth - there is no
+# hiera data layer. For each of the host's pkgs the ENC emits:
+#   - the pkg's puppet classes from the manifest
+#     (packages.<pkg>.puppet.classes)
+#   - static per-pkg parameters from the manifest
+#     (packages.<pkg>.puppet.params: {class: {key: value}})
+#   - topology-derived parameters from the pkg's generator
+#     (modules/<pkg>.py: generate(host, params, manifest) -> same shape),
+#     computed from ipplan (pkg args like ldap(role=master,id=1),
+#     host options like webname, hosts_with_pkg lookups)
+# Lists merge as unions (stable order), scalars override
+# (manifest < generator). dhfirewall::jumpgates is filled globally from
+# the hosts carrying pkg "jumpgate".
 
+import importlib
 import os
-import sqlite3
 import urllib.parse
 
 import yaml
 
 from lib import metadata
 
-query_string = urllib.parse.parse_qs(
-    os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
-hostname = query_string['hostname'][0]
+
+def merge_params(target, extra):
+  for cls, params in extra.items():
+    slot = target.setdefault(cls, {})
+    for key, value in (params or {}).items():
+      if value is None:
+        continue
+      if isinstance(value, list) and isinstance(slot.get(key), list):
+        slot[key] = slot[key] + [v for v in value if v not in slot[key]]
+      else:
+        slot[key] = value
 
 
-def pkgs_with_params(host):
-  """pkg options incl. parsed parameters: web(port=80) -> (web, {port: 80})."""
-  conn = sqlite3.connect(metadata.DB_FILE)
-  c = conn.cursor()
-  c.execute(
-      'SELECT option.value FROM host, option '
-      'WHERE host.node_id = option.node_id '
-      'AND option.name = "pkg" AND host.name = ?', (host,))
-  rows = [r[0] for r in c.fetchall()]
-  conn.close()
-  result = []
-  for raw in rows:
-    if raw.startswith('-'):
+def classify(hostname, manifest):
+  classes = {}
+  for pkg, params in metadata.pkgs_with_params(hostname):
+    spec = (manifest.get('packages', {}).get(pkg) or {}).get('puppet') or {}
+    for cls in spec.get('classes', []):
+      classes.setdefault(cls, {})
+    merge_params(classes, spec.get('params') or {})
+    try:
+      generator = importlib.import_module('modules.%s' % pkg)
+    except ImportError:
       continue
-    name, _, rest = raw.partition('(')
-    params = {}
-    if rest.endswith(')'):
-      for pair in rest[:-1].split(','):
-        if '=' in pair:
-          key, value = pair.split('=', 1)
-          params[key.strip()] = int(value) if value.strip().isdigit() else value.strip()
-    result.append((name, params))
-  return result
+    merge_params(classes, generator.generate(hostname, params, manifest))
+
+  if not classes:
+    classes = {'dhfirewall': {}}
+  if 'dhfirewall' in classes:
+    jumpgates = [metadata.host_ip(h)
+                 for h, _ in metadata.hosts_with_pkg('jumpgate')]
+    if jumpgates:
+      classes['dhfirewall'].setdefault('jumpgates', jumpgates)
+  return classes
 
 
-def puppet_environment(host):
-  """Explicit environment pin from ipplan (option puppet_environment);
-  None means the agent's own choice wins (branch-env testing)."""
-  conn = sqlite3.connect(metadata.DB_FILE)
-  c = conn.cursor()
-  c.execute(
-      'SELECT option.value FROM host, option '
-      'WHERE host.node_id = option.node_id '
-      'AND option.name = "puppet_environment" AND host.name = ?', (host,))
-  res = c.fetchone()
-  conn.close()
-  return res[0] if res else None
+def main():
+  query_string = urllib.parse.parse_qs(
+      os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
+  hostname = query_string['hostname'][0]
+
+  with open('/etc/manifest') as f:
+    manifest = yaml.safe_load(f)
+
+  output = {'classes': classify(hostname, manifest)}
+  env = metadata.host_option(hostname, 'puppet_environment')
+  if env:
+    output['environment'] = env
+
+  print('')
+  print(yaml.safe_dump(output, default_flow_style=False))
 
 
-with open('/etc/manifest') as f:
-  manifest = yaml.safe_load(f)
-
-# Classification only: the ENC maps packages to classes; all class
-# parameters are puppet data (hiera). pkg parameters from ipplan are
-# passed through for future module generators.
-classes = {}
-for pkg, params in pkgs_with_params(hostname):
-  spec = (manifest.get('packages', {}).get(pkg) or {}).get('puppet') or {}
-  for cls in spec.get('classes', []):
-    classes.setdefault(cls, {})
-
-output = {'classes': classes if classes else {'dhfirewall': {}}}
-env = puppet_environment(hostname)
-if env:
-  output['environment'] = env
-
-print('')
-print(yaml.safe_dump(output, default_flow_style=False))
+if __name__ == '__main__':
+  main()
