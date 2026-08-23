@@ -43,8 +43,9 @@ class CreateOrder:
     datacenter: str | None = None
     datastore: str | None = None
     ipv4: Ipv4Config | None = None
-    # Application disk: {size (bytes), filesystem, mountpoint, options}
-    appdisk: dict[str, Any] | None = None
+    # Application LVs on the single app disk:
+    # [{size (bytes), mountpoint, options, lv}, ...]
+    appdisks: list[dict[str, Any]] | None = None
 
     @classmethod
     def from_json(cls, key: str, raw: str | bytes) -> CreateOrder:
@@ -68,7 +69,7 @@ class CreateOrder:
             datacenter=data.get("datacenter"),
             datastore=data.get("datastore"),
             ipv4=ipv4,
-            appdisk=data.get("appdisk") or None,
+            appdisks=data.get("appdisks") or None,
         )
 
 

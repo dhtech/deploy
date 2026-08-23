@@ -60,21 +60,24 @@ def getpkgs(fqdn):
   return [pkg[0].split('(', 1)[0] for pkg in pkgs if not pkg[0].startswith('-')]
 
 
-def getappdisk(pkglist, manifest):
-  """Union of the packages' appdisk entries (largest size wins)."""
-  chosen = None
+def getappdisks(pkglist, manifest):
+  """Application LVs: one per appdisk-bearing package, keyed by
+  mountpoint (same mountpoint in several packages: max size wins)."""
+  by_mount = {}
   for pkg in pkglist:
     entry = (manifest['packages'].get(pkg) or {}).get('appdisk')
     if not entry:
       continue
-    if chosen and chosen.get('mountpoint') != entry.get('mountpoint'):
-      print('Conflicting appdisk mountpoints in packages', file=sys.stderr)
-      sys.exit(1)
-    if not chosen or dehumanize(str(entry['size'])) > dehumanize(str(chosen['size'])):
-      chosen = dict(entry)
-  if chosen:
-    chosen['size'] = dehumanize(str(chosen['size']))
-  return chosen
+    mnt = entry['mountpoint']
+    size = dehumanize(str(entry['size']))
+    if mnt not in by_mount or size > by_mount[mnt]['size']:
+      by_mount[mnt] = {
+          'size': size,
+          'mountpoint': mnt,
+          'options': entry.get('options', 'defaults'),
+          'lv': 'lv' + mnt.strip('/').replace('/', '_'),
+      }
+  return [by_mount[m] for m in sorted(by_mount)]
 
 
 def getmaxpkgsize(pkglist, manifest):
@@ -169,7 +172,7 @@ def create_vm(args):
       'memory': memory,
       'datastore': args.datastore,
       'os': os,
-      'appdisk': getattr(args, 'appdisk_spec', None),
+      'appdisks': getattr(args, 'appdisk_spec', None) or [],
       'ipv4': {
         'vlan': vlan,
         'address': ipv4_address,
@@ -241,8 +244,8 @@ if __name__ == '__main__':
       # OS disk is fixed
       args.disk = OS_DISK
 
-    args.appdisk_spec = getappdisk(pkglist, manifest)
-    print('using for server: cpu %s, memory %s, disk %s, appdisk %s' % (
+    args.appdisk_spec = getappdisks(pkglist, manifest)
+    print('using for server: cpu %s, memory %s, disk %s, appdisks %s' % (
         args.cpus, args.memory, args.disk, args.appdisk_spec))
     creation, create_key = create_vm(args)
 

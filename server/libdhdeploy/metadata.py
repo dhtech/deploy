@@ -177,21 +177,27 @@ def getpkgs(hostname):
   return [p[0].split('(', 1)[0] for p in pkgs if not p[0].startswith('-')]
 
 
-def get_appdisk(hostname, manifest_file='/etc/manifest'):
-  """Application-disk spec for a host: union of its packages' appdisk
-  entries (largest size wins; mountpoint conflicts are an error)."""
+def get_appdisks(hostname, manifest_file='/etc/manifest'):
+  """Application LVs for a host: one per appdisk-bearing package, keyed
+  by mountpoint (same mountpoint from several packages: max size wins).
+  Returns a sorted list of {size (bytes), mountpoint, options, lv}."""
   with open(manifest_file) as f:
     manifest = yaml.safe_load(f)
-  chosen = None
+  by_mount = {}
   for pkg in getpkgs(hostname):
     entry = (manifest.get('packages', {}).get(pkg) or {}).get('appdisk')
     if not entry:
       continue
-    if chosen and chosen['mountpoint'] != entry.get('mountpoint'):
-      raise ValueError('conflicting appdisk mountpoints for %s' % hostname)
-    if not chosen or _size(entry['size']) > _size(chosen['size']):
-      chosen = dict(entry)
-  return chosen
+    mnt = entry['mountpoint']
+    size = _size(entry['size'])
+    if mnt not in by_mount or size > by_mount[mnt]['size']:
+      by_mount[mnt] = {
+          'size': size,
+          'mountpoint': mnt,
+          'options': entry.get('options', 'defaults'),
+          'lv': 'lv' + mnt.strip('/').replace('/', '_'),
+      }
+  return [by_mount[m] for m in sorted(by_mount)]
 
 
 def _size(value):

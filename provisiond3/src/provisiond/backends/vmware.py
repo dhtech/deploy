@@ -263,12 +263,13 @@ class VmwareBackend(Provisioner):
         nic_spec = vim.vm.device.VirtualDeviceSpec(operation="add", device=nic)
 
         device_change = [scsi_spec, disk_spec, nic_spec]
-        if order.appdisk:
+        if order.appdisks:
+            total = sum(int(d["size"]) for d in order.appdisks)
             appdisk = vim.vm.device.VirtualDisk(
                 key=1,
                 controllerKey=0,
                 unitNumber=1,
-                capacityInKB=int(order.appdisk["size"]) // 1024,
+                capacityInKB=total // 1024 + 1024**2,  # +1 GiB LVM headroom
                 backing=vim.vm.device.VirtualDisk.FlatVer2BackingInfo(
                     fileName=f"[{datastore}]", diskMode="persistent"
                 ),

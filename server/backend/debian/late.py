@@ -108,18 +108,20 @@ __EOF__
   in-target update-initramfs -k all -u
 fi''')
 
-# --- application disk: format and mount (declared in the manifest) ---
-appdisk = metadata.get_appdisk(client.hostname)
-if appdisk:
-  # ext4 only, by policy
-  mnt = appdisk['mountpoint']
-  opts = appdisk.get('options', 'defaults')
-  print('if [ -b /dev/sdb ] && ! blkid /dev/sdb >/dev/null 2>&1; then')
-  print('  in-target mkfs.ext4 -q /dev/sdb')
+# --- application disk: one disk, vgapp VG, one ext4 LV per package ---
+appdisks = metadata.get_appdisks(client.hostname)
+if appdisks:
+  print('if [ -b /dev/sdb ] && ! in-target pvs /dev/sdb >/dev/null 2>&1; then')
+  print('  in-target pvcreate /dev/sdb')
+  print('  in-target vgcreate vgapp /dev/sdb')
   print('fi')
-  print('uuid=$(blkid -s UUID -o value /dev/sdb)')
-  print('mkdir -p /target%s' % mnt)
-  print('echo "UUID=$uuid %s ext4 %s 0 2" >> /target/etc/fstab' % (mnt, opts))
+  for disk in appdisks:
+    mib = max(4, int(disk['size']) // 1024**2)
+    print('in-target lvcreate -y -L %dM -n %s vgapp' % (mib, disk['lv']))
+    print('in-target mkfs.ext4 -q /dev/vgapp/%s' % disk['lv'])
+    print('mkdir -p /target%s' % disk['mountpoint'])
+    print('echo "/dev/vgapp/%s %s ext4 %s 0 2" >> /target/etc/fstab'
+          % (disk['lv'], disk['mountpoint'], disk['options']))
 
 # --- signal finish: provisiond moves us to the production VLAN ---
 print('wget -q -O /dev/null "%s/provision.py?hack_ip=%s" || true' % (base, ip))
