@@ -27,7 +27,12 @@ def collect(store):
         hostname = key.split('-', 1)[1]
         last_log = store.get('last-log-' + hostname)
         if props.get('installed'):
-            state = 'done' if props.get('provisioned') else 'waiting-for-provision'
+            if not props.get('provisioned'):
+                state = 'waiting-for-provision'
+            elif props.get('puppet_time'):
+                state = 'done'
+            else:
+                state = 'converging'
         elif last_log:
             state = 'installing'
         else:
@@ -42,6 +47,7 @@ def collect(store):
             'started': started,
             'duration': duration,
             'finished': finished,
+            'puppet_time': props.get('puppet_time'),
             'product': props.get('product', ''),
             'state': state,
             'log': last_log.decode(errors='replace') if last_log else None,

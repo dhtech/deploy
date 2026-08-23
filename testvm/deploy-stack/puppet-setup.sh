@@ -22,6 +22,8 @@ server=puppet1.colo.notproduction.net
 certname=puppet1.colo.notproduction.net
 
 [server]
+reports = store,http
+reporturl = http://10.200.0.2:8080/report.py
 autosign=/etc/puppet/autosign.conf
 
 [agent]

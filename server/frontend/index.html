@@ -65,7 +65,7 @@
   .state { font-weight: 600; }
   .state.done { color: var(--ok); }
   .state.waiting-for-provision { color: var(--warn); }
-  .state.installing, .state.starting { color: var(--accent); }
+  .state.installing, .state.starting, .state.converging { color: var(--accent); }
   .error { color: var(--err); font-family: var(--mono); font-size: 0.8rem; }
   .empty { padding: 0.7rem 0.9rem; color: var(--muted); }
   .help-body {
@@ -263,6 +263,7 @@ const STATE_LABELS = {
   "done": "Done",
   "waiting-for-provision": "Waiting for provision",
   "installing": "Installing",
+  "converging": "Converging (puppet)",
   "starting": "Starting installation",
 };
 
@@ -280,8 +281,8 @@ function render(data) {
     + table(["Host", "Product", "State", "Duration", "TTL"], data.hosts.map((h) => {
         let state = `<span class="state ${esc(h.state)}">`
           + esc(STATE_LABELS[h.state] || h.state) + "</span>";
-        if (h.state === "done" && h.finished) {
-          const d = new Date(h.finished * 1000);
+        if (h.state === "done" && (h.puppet_time || h.finished)) {
+          const d = new Date((h.puppet_time || h.finished) * 1000);
           const pad = (n) => String(n).padStart(2, "0");
           state += ` <span class="ttl">${d.getFullYear()}-${pad(d.getMonth() + 1)}-`
             + `${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
