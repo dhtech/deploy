@@ -156,7 +156,12 @@ class ProxmoxBackend(Provisioner):
             "scsihw": "virtio-scsi-single",
             "scsi0": f"{storage}:{disk_gib}",
             "net0": net0,
-            "boot": "order=net0;scsi0",
+            # Disk first: OVMF skips the blank disk near-instantly and
+            # falls through to PXE for the install; once installed, every
+            # boot goes straight to disk with no PXE timeouts. VM
+            # reinstalls are destroy+redeploy, so menu-driven netboot
+            # reinstalls are not needed.
+            "boot": "order=scsi0;net0",
             "smbios1": f"uuid={vm_uuid}",
         }
         if self._config.pool:
@@ -182,12 +187,7 @@ class ProxmoxBackend(Provisioner):
         parts = [p for p in net0.split(",") if not p.startswith("tag=")]
         if vlan:
             parts.append(f"tag={vlan}")
-        # Also flip to disk-first boot: netboot is done, and the production
-        # VLAN has no DHCP - skipping the firmware PXE timeouts saves
-        # minutes on every reboot.
-        self._api.nodes(node).qemu(vmid).config.put(
-            net0=",".join(parts), boot="order=scsi0;net0"
-        )
+        self._api.nodes(node).qemu(vmid).config.put(net0=",".join(parts))
 
     def delete_vm(self, vm: VmInfo) -> None:
         node, vmid = self._split_ref(vm)

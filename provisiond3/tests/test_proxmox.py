@@ -31,6 +31,10 @@ ORDER = CreateOrder(
 @pytest.fixture
 def backend():
     api = MagicMock()
+    # cold-start waiter sees the VM already stopped
+    api.nodes.return_value.qemu.return_value.status.current.get.return_value = {
+        "status": "stopped"
+    }
     # every task finishes OK immediately
     api.nodes.return_value.tasks.return_value.status.get.return_value = {
         "status": "stopped",
@@ -89,7 +93,7 @@ def test_create_vm_payload(backend):
     assert create_kwargs["scsihw"] == "virtio-scsi-single"
     assert create_kwargs["scsi0"] == "local-lvm:20"
     assert create_kwargs["net0"] == "virtio,bridge=vmbr0,tag=100"
-    assert create_kwargs["boot"] == "order=net0;scsi0"
+    assert create_kwargs["boot"] == "order=scsi0;net0"
     assert create_kwargs["smbios1"] == f"uuid={vm.uuid}"
     assert vm.backend_ref == "pve-test/101"
     # started
@@ -147,8 +151,7 @@ def test_provision_vm_flips_tag_preserving_mac(backend):
     vm = VmInfo(name="web1.test", uuid="u", backend_ref="pve-test/101")
     b.provision_vm(vm, vlan=200)
     api.nodes.return_value.qemu.return_value.config.put.assert_called_once_with(
-        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0,tag=200",
-        boot="order=scsi0;net0",
+        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0,tag=200"
     )
 
 
@@ -160,8 +163,7 @@ def test_provision_vm_untagged_removes_tag(backend):
     vm = VmInfo(name="web1.test", uuid="u", backend_ref="pve-test/101")
     b.provision_vm(vm, vlan=0)
     api.nodes.return_value.qemu.return_value.config.put.assert_called_once_with(
-        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0",
-        boot="order=scsi0;net0",
+        net0="virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0"
     )
 
 
