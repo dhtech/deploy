@@ -35,7 +35,10 @@ def debian(label, vga=False, debug=False, serial='ttyS0', variant='debian'):
   args = [
       'imgargs', 'linux', 'vga=normal', 'fb=false', 'auto=true',
       'console=tty0', 'priority=high', 'locale=en_US',
-      'console-keymaps-at/keymap=se-latin1']
+      'console-keymaps-at/keymap=se-latin1',
+      # Prefer IPv4 during installation: no RA/DHCPv6 waits, no
+      # v6-first mirror fetches. The installed system is unaffected.
+      'ipv6.disable=1']
 
   args.append('preseed/url={base}/preseed'.format(base=BASE))
   # Identity for late_command callbacks (finish/interfaces): the install
