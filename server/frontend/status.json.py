@@ -31,6 +31,8 @@ def collect(store):
                 state = 'waiting-for-provision'
             elif props.get('puppet_time'):
                 state = 'done'
+            elif props.get('puppet_ssl_time'):
+                state = 'puppet-ssl'
             else:
                 state = 'converging'
         elif last_log:

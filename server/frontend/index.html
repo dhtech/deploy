@@ -65,7 +65,7 @@
   .state { font-weight: 600; }
   .state.done { color: var(--ok); }
   .state.waiting-for-provision { color: var(--warn); }
-  .state.installing, .state.starting, .state.converging { color: var(--accent); }
+  .state.installing, .state.starting, .state.converging, .state.puppet-ssl { color: var(--accent); }
   .error { color: var(--err); font-family: var(--mono); font-size: 0.8rem; }
   .empty { padding: 0.7rem 0.9rem; color: var(--muted); }
   .help-body {
@@ -264,6 +264,7 @@ const STATE_LABELS = {
   "waiting-for-provision": "Waiting for provision",
   "installing": "Installing",
   "converging": "Converging (puppet)",
+  "puppet-ssl": "SSL ok (puppet)",
   "starting": "Starting installation",
 };
 
