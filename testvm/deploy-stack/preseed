@@ -50,6 +50,7 @@ d-i preseed/late_command string \
     chmod 700 /target/root/.ssh; chmod 600 /target/root/.ssh/authorized_keys; \
     sed -i 's/^GRUB_CMDLINE_LINUX=.*/GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200"/' /target/etc/default/grub; \
     in-target update-grub; \
+    printf "precedence ::ffff:0:0/96  100\n" > /target/etc/gai.conf; \
     rm -f /target/etc/apt/apt.conf; \
     wget -q -O /dev/null "$base/provision.py?hack_ip=$dh_v4" || true
 
