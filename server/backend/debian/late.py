@@ -4,6 +4,7 @@
 # the d-i environment with /target mounted. Identity via hack_ip.
 
 import os
+import secrets
 import urllib.parse
 
 from lib import metadata
@@ -70,7 +71,16 @@ if ssh_port != 22:
   print('sed -i "s/^#\\?Port 22/Port %d/" /target/etc/ssh/sshd_config' % ssh_port)
 
 # --- puppet agent: configured, enabled, never run during install ---
+# One-time enrollment token: puppet1's autosign policy validates it
+# against us (autosign.py) on the first agent run.
+enroll_token = secrets.token_hex(16)
+metadata.connection().setex('enroll-' + client.hostname, 86400, enroll_token)
 print('mkdir -p /target/etc/puppet')
+print('cat > /target/etc/puppet/csr_attributes.yaml <<__EOF__')
+print('custom_attributes:')
+print("  1.2.840.113549.1.9.7: '%s'" % enroll_token)
+print('__EOF__')
+print('chmod 600 /target/etc/puppet/csr_attributes.yaml')
 print('cat > /target/etc/puppet/puppet.conf <<__EOF__')
 print('''[main]
 server=%s
