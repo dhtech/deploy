@@ -70,33 +70,36 @@ the real ipplan file). Current inventory:
 
 | Host | IP | pkgs | Role | Appdisk LVs (vgapp) | Status |
 |---|---|---|---|---|---|
-| `provision-dev.dh.notproduction.net` | 10.200.0.2 | — | provision + deploy server, router/DNS/DHCP for the lab VLANs | — | live (hand-built dev box) |
-| `web1.dh.notproduction.net` | 10.200.0.60 | `base`, `web(port=80)` | reference/test machine | `/srv/www` 10G | live |
-| `vault1.dh.notproduction.net` | 10.200.0.61 | `vault` | OpenBao + vault website (nginx/LE) | `/var/lib/openbao` 20G (future redeploys) | live (pre-appdisk build) |
-| `puppet1.dh.notproduction.net` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |
-| `fusion1.dh.notproduction.net` | 10.200.0.63 | `fusiondirectory` | FusionDirectory web UI | — | planned |
-| `doc1.dh.notproduction.net` | 10.200.0.64 | `trac`, `svn` | Trac + SVN (doc server) | `/srv/trac` 15G + `/srv/svn` 20G | planned |
-| `ldap1.dh.notproduction.net` | 10.200.0.65 | `ldap` | slapd directory (internal, puppet-CA TLS) | `/var/lib/ldap` 10G | planned |
+| `provision-dev.colo.notproduction.net` | 10.200.0.2 | — | provision + deploy server, router/DNS/DHCP for the lab VLANs | — | live (hand-built dev box) |
+| `web1.colo.notproduction.net` | 10.200.0.60 | `base`, `web(port=80)` | reference/test machine | `/srv/www` 10G | live |
+| `vault1.colo.notproduction.net` | 10.200.0.61 | `vault` | OpenBao + vault website (nginx/LE) | `/var/lib/openbao` 20G (future redeploys) | live (pre-appdisk build) |
+| `puppet1.colo.notproduction.net` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |
+| `fusion1.colo.notproduction.net` | 10.200.0.63 | `fusiondirectory` | FusionDirectory web UI | — | planned |
+| `doc1.colo.notproduction.net` | 10.200.0.64 | `trac`, `svn` | Trac + SVN (doc server) | `/srv/trac` 15G + `/srv/svn` 20G | planned |
+| `ldap1.colo.notproduction.net` | 10.200.0.65 | `ldap` | slapd directory (internal, puppet-CA TLS) | `/var/lib/ldap` 10G | planned |
 
 Network plan: VLAN 10 mgmt (10.10.10.0/24), VLAN 100 deployment
-(10.100.0.0/24, DHCP/PXE), VLAN 200 production (10.200.0.0/24).
+(10.100.0.0/24, DHCP/PXE), VLAN 200 colo production (10.200.0.0/24),
+VLAN 300 event production (10.201.0.0/24, reserved — no hosts yet).
+Machines live under `colo.notproduction.net` / `event.notproduction.net`;
+public websites stay under `dh.notproduction.net`.
 
 ## Adding a new public website (checklist)
 
 Using the reserved FusionDirectory slot as the example:
 
-1. **ipplan/manifest**: add the host (e.g. `fusion1.dh.notproduction.net`,
+1. **ipplan/manifest**: add the host (e.g. `fusion1.colo.notproduction.net`,
    `10.200.0.63`) with its pkg; give the pkg `puppet: classes:
    [dhfirewall, 'dhacme::cert', 'dhnginx::<service>']` in the manifest
    (classification only — no params there).
-2. **Deploy**: `deploy-vm fusion1.dh.notproduction.net coloc` (~4 min).
+2. **Deploy**: `deploy-vm fusion1.colo.notproduction.net coloc` (~4 min).
 3. **Puppet repo** (`~/repos/dh/local/puppet`):
    - hiera `data/common.yaml`: append the new name to
      `dhacme::issuer::domains`? No — single certs: add the domain to the
      issuer by adding a second `dhacme::issuer` cert run, or reuse the
      class per-domain (current issuer handles one cert; extend when the
      second site lands).
-   - hiera `data/nodes/fusion1.dh.notproduction.net.yaml`: `dhfirewall::open_tcp:
+   - hiera `data/nodes/fusion1.colo.notproduction.net.yaml`: `dhfirewall::open_tcp:
      [443, 636]`, `dhacme::cert::cert_name: 'fusion.dh.notproduction.net'`.
    - a `dhnginx::<service>` class (copy `dhnginx/manifests/vault.pp`).
    - `git push puppet1 main` (push-to-deploy).

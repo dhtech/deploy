@@ -35,7 +35,7 @@ redis:
   host: localhost
 base_url: http://10.100.0.2:8080
 jumpgates: [10.200.0.2]
-puppet_server: puppet1.dh.notproduction.net
+puppet_server: puppet1.colo.notproduction.net
 syslog_host: 10.100.0.2
 resolvers: [10.200.0.2]
 ssh_port: 22
@@ -132,16 +132,20 @@ CREATE TABLE IF NOT EXISTS option (node_id INTEGER, name TEXT, value TEXT);
 CREATE TABLE IF NOT EXISTS meta_data (name TEXT, value TEXT);
 DELETE FROM network; DELETE FROM host; DELETE FROM option; DELETE FROM meta_data;
 ''')
-c.execute("INSERT INTO network VALUES (1, 'coloc@prod', 200, "
+c.execute("INSERT INTO network VALUES (1, 'colo@prod', 200, "
           "'10.200.0.2', '255.255.255.0', 24, NULL, NULL)")
+# Reserved: event network (no hosts yet). domain=EVENT drives the
+# LUKS + services-<event> secret flow in the deploy backend.
+c.execute("INSERT INTO network VALUES (2, 'EVENT@prod', 300, "
+          "'10.201.0.2', '255.255.255.0', 24, NULL, NULL)")
 c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
-    (10, 'web1.dh.notproduction.net', '10.200.0.60'),
-    (11, 'vault1.dh.notproduction.net', '10.200.0.61'),
-    (12, 'puppet1.dh.notproduction.net', '10.200.0.62'),
-    (13, 'provision-dev.dh.notproduction.net', '10.200.0.2'),
-    (14, 'fusion1.dh.notproduction.net', '10.200.0.63'),
-    (15, 'doc1.dh.notproduction.net', '10.200.0.64'),
-    (16, 'ldap1.dh.notproduction.net', '10.200.0.65'),
+    (10, 'web1.colo.notproduction.net', '10.200.0.60'),
+    (11, 'vault1.colo.notproduction.net', '10.200.0.61'),
+    (12, 'puppet1.colo.notproduction.net', '10.200.0.62'),
+    (13, 'provision-dev.colo.notproduction.net', '10.200.0.2'),
+    (14, 'fusion1.colo.notproduction.net', '10.200.0.63'),
+    (15, 'doc1.colo.notproduction.net', '10.200.0.64'),
+    (16, 'ldap1.colo.notproduction.net', '10.200.0.65'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
@@ -233,14 +237,14 @@ no-dhcp-interface=ens20
 no-dhcp-interface=ens21
 no-resolv
 server=10.0.2.3
-host-record=provision-dev.dh.notproduction.net,10.200.0.2
-host-record=web1.dh.notproduction.net,10.200.0.60
-host-record=vault1.dh.notproduction.net,10.200.0.61
+host-record=provision-dev.colo.notproduction.net,10.200.0.2
+host-record=web1.colo.notproduction.net,10.200.0.60
+host-record=vault1.colo.notproduction.net,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
-host-record=puppet1.dh.notproduction.net,10.200.0.62
-host-record=fusion1.dh.notproduction.net,10.200.0.63
-host-record=ldap1.dh.notproduction.net,10.200.0.65
-host-record=doc1.dh.notproduction.net,10.200.0.64
+host-record=puppet1.colo.notproduction.net,10.200.0.62
+host-record=fusion1.colo.notproduction.net,10.200.0.63
+host-record=ldap1.colo.notproduction.net,10.200.0.65
+host-record=doc1.colo.notproduction.net,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64
 EOF

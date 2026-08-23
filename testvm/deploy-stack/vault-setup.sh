@@ -55,7 +55,7 @@ chown -R openbao:openbao /opt/openbao /etc/openbao
 systemctl enable --now openbao
 sleep 3
 
-export BAO_ADDR=https://vault1.dh.notproduction.net:8200 BAO_CACERT=/etc/openbao/tls/puppet-ca.pem
+export BAO_ADDR=https://vault1.colo.notproduction.net:8200 BAO_CACERT=/etc/openbao/tls/puppet-ca.pem
 if bao status 2>/dev/null | grep -q "Initialized.*false"; then
   bao operator init -key-shares=1 -key-threshold=1 -format=json \
     > /root/vault-init.json
