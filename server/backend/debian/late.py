@@ -129,7 +129,11 @@ print('in-target chown -R dhtech:dhtech /home/dhtech/.ssh')
 print('chmod 700 /target/home/dhtech/.ssh')
 print('chmod 600 /target/home/dhtech/.ssh/authorized_keys')
 if admin_pw:
-  print('echo "dhtech:%s" | in-target chpasswd' % admin_pw)
+  # in-target does not pass stdin through (log-output wrapper), so the
+  # redirect must happen inside the chroot.
+  print('printf "dhtech:%%s" "%s" > /target/tmp/.dh-pw' % admin_pw)
+  print("in-target sh -c 'chpasswd < /tmp/.dh-pw'")
+  print('rm -f /target/tmp/.dh-pw')
 
 # --- CIS hardening (production post-install, versioned in the repo) ---
 print('wget -q -O /target/tmp/dh-hardening "%s/data/post-install-hardening"'
