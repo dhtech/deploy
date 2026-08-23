@@ -47,10 +47,17 @@ cat > /usr/local/bin/dh-enroll-clean <<"EOF"
 #!/bin/sh
 set -eu
 self=$(hostname -f)
-curl -sf "http://10.200.0.2:8080/enrollments.py" | while read -r host; do
+signed=/etc/puppet/puppetserver/ca/signed
+# enrollments.py prints "<host> <token age in seconds>". Only a cert
+# OLDER than the token is stale (from a previous install); a younger
+# one was just signed by the current install - never touch it (the
+# cleaner once revoked freshly-signed certs mid-enrollment).
+curl -sf "http://10.200.0.2:8080/enrollments.py" | while read -r host age; do
   [ -n "$host" ] || continue
   [ "$host" = "$self" ] && continue
-  if puppetserver ca list --all 2>/dev/null | grep -q "^    ${host} "; then
+  [ -f "$signed/${host}.pem" ] || continue
+  case "$age" in ''|*[!0-9]*) continue;; esac
+  if [ -n "$(find "$signed/${host}.pem" -mmin "+$((age / 60 + 1))" 2>/dev/null)" ]; then
     puppetserver ca clean --certname "$host" && echo "cleaned stale cert: $host"
   fi
 done
