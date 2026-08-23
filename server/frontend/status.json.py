@@ -91,8 +91,8 @@ def collect(store):
         key = key.decode()
         data['bays'][key.split('-', 1)[1]] = json.loads(store.get(key))
 
-    # entry order: the sequence installs were started in
-    data['hosts'].sort(key=lambda h: h['started'] or 0)
+    # entry order, newest on top
+    data['hosts'].sort(key=lambda h: -(h['started'] or 0))
     data['vms'].sort(key=lambda v: (v['manager'] or '', v['name'] or ''))
     return data
 
