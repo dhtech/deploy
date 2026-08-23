@@ -103,6 +103,12 @@ packages:
       options: nodev,nosuid
     puppet:
       classes: [dhfirewall]
+  pve:
+    hardware:
+      cpus: 1
+      memory: 1G
+    puppet:
+      classes: ['dhacme::cert', 'dhpve']
   svn:
     hardware:
       cpus: 2
@@ -149,6 +155,8 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     (17, 'ldap2-master.colo.notproduction.net', '10.200.0.66'),
     (18, 'ldap1.colo.notproduction.net', '10.200.0.67'),
     (19, 'ldap2.colo.notproduction.net', '10.200.0.68'),
+    # the hypervisor (mgmt VLAN) - puppet-enrolled by hand, never deployed
+    (20, 'pve1.colo.notproduction.net', '10.10.10.1'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
@@ -160,6 +168,7 @@ c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (17, 'os', 'debian'), (17, 'pkg', 'ldap'),
     (18, 'os', 'debian'), (18, 'pkg', 'ldap'),
     (19, 'os', 'debian'), (19, 'pkg', 'ldap'),
+    (20, 'os', 'debian'), (20, 'pkg', 'pve'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()
@@ -253,6 +262,8 @@ host-record=ldap1-master.colo.notproduction.net,10.200.0.65
 host-record=ldap2-master.colo.notproduction.net,10.200.0.66
 host-record=ldap1.colo.notproduction.net,10.200.0.67
 host-record=ldap2.colo.notproduction.net,10.200.0.68
+host-record=pve1.colo.notproduction.net,10.10.10.1
+host-record=pve.dh.notproduction.net,10.10.10.1
 host-record=doc1.colo.notproduction.net,10.200.0.64
 host-record=fusion.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64
