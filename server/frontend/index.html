@@ -131,8 +131,10 @@
       The provisioner creates the VM on the <em>deployment VLAN</em>, where it
       PXE-boots and installs Debian unattended (root and admin passwords go to
       the secret store). When the installer finishes, the machine is moved to
-      its <em>production VLAN</em>, boots from disk, auto-enrolls in puppet and
-      converges to its role.</p>
+      its <em>production VLAN</em> and boots from disk. It then auto-enrolls
+      in puppet with a one-time token (<em>Puppet CA ok</em>) and the first
+      successful puppet run — reported back by the puppetserver — marks the
+      deployment <em>Done</em>, with the completion timestamp shown.</p>
 
       <h4>Current installs — states</h4>
       <dl>
