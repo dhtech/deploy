@@ -50,6 +50,20 @@ def pkgs_with_params(host):
   return result
 
 
+def puppet_environment(host):
+  """Explicit environment pin from ipplan (option puppet_environment);
+  None means the agent's own choice wins (branch-env testing)."""
+  conn = sqlite3.connect(metadata.DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT option.value FROM host, option '
+      'WHERE host.node_id = option.node_id '
+      'AND option.name = "puppet_environment" AND host.name = ?', (host,))
+  res = c.fetchone()
+  conn.close()
+  return res[0] if res else None
+
+
 with open('/etc/manifest') as f:
   manifest = yaml.safe_load(f)
 
@@ -75,8 +89,10 @@ for pkg, params in pkgs_with_params(hostname):
           ports.add(params['port'])
           merged['open_tcp'] = sorted(ports)
 
+output = {'classes': classes if classes else {'dhfirewall': {}}}
+env = puppet_environment(hostname)
+if env:
+  output['environment'] = env
+
 print('')
-print(yaml.safe_dump({
-    'classes': classes if classes else {'dhfirewall': {}},
-    'environment': 'production',
-}, default_flow_style=False))
+print(yaml.safe_dump(output, default_flow_style=False))
