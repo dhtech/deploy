@@ -94,6 +94,30 @@ image (no cloud-init), customized offline on the pve host with
 - Serial console: `qm terminal 100` on the pve host
 - Starts automatically with the pve host (`onboot 1`)
 
+#### Management VLAN + API access
+
+`vmbr0` on the pve host is VLAN-aware (`bridge-vlan-aware yes`,
+`bridge-vids 2-4094`); management lives on **tagged VLAN 10**:
+
+- pve host: `vmbr0.10` = `10.10.10.1/24`
+  (config in `/etc/network/interfaces.d/mgmt-vlan`)
+- provision-dev: second NIC `net1` (`bridge=vmbr0,tag=10`) = `ens19`,
+  static `10.10.10.2/24` via `/etc/systemd/network/00-mgmt.network`
+
+provision-dev talks to the Proxmox API over this VLAN as
+`provisioner@pve` (role Administrator, token `provisioner@pve!dev`,
+privsep off). Credentials on provision-dev in
+`/root/.config/proxmox-api.env` (mode 600); token JSON also on the pve
+host in `/root/provisioner-token.json`. Example:
+
+```sh
+set -a; . /root/.config/proxmox-api.env; set +a
+curl -ks -H "Authorization: PVEAPIToken=${PVE_TOKEN_ID}=${PVE_TOKEN_SECRET}" \
+  "$PVE_API_URL/version"
+```
+
+`curl` and `jq` are installed on provision-dev.
+
 Gotchas hit while building this (relevant for future nocloud guests):
 
 - The nocloud image ships **netplan**, which generates a DHCP-on-`en*`
