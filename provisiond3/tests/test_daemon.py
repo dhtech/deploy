@@ -109,6 +109,23 @@ def test_create_failure_writes_error_and_keeps_key(loop):
     assert 0 < r.ttl("create-vm-1") <= 3600
 
 
+def test_create_failure_does_not_storm(loop):
+    # A backend error can strike AFTER the VM exists (seen live: pveproxy
+    # restart mid-create made one order produce three VMs). The lingering
+    # order must not trigger another create within the cooldown.
+    mgr, backend, r = loop
+    backend.fail_create = RuntimeError("api flaked")
+    r.setex("create-vm-1", 3600, json.dumps(ORDER))
+    mgr.scrape()
+    with pytest.raises(RuntimeError):
+        mgr.create()
+    backend.fail_create = None
+    mgr.scrape()  # fresh VM may not be visible yet
+    mgr.create()  # must hold off, not create again
+    assert backend.created == []
+    assert r.get("create-vm-1") is not None  # kept for the operator
+
+
 def test_create_existing_name_deletes_order_without_creating(loop):
     mgr, backend, r = loop
     backend.vms = [VmInfo(name="web1.test", uuid="AA", backend_ref="ref/x")]

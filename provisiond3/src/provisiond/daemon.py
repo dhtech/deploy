@@ -25,6 +25,7 @@ from provisiond.orders import CreateOrder, HostRecord, write_error
 
 RUN_INTERVAL = 7
 INVENTORY_TTL = 600
+CREATE_COOLDOWN = 600  # seconds before retrying a create for the same name
 
 log = logging.getLogger(__name__)
 
@@ -191,6 +192,7 @@ class VmManagerLoop:
                         order.disk,
                         order.os,
                     )
+                    self._create_attempts[order.name] = time.monotonic()
                     vm = self.backend.create_vm(order, self.deploy_vlan)
                     log.info("[%s] created VM %s (%s)", self.backend.name, vm.name, vm.uuid)
             except Exception as e:
