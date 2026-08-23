@@ -11,13 +11,18 @@ def test_ldap_master_params(ipplan, manifest):
   assert server['master_uris'] == [
       'ldaps://ldap1-master.test', 'ldaps://ldap2-master.test']
   assert server['vault_addr'] == 'https://vault1.test:8200'
-  assert classes['dhfirewall']['open_tcp'] == [636]
+  # site flows: masters serve only the directory (ldap fleet + lam hosts)
+  assert classes['dhfirewall']['open_tcp_scoped'] == {
+      636: ['10.200.0.65', '10.200.0.66', '10.200.0.67']}
 
 
 def test_ldap_slave_defaults(ipplan, manifest):
   classes = enc.classify('ldap1.test', manifest)
   assert classes['dhldap::server']['role'] == 'slave'
   assert 'server_id' not in classes['dhldap::server']
+  # site flows: a slave serves all of its site's networks
+  # (network names are <domain>@<site>; fixture has colo@prod only)
+  assert classes['dhfirewall']['open_tcp_scoped'] == {636: ['10.200.0.0/24']}
 
 
 def test_web_port_from_pkg_arg(ipplan, manifest):

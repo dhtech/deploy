@@ -16,11 +16,21 @@ def generate(host, params, manifest):
   if params.get('role') == 'master':
     server['role'] = 'master'
     server['server_id'] = params.get('id')
+    # Site flows: the masters serve ONLY the directory - the admin UI
+    # (pkg lam) and the ldap fleet (mirror + slave replication).
+    sources = sorted(
+        {metadata.host_ip(h) for h, _ in metadata.hosts_with_pkg('ldap')} |
+        {metadata.host_ip(h) for h, _ in metadata.hosts_with_pkg('lam')})
+    firewall = {'open_tcp_scoped': {636: [s for s in sources if s]}}
   else:
     server['role'] = 'slave'
+    # Site flows: a slave serves only its own site's networks.
+    cidrs = metadata.site_cidrs(host)
+    firewall = ({'open_tcp_scoped': {636: cidrs}} if cidrs
+                else {'open_tcp': [636]})
 
   return {
-      'dhfirewall': {'open_tcp': [636]},
+      'dhfirewall': firewall,
       'dhldap::server': server,
   }
 

@@ -252,6 +252,33 @@ def all_host_options(name):
   return result
 
 
+def site_cidrs(hostname):
+  """All network CIDRs of the host's SITE. Network names are
+  <site>@<name> (one ipplan file per site in production, e.g.
+  STO2@DHTECH-1, EVENT@DREAMHACK); the site is the part BEFORE the @ -
+  the same thing the deploy code calls the domain."""
+  import ipaddress
+  conn = sqlite3.connect(DB_FILE)
+  c = conn.cursor()
+  c.execute(
+      'SELECT network.name FROM host, network '
+      'WHERE host.network_id = network.node_id AND host.name = ?',
+      (hostname,))
+  res = c.fetchone()
+  if not res:
+    conn.close()
+    return []
+  site = res[0].split('@', 1)[0]
+  c.execute('SELECT name, ipv4_gateway_txt, ipv4_netmask_dec FROM network')
+  cidrs = []
+  for name, gw, mask in c.fetchall():
+    if name.startswith(site + '@') and gw and mask is not None:
+      net = ipaddress.ip_network('%s/%d' % (gw, mask), strict=False)
+      cidrs.append(str(net))
+  conn.close()
+  return sorted(cidrs)
+
+
 def host_ip(hostname):
   conn = sqlite3.connect(DB_FILE)
   c = conn.cursor()
