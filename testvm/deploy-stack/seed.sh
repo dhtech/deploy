@@ -24,11 +24,20 @@ find /var/www/deploy -name '*.py' -exec chmod 755 {} +
 install -m 755 "$repo/utils/deploy-vm" /usr/local/bin/deploy-vm
 
 # --- config: deploy.yaml, manifest, ipplan.db ----------------------------
+# Preserve live-provisioned secret-store settings across reseeds
+vault_lines=$(grep -E "^vault_(addr|token):" /etc/deploy.yaml 2>/dev/null || true)
 cat > /etc/deploy.yaml <<EOF
 redis:
   host: localhost
 base_url: http://10.100.0.2:8080
+jumpgates: [10.200.0.2]
+puppet_server: puppet1.test.lan
+syslog_host: 10.100.0.2
+resolvers: [10.200.0.2]
+ssh_port: 22
 EOF
+[ -n "$vault_lines" ] && printf "%s\n" "$vault_lines" >> /etc/deploy.yaml
+chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 
 cat > /etc/manifest <<EOF
 packages:
@@ -42,6 +51,16 @@ packages:
       cpus: 2
       memory: 2G
       disk: 10G
+  vault:
+    hardware:
+      cpus: 2
+      memory: 2G
+      disk: 15G
+  puppetserver:
+    hardware:
+      cpus: 2
+      memory: 3G
+      disk: 15G
 EOF
 
 python3 - <<'EOF'
@@ -63,12 +82,15 @@ DELETE FROM network; DELETE FROM host; DELETE FROM option; DELETE FROM meta_data
 ''')
 c.execute("INSERT INTO network VALUES (1, 'coloc@prod', 200, "
           "'10.200.0.2', '255.255.255.0', 24, NULL, NULL)")
-c.execute("INSERT INTO host VALUES (10, 'web1.test.lan', '10.200.0.60', "
-          "NULL, 1)")
+c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
+    (10, 'web1.test.lan', '10.200.0.60'),
+    (11, 'vault1.test.lan', '10.200.0.61'),
+    (12, 'puppet1.test.lan', '10.200.0.62'),
+])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
-    (10, 'os', 'debian'),
-    (10, 'pkg', 'base'),
-    (10, 'pkg', 'web(port=80)'),
+    (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
+    (11, 'os', 'debian'), (11, 'pkg', 'vault'),
+    (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
 conn.commit()
@@ -84,7 +106,7 @@ if [ ! -f /var/www/data/debian-installer/amd64/linux ]; then
   curl -sfL -o /var/www/data/debian-installer/amd64/linux "$base/linux"
   curl -sfL -o /var/www/data/debian-installer/amd64/initrd.gz "$base/initrd.gz"
 fi
-cp "$stack/dhtech.ipxe" "$stack/nftables-baseline.conf" /var/www/data/
+cp "$stack/dhtech.ipxe" "$stack/nftables-baseline.conf" "$stack/vimrc" /var/www/data/
 cp "$stack/preseed" /var/www/data/preseed
 cp /root/.ssh/authorized_keys /var/www/data/authorized_keys
 chmod -R a+rX /var/www/data
@@ -143,5 +165,22 @@ no-resolv
 server=10.0.2.3
 EOF
 systemctl restart dnsmasq
+
+# --- installer syslog receiver (live status page) -------------------------
+install -m 755 "$repo/server/syslog-receiver/syslog-receiver" /usr/local/bin/dh-syslog-receiver
+cat > /etc/systemd/system/dh-syslog-receiver.service <<EOF
+[Unit]
+Description=Deploy installer syslog receiver
+After=network-online.target redis-server.service
+
+[Service]
+ExecStart=/usr/local/bin/dh-syslog-receiver
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now dh-syslog-receiver
 
 echo "deploy stack seeded"

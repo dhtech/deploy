@@ -39,26 +39,17 @@ d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-efi/non_efi_system boolean true
 
 tasksel tasksel/first multiselect standard
-d-i pkgsel/include string openssh-server nftables wget ca-certificates
+d-i pkgsel/include string openssh-server nftables wget ca-certificates puppet-agent
 popularity-contest popularity-contest/participate boolean false
 d-i pkgsel/upgrade select none
 
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string default
 
+# All per-host target configuration lives in the dynamic late script.
 d-i preseed/late_command string \
     dh_v4=$(sed -n 's/.*dh_v4=\([^ ]*\).*/\1/p' /proc/cmdline); \
-    base=http://10.100.0.2:8080; \
-    wget -q -O /target/etc/network/interfaces "$base/interfaces.py?hack_ip=$dh_v4&ifs=ens18"; \
-    wget -q -O /target/etc/nftables.conf "$base/data/nftables-baseline.conf"; \
-    in-target systemctl enable nftables; \
-    mkdir -p /target/root/.ssh; \
-    wget -q -O /target/root/.ssh/authorized_keys "$base/data/authorized_keys"; \
-    chmod 700 /target/root/.ssh; chmod 600 /target/root/.ssh/authorized_keys; \
-    sed -i 's/^GRUB_CMDLINE_LINUX=.*/GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200"/' /target/etc/default/grub; \
-    in-target update-grub; \
-    printf "precedence ::ffff:0:0/96  100\n" > /target/etc/gai.conf; \
-    rm -f /target/etc/apt/apt.conf; \
-    wget -q -O /dev/null "$base/provision.py?hack_ip=$dh_v4" || true
+    dh_base=$(sed -n 's/.*dh_base=\([^ ]*\).*/\1/p' /proc/cmdline); \
+    wget -q -O /tmp/dh-late "$dh_base/late.py?hack_ip=$dh_v4" && sh /tmp/dh-late
 
 d-i finish-install/reboot_in_progress note

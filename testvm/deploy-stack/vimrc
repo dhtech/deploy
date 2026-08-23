@@ -1,0 +1,29 @@
+" Cheat sheet
+" zz / zt - scroll to top / middle relative to position
+" gt / gT / :newtab - tab
+" Ctrl+O / Ctrl-I / :jumps - jump
+" gU / gu  - make lower / uppercase
+" ga - show ascii
+" :normal dd - special execute dd
+" gd - go to definition
+" gf - open file
+" gV - reselect visual
+set nobackup
+set nocompatible
+set shiftwidth=2
+set tabstop=2
+set expandtab
+set softtabstop=2
+set showcmd
+set background=dark
+set nowrap
+set ruler
+set scrolloff=3
+
+noremap <Space> <PageDown>
+
+filetype on
+filetype plugin on
+filetype indent on
+
+syntax on

@@ -1,35 +1,40 @@
-#!/usr/bin/python2
+#!/usr/bin/env python3
+# Receives installer syslog (busybox syslogd -R) and stashes the last
+# line per host in Redis for the status frontend.
+# Needs /etc/deploy.yaml (redis) and /etc/ipplan.db.
 
-import SocketServer
-import redis
+import socketserver
 import sqlite3
+
+import redis
 import yaml
 
+with open('/etc/deploy.yaml') as f:
+    config = yaml.safe_load(f)
+r = redis.Redis(**config['redis'])
 
-config = yaml.safe_load(file('/etc/deploy/deploy.yaml'))
-r = redis.StrictRedis(**config['redis'])
 
-
-class SyslogUDPHandler(SocketServer.BaseRequestHandler):
+class SyslogUDPHandler(socketserver.BaseRequestHandler):
 
   def handle(self):
-    conn = sqlite3.connect('/etc/ipplan/ipplan.db')
-
-    data = bytes.decode(self.request[0], 'utf-8').strip().split(' ', 4)[-1]
+    data = self.request[0].decode('utf-8', errors='replace').strip()
+    data = data.split(' ', 4)[-1]
     client = self.client_address[0]
 
+    conn = sqlite3.connect('/etc/ipplan.db')
     c = conn.cursor()
     c.execute('SELECT name FROM host WHERE ipv4_addr_txt = ?', (client,))
-
     res = c.fetchone()
+    conn.close()
     hostname = res[0] if res else None
 
-    r.setex('last-log-' + hostname, 3600, data)
+    if hostname:
+      r.setex('last-log-' + hostname, 3600, data)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   try:
-    server = SocketServer.UDPServer(('', 514), SyslogUDPHandler)
+    server = socketserver.UDPServer(('', 514), SyslogUDPHandler)
     server.serve_forever()
   except KeyboardInterrupt:
-    print ("Crtl+C Pressed. Shutting down.")
+    print('Ctrl+C pressed. Shutting down.')
