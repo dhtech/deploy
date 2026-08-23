@@ -62,6 +62,25 @@
   .state.installing, .state.starting { color: var(--accent); }
   .error { color: var(--err); font-family: var(--mono); font-size: 0.8rem; }
   .empty { padding: 0.7rem 0.9rem; color: var(--muted); }
+  details.help {
+    margin-top: 1.5rem; background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+  details.help summary {
+    padding: 0.7rem 0.9rem; cursor: pointer; font-weight: 600;
+    color: var(--muted); user-select: none;
+  }
+  details.help[open] summary { border-bottom: 1px solid var(--border); }
+  .help-body { padding: 0.4rem 1.1rem 1rem; font-size: 0.88rem; }
+  .help-body h4 { margin: 0.9rem 0 0.25rem; font-size: 0.85rem; }
+  .help-body dl { margin: 0.3rem 0; }
+  .help-body dt { font-weight: 600; margin-top: 0.45rem; }
+  .help-body dt .state { font-size: 0.88rem; }
+  .help-body dd { margin: 0.1rem 0 0 1rem; color: var(--muted); }
+  .help-body code {
+    font-family: var(--mono); font-size: 0.82rem;
+    background: var(--bg); padding: 0.05rem 0.3rem; border-radius: 4px;
+  }
 </style>
 </head>
 <body>
@@ -97,6 +116,61 @@
     <h2>Hardware bays</h2>
     <div id="bays"><div class="card"><div class="empty">—</div></div></div>
   </section>
+  <details class="help">
+    <summary>Help — what am I looking at?</summary>
+    <div class="help-body">
+      <h4>The deploy flow</h4>
+      <p>An operator runs <code>deploy-vm &lt;fqdn&gt; &lt;provisioner&gt;</code>.
+      The provisioner creates the VM on the <em>deployment VLAN</em>, where it
+      PXE-boots and installs Debian unattended (root and admin passwords go to
+      the secret store). When the installer finishes, the machine is moved to
+      its <em>production VLAN</em>, boots from disk, auto-enrolls in puppet and
+      converges to its role.</p>
+
+      <h4>Current installs — states</h4>
+      <dl>
+        <dt><span class="state starting">Starting installation</span></dt>
+        <dd>The machine has registered but the installer has not produced any
+        log output yet (PXE/iPXE stage).</dd>
+        <dt><span class="state installing">Installing</span></dt>
+        <dd>Debian installer running; the latest syslog line from the machine
+        is shown live below the state.</dd>
+        <dt><span class="state waiting-for-provision">Waiting for provision</span></dt>
+        <dd>Install finished; waiting for the provisioner to move the machine
+        to its production VLAN.</dd>
+        <dt><span class="state done">Done</span></dt>
+        <dd>Moved to production. The machine is booting its installed system;
+        puppet takes over from here.</dd>
+      </dl>
+      <p>A red line under a state is an <span class="error">error</span>
+      reported by the provisioner — the order stays visible (with its TTL
+      ticking down) so it can be inspected and retried.</p>
+
+      <h4>Columns</h4>
+      <dl>
+        <dt>Duration</dt>
+        <dd>Install time so far (live), frozen at the total once finished.</dd>
+        <dt>TTL</dt>
+        <dd>Seconds until the record expires from the state store. Records
+        are short-lived by design: roughly one hour after the last update,
+        finished or abandoned entries clean themselves up.</dd>
+      </dl>
+
+      <h4>Sections</h4>
+      <dl>
+        <dt>Install orders</dt>
+        <dd>Orders waiting to be picked up by a provisioner. Virtual machine
+        orders disappear once the VM is created; an order that lingers with an
+        error means no provisioner could complete it.</dd>
+        <dt>Known VMs</dt>
+        <dd>All VMs each provisioner currently sees on its hypervisor —
+        the inventory used to identify PXE-booting machines.</dd>
+        <dt>Hardware bays</dt>
+        <dd>Physical bays/nodes reported by hardware managers (blade
+        chassis, OCP), with serials used for install matching.</dd>
+      </dl>
+    </div>
+  </details>
 </main>
 <script>
 "use strict";
