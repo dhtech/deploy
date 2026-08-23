@@ -118,6 +118,13 @@ table ip nat {
     oifname "ens18" ip saddr 10.200.0.0/24 masquerade
   }
 }
+table ip deploynat {
+  chain prerouting {
+    type nat hook prerouting priority dstnat;
+    # OpenBao web UI reachable from the workstation via the NAT NIC
+    iifname "ens18" tcp dport 8200 dnat to 10.200.0.61:8200
+  }
+}
 EOF
 systemctl enable --now nftables >/dev/null 2>&1
 nft -f /etc/nftables.conf
