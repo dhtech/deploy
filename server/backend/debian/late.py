@@ -101,6 +101,13 @@ print('sed -i \'s/^GRUB_CMDLINE_LINUX=.*/GRUB_CMDLINE_LINUX="console=tty0 '
 print('sed -i "/^GRUB_TERMINAL/d" /target/etc/default/grub')
 print('echo \'GRUB_TERMINAL="console serial"\' >> /target/etc/default/grub')
 print('in-target update-grub')
+# EFI fallback path (\EFI\BOOT\BOOTX64.EFI): OVMF NVRAM boot entries can
+# go missing (seen once: VM stranded in the UEFI shell after install);
+# the removable-media fallback boots regardless. debconf keeps it across
+# grub package upgrades.
+print('echo "grub-efi-amd64 grub2/force_efi_extra_removable boolean true"'
+      ' | in-target debconf-set-selections')
+print('in-target grub-install --force-extra-removable')
 print('wget -q -O /target/root/.vimrc "%s/data/vimrc" || true' % base)
 
 # --- LUKS auto-unlock (EVENT machines; passphrase from early.py) ---
