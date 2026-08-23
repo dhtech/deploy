@@ -122,10 +122,14 @@ systemctl enable --now nftables >/dev/null 2>&1
 nft -f /etc/nftables.conf
 
 cat > /etc/dnsmasq.d/deploy.conf <<EOF
-# Resolver for the deployment VLAN
+# Resolver for the deployment VLAN. Explicit upstream: Debian's
+# systemd-resolved integration otherwise leaves dnsmasq with no servers
+# (queries get REFUSED).
 interface=ens20
 bind-interfaces
 no-dhcp-interface=ens20
+no-resolv
+server=10.0.2.3
 EOF
 systemctl restart dnsmasq
 
