@@ -111,6 +111,9 @@ fi''')
 # --- application disk: one disk, vgapp VG, one ext4 LV per package ---
 appdisks = metadata.get_appdisks(client.hostname)
 if appdisks:
+  # LVM_SUPPRESS_FD_WARNINGS: d-i's log-output wrapper leaves fds open
+  # and lvm noisily warns about them (harmless).
+  print('export LVM_SUPPRESS_FD_WARNINGS=1')
   print('if [ -b /dev/sdb ] && ! in-target pvs /dev/sdb >/dev/null 2>&1; then')
   print('  in-target pvcreate /dev/sdb')
   print('  in-target vgcreate vgapp /dev/sdb')
