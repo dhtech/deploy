@@ -69,10 +69,13 @@ packages:
       mountpoint: /var/lib/openbao
       options: nodev,nosuid,noexec
     puppet:
-      classes: [dhfirewall]
+      classes: [dhfirewall, 'dhacme::cert']
       params:
         dhfirewall:
-          open_tcp: [8200]
+          open_tcp: [8200, 8443]
+        'dhacme::cert':
+          restart_cmd: systemctl restart openbao
+          key_group: openbao
   puppetserver:
     hardware:
       cpus: 2
@@ -85,6 +88,7 @@ packages:
         'dhacme::issuer':
           domains: ['*.dh.notproduction.net', 'dh.notproduction.net']
           email: acme@notproduction.net
+          acme_server: 'https://acme-v02.api.letsencrypt.org/directory'
 EOF
 
 python3 - <<'EOF'
