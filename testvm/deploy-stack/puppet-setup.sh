@@ -40,4 +40,39 @@ for i in $(seq 1 60); do
 done
 ss -ltn | grep -q 8140 || { echo "puppetserver never opened 8140" >&2; exit 1; }
 
+# Reinstall cert hygiene: an active enrollment token means the current
+# install is not signed yet, so an existing cert with that name is stale.
+# Never touches this host's own cert.
+cat > /usr/local/bin/dh-enroll-clean <<"EOF"
+#!/bin/sh
+set -eu
+self=$(hostname -f)
+curl -sf "http://10.200.0.2:8080/enrollments.py" | while read -r host; do
+  [ -n "$host" ] || continue
+  [ "$host" = "$self" ] && continue
+  if puppetserver ca list --all 2>/dev/null | grep -q "^    ${host} "; then
+    puppetserver ca clean --certname "$host" && echo "cleaned stale cert: $host"
+  fi
+done
+EOF
+chmod 755 /usr/local/bin/dh-enroll-clean
+cat > /etc/systemd/system/dh-enroll-clean.service <<EOF
+[Unit]
+Description=Clean stale puppet certs for pending enrollments
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dh-enroll-clean
+EOF
+cat > /etc/systemd/system/dh-enroll-clean.timer <<EOF
+[Unit]
+Description=Periodic stale-cert cleaning
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload
+systemctl enable --now dh-enroll-clean.timer
+
 echo "puppetserver ready on puppet1.test.lan:8140"
