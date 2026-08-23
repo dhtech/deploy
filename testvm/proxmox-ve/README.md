@@ -83,14 +83,32 @@ this Proxmox instance. Built from the official `debian-13-nocloud-amd64`
 image (no cloud-init), customized offline on the pve host with
 `virt-customize` (guestfs-tools):
 
-- 2 GiB RAM, 2 vCPUs, 20 GiB disk (`local-lvm:vm-100-disk-0`)
+- 2 GiB RAM, 2 vCPUs, 20 GiB disk (`local-lvm:vm-100-disk-0`), root
+  partition grown to the full disk with `growpart`/`resize2fs`
 - Static IP `10.0.2.16/24`, gw `10.0.2.2`, DNS `10.0.2.3`
-  (static on purpose: slirp DHCP could hand out `10.0.2.15` and collide
-  with the pve host itself)
+  (static on purpose: slirp DHCP hands out `10.0.2.15` and collides
+  with the pve host itself — this actually happened; see gotchas)
 - Hostname `provision-dev`; `openssh-server` installed into the image,
-  root SSH key-only (same key as everything else)
+  root SSH with the usual key; root password `pve-test` (console)
+- Timezone `Europe/Stockholm`
 - Serial console: `qm terminal 100` on the pve host
 - Starts automatically with the pve host (`onboot 1`)
+
+Gotchas hit while building this (relevant for future nocloud guests):
+
+- The nocloud image ships **netplan**, which generates a DHCP-on-`en*`
+  networkd config named `10-netplan-all-en.network`. A custom
+  `/etc/systemd/network/` file must sort **before** it to win — hence
+  `00-static.network`, not `10-static.network`. With DHCP active, slirp
+  gave the guest `10.0.2.15`, hijacking the pve host's IP via ARP and
+  knocking pve's SSH/web UI offline until the static config took over.
+- The nocloud image runs an interactive `systemd-firstboot` wizard on the
+  serial console (timezone, root password) which **blocks boot** until
+  answered. Pre-seed timezone/root-password with `virt-customize`
+  (`--timezone`, `--root-password`) to avoid it, or answer once via the
+  serial socket.
+- No cloud-init means no automatic root-fs grow; run
+  `growpart /dev/sda 1 && resize2fs /dev/sda1` after resizing the disk.
 
 SSH from the workstation, jumping through pve-test:
 
