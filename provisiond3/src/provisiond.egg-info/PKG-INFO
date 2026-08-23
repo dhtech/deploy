@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: provisiond
+Version: 3.0.0
+Summary: Dreamhack deploy VM/hardware provisioner (Proxmox, VMware, C7000, OCP)
+Requires-Python: >=3.11
+Requires-Dist: proxmoxer~=2.2
+Requires-Dist: requests~=2.32
+Requires-Dist: pyvmomi~=8.0
+Requires-Dist: redis~=5.2
+Requires-Dist: hvac~=2.3
+Requires-Dist: PyYAML~=6.0
+Provides-Extra: dev
+Requires-Dist: pytest~=8.3; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: fakeredis~=2.26; extra == "dev"
+Requires-Dist: requests-mock~=1.12; extra == "dev"
+Requires-Dist: mypy~=1.13; extra == "dev"
+Requires-Dist: ruff~=0.8; extra == "dev"
+Requires-Dist: types-PyYAML; extra == "dev"

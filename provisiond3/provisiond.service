@@ -1,0 +1,21 @@
+[Unit]
+Description=Dreamhack deploy provisioner (provisiond3)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=provisiond
+Group=provisiond
+# Secrets (REDIS_PASSWORD, PVE_TOKEN_SECRET, VAULT_CERT/VAULT_KEY, VAULT_MOUNT)
+EnvironmentFile=-/etc/provision/provisiond.env
+ExecStart=/opt/provisiond/bin/python -m provisiond --config /etc/provision/config.yaml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/provision
+
+[Install]
+WantedBy=multi-user.target

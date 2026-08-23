@@ -1,0 +1,15 @@
+proxmoxer~=2.2
+requests~=2.32
+pyvmomi~=8.0
+redis~=5.2
+hvac~=2.3
+PyYAML~=6.0
+
+[dev]
+pytest~=8.3
+pytest-cov
+fakeredis~=2.26
+requests-mock~=1.12
+mypy~=1.13
+ruff~=0.8
+types-PyYAML
