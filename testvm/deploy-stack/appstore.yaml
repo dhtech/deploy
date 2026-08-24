@@ -5,6 +5,9 @@
 # dependencies; kind github = the release tarball of repo. Default is
 # the LATEST release (the daily sync follows upstream); pin with
 # version: (github tag) or == in packages: (pip) when necessary.
+# interval: fast checks every 10 minutes instead of daily - for our
+# own repos, so a release is serving within minutes of the tag.
+# dh-app-update <app> on the puppet master syncs on demand.
 apps:
   puppetboard:
     kind: pip
