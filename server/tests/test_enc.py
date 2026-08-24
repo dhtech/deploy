@@ -97,6 +97,21 @@ def test_appstore_apps_and_event_freeze(ipplan, manifest):
     assert json.loads(classes['dhappstore']['apps_json'])['freeze'] is True
 
 
+def test_autoupdate_colo_only_and_freeze(ipplan, manifest):
+    # colo machines self-update; event machines never do
+    assert enc.classify('web1.test', manifest)[
+        'dhautoupdate'] == {'enabled': True}
+    assert enc.classify('evtbox1.test', manifest)[
+        'dhautoupdate'] == {'enabled': False}
+    # the event change freeze switches colo off too
+    conn = sqlite3.connect(str(ipplan))
+    conn.execute("INSERT INTO meta_data VALUES ('change_freeze', 'true')")
+    conn.commit()
+    conn.close()
+    assert enc.classify('web1.test', manifest)[
+        'dhautoupdate'] == {'enabled': False}
+
+
 def test_jumpgates_from_ipplan(ipplan, manifest):
     classes = enc.classify('web1.test', manifest)
     assert classes['dhfirewall']['jumpgates'] == ['10.200.0.2']

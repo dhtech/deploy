@@ -56,6 +56,14 @@ def classify(hostname, manifest):
     if flow_firewall:
         merge_params(classes, {'dhfirewall': flow_firewall})
 
+    # apt auto-updates: colo machines only, and the event change
+    # freeze (meta_data) switches them off fleet-wide
+    site = metadata.host_site(hostname)
+    if site:
+        freeze = metadata.get_meta('change_freeze', 'false') == 'true'
+        merge_params(classes, {'dhautoupdate': {
+            'enabled': site == 'colo' and not freeze}})
+
     if not classes:
         classes = {'dhfirewall': {}}
     if 'dhfirewall' in classes:
