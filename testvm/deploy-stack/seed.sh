@@ -46,12 +46,14 @@ chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 fi
 
 
-# compile the vendored ipplan snapshot + manifest into the db -
-# provision reads ONLY ipplan.db. In production the svn pipeline
-# on doc1 runs this same compiler and puppet distributes the db.
+# BOOTSTRAP-ONLY db compile from the vendored snapshot (like
+# deploy.yaml): once the pipeline is alive, svn on doc1 is the source
+# and puppet (dhipplan) distributes the published build over this.
+if [ ! -f /etc/ipplan.db ]; then
 python3 "$repo/utils/ipplan2db" --ipplan-root "$stack/ipplan" \
     --manifest "$stack/manifest.yaml" --manifest "$stack/appstore.yaml" \
     /etc/ipplan.db
+fi
 rm -f /etc/manifest  # gen-3: provision reads only the db
 chmod 644 /etc/ipplan.db
 

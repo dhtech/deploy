@@ -216,8 +216,25 @@
           <tr><td>Trac + SVN (doc)</td>
               <td><a href="https://doc.dh.notproduction.net:8445/">doc.dh.notproduction.net:8445</a></td>
               <td>Let's Encrypt</td></tr>
+          <tr><td>Published ipplan.db (crew download)</td>
+              <td><a href="https://doc.dh.notproduction.net:8445/stuff/">doc.dh.notproduction.net:8445/stuff/</a></td>
+              <td>Let's Encrypt</td></tr>
         </tbody>
       </table>
+
+      <h4>The ipplan database</h4>
+      <p>Every commit to the <code>dh</code> svn repository that
+      touches an <code>ipplan</code> file, the manifest or
+      <code>currentevent</code> is compiled by the pre-commit gate and
+      published under <code>/stuff/</code>: <code>ipplan.db.xz</code>
+      (the current build), <code>ipplan.db.xz.sha256</code>,
+      <code>REVISION</code>, and dated <code>ipplan-r&lt;rev&gt;.db.xz</code>
+      builds for diffing and rollback. Verify a download:</p>
+      <pre style="background: var(--bg); padding: 0.6rem 0.9rem;
+                  border-radius: 6px; overflow-x: auto;
+                  font-family: var(--mono); font-size: 0.82rem;">curl -sO https://doc.dh.notproduction.net:8445/stuff/ipplan.db.xz
+curl -s https://doc.dh.notproduction.net:8445/stuff/ipplan.db.xz.sha256 | sha256sum -c
+xz -d ipplan.db.xz   # then: sqlite3 ipplan.db</pre>
 
       <h4>Hosts-file entries</h4>
       <p>The public DNS zone already points these names at
