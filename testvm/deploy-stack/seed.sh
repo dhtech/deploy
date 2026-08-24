@@ -64,7 +64,9 @@ globals:
 apps:
   puppetboard:
     kind: pip
-    packages: [puppetboard, gunicorn]
+    packages:
+      - puppetboard
+      - gunicorn
 # Firewall flows (gen-2 model): packages declare client/server roles
 # on services; a spec is 'service' or 'flow-service' and the default
 # flow is the host's site - that is what pairs a client with the
@@ -93,10 +95,12 @@ packages:
     client:
       - ldaps
     puppet:
-      classes: [dhlogin]
+      classes:
+        - dhlogin
       params:
         dhlogin:
-          sudo_groups: [everyone]
+          sudo_groups:
+            - everyone
   web:
     hardware:
       cpus: 2
@@ -106,7 +110,8 @@ packages:
       mountpoint: /srv/www
       options: nodev,nosuid
     puppet:
-      classes: [dhfirewall]
+      classes:
+        - dhfirewall
   vault:
     hardware:
       cpus: 2
@@ -118,14 +123,23 @@ packages:
     client:
       - ldaps
     puppet:
-      classes: [dhfirewall, 'dhacme::cert', 'dhnginx::vault']
+      classes:
+        - dhfirewall
+        - 'dhacme::cert'
+        - 'dhnginx::vault'
   puppetserver:
     hardware:
       cpus: 2
       memory: 4G
     puppet:
-      classes: [dhfirewall, 'dhacme::issuer', 'dhacme::cert', dhpuppetdb,
-                dhappstore, dhpuppetboard, 'dhnginx::puppetboard']
+      classes:
+        - dhfirewall
+        - 'dhacme::issuer'
+        - 'dhacme::cert'
+        - dhpuppetdb
+        - dhappstore
+        - dhpuppetboard
+        - 'dhnginx::puppetboard'
       params:
         dhnginx::puppetboard:
           # who may open the puppetboard website (PAM group gate)
@@ -137,7 +151,11 @@ packages:
     client:
       - ldapwrite-ldaps
     puppet:
-      classes: [dhfirewall, 'dhacme::cert', 'dhnginx::lam', 'dhlam']
+      classes:
+        - dhfirewall
+        - 'dhacme::cert'
+        - 'dhnginx::lam'
+        - 'dhlam'
   ldap:
     hardware:
       cpus: 2
@@ -153,7 +171,9 @@ packages:
     client:
       - ldaprepl-ldaps
     puppet:
-      classes: [dhfirewall, 'dhldap::server']
+      classes:
+        - dhfirewall
+        - 'dhldap::server'
   # masters serve ONLY the directory: replication + admin writes
   ldap(role=master):
     server:
@@ -168,7 +188,8 @@ packages:
       mountpoint: /srv/trac
       options: nodev,nosuid
     puppet:
-      classes: [dhfirewall]
+      classes:
+        - dhfirewall
   pve:
     hardware:
       cpus: 1
@@ -176,7 +197,9 @@ packages:
     client:
       - ldaps
     puppet:
-      classes: ['dhacme::cert', 'dhpve']
+      classes:
+        - 'dhacme::cert'
+        - 'dhpve'
       params:
         dhpve:
           # who may log in to the pve web UI (realm sync scope) and
@@ -192,7 +215,8 @@ packages:
       mountpoint: /srv/svn
       options: nodev,nosuid
     puppet:
-      classes: [dhfirewall]
+      classes:
+        - dhfirewall
 EOF
 
 python3 - <<'EOF'
