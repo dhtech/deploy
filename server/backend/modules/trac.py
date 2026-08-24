@@ -17,11 +17,4 @@ def generate(host, params, manifest):
         out['dhdoc'] = {'server_name': webname,
                         'ldap_uris': _ldap.slave_uris()}
         out['dhdoc::trac'] = {'ldap_uris': _ldap.slave_uris()}
-    # brute-force protection on the (internet-facing in prod) website;
-    # never ban the jumpgates or the lab's DNAT masquerade source
-    out['dhfail2ban'] = {
-        'ignore_ips': sorted(metadata.host_ip(h) for h, _ in
-                             metadata.hosts_with_pkg('jumpgate')),
-        'jails': ['apache-auth'],
-    }
     return out
