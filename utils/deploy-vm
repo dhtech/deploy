@@ -265,7 +265,10 @@ if __name__ == '__main__':
 
   r.setex(create_key, 3600, json.dumps(creation))
 
-  print('Waiting for provisioner to pick up creation ..')
+  def stage(text):
+    print('[%s] %s' % (time.strftime('%H:%M:%S'), text))
+
+  stage('order queued - waiting for a provisioner to pick it up')
   try:
     prev_error = None
     while r.exists(create_key):
@@ -281,7 +284,25 @@ if __name__ == '__main__':
     sys.exit(1)
   if args.add_esxi:
     print('Done! Server should now be managed by the vCenter server.')
+    sys.exit(0)
   elif args.add_to_dvs:
     print('Done! Interface should now be part of the default DVS.')
-  else:
-    print('Done! VM should now be created and powered on.')
+    sys.exit(0)
+
+  # Stay until the machine shows up under Current installs: the order
+  # was picked up (VM created + powered on), now it must PXE-boot and
+  # register with the deploy backend.
+  stage('order picked up - VM created and powered on')
+  stage('waiting for the machine to PXE-boot and register ..')
+  host_key = 'host-%s' % args.hostname
+  try:
+    while True:
+      raw = r.get(host_key)
+      if raw:
+        break
+      time.sleep(2)
+  except KeyboardInterrupt:
+    print('\nStopped waiting; the VM keeps installing on its own '
+          '- follow it on the deploy status page.')
+    sys.exit(1)
+  stage('registered - installing (Current installs on the status page)')
