@@ -54,6 +54,17 @@ globals:
   acme:
     email: acme@notproduction.net
     server: https://acme-v02.api.letsencrypt.org/directory
+# Application artifacts: dh-appstore-sync mirrors these onto the
+# puppet master (the only machine that talks to the internet) and the
+# puppet fileserver serves them to app servers - which therefore need
+# no internet. kind pip = wheelhouse tarball of the packages with
+# dependencies; kind github = the release tarball of repo. Default is
+# the LATEST release (the daily sync follows upstream); pin with
+# version: (github tag) or == in packages: (pip) when necessary.
+apps:
+  puppetboard:
+    kind: pip
+    packages: [puppetboard, gunicorn]
 # Firewall flows (gen-2 model): packages declare client/server roles
 # on services; a spec is 'service' or 'flow-service' and the default
 # flow is the host's site - that is what pairs a client with the
@@ -114,7 +125,7 @@ packages:
       memory: 4G
     puppet:
       classes: [dhfirewall, 'dhacme::issuer', 'dhacme::cert', dhpuppetdb,
-                dhpuppetboard, 'dhnginx::puppetboard']
+                dhappstore, dhpuppetboard, 'dhnginx::puppetboard']
       params:
         dhnginx::puppetboard:
           # who may open the puppetboard website (PAM group gate)
@@ -247,6 +258,10 @@ c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (13, 'webname', 'deploy.dh.notproduction.net'),
 ])
 c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
+# Operational flags ride with current_event (in prod both come from
+# the current-event file in svn -> ipplan db). change_freeze=true
+# during events: the appstore stops following upstream releases.
+c.execute("INSERT INTO meta_data VALUES ('change_freeze', 'false')")
 conn.commit()
 conn.close()
 print('ipplan.db seeded')

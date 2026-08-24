@@ -390,6 +390,17 @@ def vault_login_path(client):
     return 'services/login:%s' % client.hostname
 
 
+def get_meta(name, default=None):
+    """A meta_data value (current_event, change_freeze, ...). In
+    production these come from the current-event file in svn."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT value FROM meta_data WHERE name = ?', (name,))
+    res = c.fetchone()
+    conn.close()
+    return res[0] if res else default
+
+
 def get_current_event():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()

@@ -3,6 +3,8 @@
 # constants come from the manifest globals. With a webname of its own
 # the host also serves puppetboard (cert + nginx site + 443).
 
+import json
+
 from lib import metadata
 
 from . import ldap as _ldap
@@ -20,6 +22,13 @@ def generate(host, params, manifest):
             'vault_addr': _ldap.vault_addr(),
         },
     }
+    # the application store lives on the puppet master: it mirrors the
+    # manifest's apps (the versions pinned there) for the fileserver
+    apps = manifest.get('apps') or {}
+    if apps:
+        freeze = metadata.get_meta('change_freeze', 'false') == 'true'
+        out['dhappstore'] = {'apps_json': json.dumps(
+            {'freeze': freeze, 'apps': apps}, sort_keys=True)}
     webname = metadata.host_option(host, 'webname')
     if webname:
         out['dhfirewall']['open_tcp'].append(443)

@@ -1,5 +1,8 @@
 # The ENC: ipplan + manifest as single source of truth (no hiera).
 
+import json
+import sqlite3
+
 import enc
 
 
@@ -76,6 +79,22 @@ def test_login_host_flows_only_reach_same_site(ipplan, manifest):
     classes = enc.classify('evtbox1.test', manifest)
     assert 'dhfirewall' not in classes or (
         'open_tcp_scoped' not in classes['dhfirewall'])
+
+
+def test_appstore_apps_and_event_freeze(ipplan, manifest):
+    manifest['apps'] = {'puppetboard': {'kind': 'pip',
+                                        'packages': ['puppetboard']}}
+    classes = enc.classify('puppet1.test', manifest)
+    data = json.loads(classes['dhappstore']['apps_json'])
+    assert data == {'freeze': False, 'apps': manifest['apps']}
+    # the freeze flag is operational state in ipplan meta_data (the
+    # svn current-event file in production), not manifest policy
+    conn = sqlite3.connect(str(ipplan))
+    conn.execute("INSERT INTO meta_data VALUES ('change_freeze', 'true')")
+    conn.commit()
+    conn.close()
+    classes = enc.classify('puppet1.test', manifest)
+    assert json.loads(classes['dhappstore']['apps_json'])['freeze'] is True
 
 
 def test_jumpgates_from_ipplan(ipplan, manifest):
