@@ -26,6 +26,9 @@ OS_HUMAN = {
     'ubuntu': 'Ubuntu',
     'openbsd': 'OpenBSD',
     'coreos': 'CoreOS',
+    # hand-enrolled hypervisors: never deployed, but the os type keys
+    # their own fleet defaults (manifest default: section)
+    'pve': 'Proxmox VE',
 }
 
 
