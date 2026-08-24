@@ -49,6 +49,7 @@ browser
 | `127.0.0.1:8444` | → directory1:443 (DNAT) | Directory UI (LAM) | live |
 | `127.0.0.1:8445` | → doc1:443 (DNAT) | Trac + SVN (doc) | live |
 | `127.0.0.1:8447` | → puppet1:443 (DNAT) | **puppetboard** (nginx + LE, tech group) | live |
+| `127.0.0.1:2222` | → jumpgate1:22 (DNAT) | **user ssh entry** (directory logins) | live |
 
 Live URLs:
 

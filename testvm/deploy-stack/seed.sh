@@ -83,10 +83,13 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
     # the hypervisors (mgmt VLAN) - puppet-enrolled by hand, never deployed
     (20, 'pve1.colo.notproduction.net', '10.10.10.1'),
     (21, 'pve2.colo.notproduction.net', '10.10.10.3'),
+    # ssh entry point for users - like production
+    (22, 'jumpgate1.colo.notproduction.net', '10.200.0.69'),
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
     (13, 'pkg', 'jumpgate'),
+    (22, 'os', 'debian'), (22, 'pkg', 'jumpgate'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
     (12, 'webname', 'puppet.dh.notproduction.net'),
@@ -167,6 +170,7 @@ table ip nat {
     oifname "ens21" ip daddr 10.200.0.63 tcp dport 443 masquerade
     oifname "ens21" ip daddr 10.200.0.64 tcp dport 443 masquerade
     oifname "ens21" ip daddr 10.200.0.62 tcp dport 443 masquerade
+    oifname "ens21" ip daddr 10.200.0.69 tcp dport 22 masquerade
   }
 }
 table ip deploynat {
@@ -182,6 +186,8 @@ table ip deploynat {
     iifname "ens18" tcp dport 445 dnat to 10.200.0.64:443
     # puppetboard website (puppet1)
     iifname "ens18" tcp dport 447 dnat to 10.200.0.62:443
+    # user ssh entry: jumpgate1
+    iifname "ens18" tcp dport 2022 dnat to 10.200.0.69:22
   }
 }
 EOF
@@ -210,6 +216,7 @@ host-record=ldap2-master.colo.notproduction.net,10.200.0.66
 host-record=ldap1.colo.notproduction.net,10.200.0.67
 host-record=ldap2.colo.notproduction.net,10.200.0.68
 host-record=puppet.dh.notproduction.net,10.200.0.62
+host-record=jumpgate1.colo.notproduction.net,10.200.0.69
 host-record=pve1.colo.notproduction.net,10.10.10.1
 host-record=pve1.dh.notproduction.net,10.10.10.1
 host-record=pve2.dh.notproduction.net,10.10.10.3

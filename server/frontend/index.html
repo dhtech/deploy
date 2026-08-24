@@ -236,6 +236,33 @@
 127.0.0.1 puppet.dh.notproduction.net
 127.0.0.1 deploy.dh.notproduction.net</pre>
 
+      <h4>SSH access</h4>
+      <p>Machines accept <b>directory logins</b>: your directory
+      username, your ssh keys from the directory (manage them in LAM
+      under <em>SSH public key</em>), and your directory password for
+      <code>sudo</code>. Enter through the jumpgate, like production:</p>
+      <pre style="background: var(--bg); padding: 0.6rem 0.9rem;
+                  border-radius: 6px; overflow-x: auto;
+                  font-family: var(--mono); font-size: 0.82rem;"># first hop: jumpgate1 (lab forward on the workstation)
+ssh -A -p 2222 &lt;user&gt;@localhost
+
+# onward, from the jumpgate:
+ssh web1.colo.notproduction.net</pre>
+      <p>Or in <code>~/.ssh/config</code>:</p>
+      <pre style="background: var(--bg); padding: 0.6rem 0.9rem;
+                  border-radius: 6px; overflow-x: auto;
+                  font-family: var(--mono); font-size: 0.82rem;">Host jumpgate1
+  HostName localhost
+  Port 2222
+  User &lt;user&gt;
+  ForwardAgent yes
+
+Host *.colo.notproduction.net
+  User &lt;user&gt;
+  ProxyJump jumpgate1</pre>
+      <p>Operators: the root path stays
+      <code>ssh -p 4455 root@localhost</code> (provision1).</p>
+
       <h4>Machine names</h4>
       <p>Machines (<code>*.colo.notproduction.net</code>) resolve only
       inside the lab and use the puppet CA
