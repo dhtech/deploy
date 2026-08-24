@@ -3,12 +3,14 @@
 # on the path so "modules.<pkg>" resolves like in production.
 
 import importlib
+import importlib.util
 import os
 import sqlite3
 import sys
 import types
 
 import pytest
+import yaml
 
 HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(HERE, '..', 'backend'))
@@ -23,7 +25,7 @@ sys.modules['lib.flows'] = _lib.flows
 
 
 @pytest.fixture
-def ipplan(tmp_path, monkeypatch):
+def ipplan(tmp_path, monkeypatch, manifest):
     """A seeded throwaway ipplan.db mirroring the lab topology."""
     db = tmp_path / 'ipplan.db'
     conn = sqlite3.connect(db)
@@ -71,6 +73,17 @@ def ipplan(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE', str(db))
+    # compile the fixture manifest with the REAL loader so the db has
+    # service/flow/package_spec and precomputed firewall_rule tables
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text(yaml.safe_dump(manifest))
+    tool = os.path.join(HERE, '..', '..', 'utils', 'manifest2db')
+    spec = importlib.util.spec_from_loader(
+        'manifest2db', importlib.machinery.SourceFileLoader('manifest2db',
+                                                            tool))
+    loader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loader)
+    loader.load(str(mpath), str(db))
     return db
 
 

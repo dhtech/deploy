@@ -311,12 +311,51 @@ def host_ip(hostname):
     return res[0] if res else None
 
 
-def get_appdisks(hostname, manifest_file='/etc/manifest'):
+def get_manifest():
+    """The manifest, reassembled from the database. The yaml file is a
+    BUILD input (svn later): utils/manifest2db compiles it in, and
+    provision reads only ipplan.db at runtime."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    services = {}
+    for name, desc, ports in c.execute(
+            'SELECT name, description, dest_ports FROM service'):
+        services[name] = {'description': desc,
+                          'destport': ports.split(',') if ports else []}
+    flow_names = [r[0] for r in c.execute('SELECT name FROM flow')]
+    packages = {name: json.loads(spec) for name, spec in c.execute(
+        'SELECT name, spec FROM package_spec')}
+    manifest = {'services': services, 'flows': flow_names,
+                'packages': packages}
+    for key in ('globals', 'apps'):
+        c.execute('SELECT value FROM meta_data WHERE name = ?',
+                  ('manifest_' + key,))
+        res = c.fetchone()
+        if res:
+            manifest[key] = json.loads(res[0])
+    conn.close()
+    return manifest
+
+
+def firewall_rules_to(hostname):
+    """Precomputed firewall openings for a host (manifest2db writes
+    them at db build): {port: [source ips]}."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    rules = collections.defaultdict(list)
+    for port, ip in c.execute(
+            'SELECT port, from_ip FROM firewall_rule WHERE to_host = ? '
+            'ORDER BY port, from_ip', (hostname,)):
+        rules[port].append(ip)
+    conn.close()
+    return dict(rules)
+
+
+def get_appdisks(hostname):
     """Application LVs for a host: one per appdisk-bearing package, keyed
     by mountpoint (same mountpoint from several packages: max size wins).
     Returns a sorted list of {size (bytes), mountpoint, options, lv}."""
-    with open(manifest_file) as f:
-        manifest = yaml.safe_load(f)
+    manifest = get_manifest()
     by_mount = {}
     for pkg in getpkgs(hostname):
         entry = (manifest.get('packages', {}).get(pkg) or {}).get('appdisk')

@@ -21,7 +21,6 @@ import urllib.parse
 
 import yaml
 
-from lib import flows
 from lib import metadata
 
 
@@ -50,11 +49,11 @@ def classify(hostname, manifest):
             continue
         merge_params(classes, generator.generate(hostname, params, manifest))
 
-    # Firewall flows: what this host serves, opened to the declared
-    # clients (manifest client/server specs, gen-2 semantics).
-    flow_firewall = flows.firewall_params(hostname, manifest)
-    if flow_firewall:
-        merge_params(classes, {'dhfirewall': flow_firewall})
+    # Firewall flows: precomputed by manifest2db at db build (the
+    # ruleset is data - query firewall_rule to audit or diff it).
+    scoped = metadata.firewall_rules_to(hostname)
+    if scoped:
+        merge_params(classes, {'dhfirewall': {'open_tcp_scoped': scoped}})
 
     # apt auto-updates: colo machines only, and the event change
     # freeze (meta_data) switches them off fleet-wide
@@ -79,8 +78,7 @@ def main():
         os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
     hostname = query_string['hostname'][0]
 
-    with open('/etc/manifest') as f:
-        manifest = yaml.safe_load(f)
+    manifest = metadata.get_manifest()
 
     output = {'classes': classify(hostname, manifest)}
     env = metadata.host_option(hostname, 'puppet_environment')

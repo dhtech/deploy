@@ -2,7 +2,7 @@
 # Script that simply writes a creation order to redis
 # for provisiond daemons to consume.
 # Note: Needs /etc/deploy.yaml to contain redis information
-# Note: Needs /etc/manifest (yaml) to get info regarding hardware
+# Note: Reads hardware info from the compiled manifest in ipplan.db
 #
 # The OS disk is fixed at 75G for every deployment; per-application
 # storage is declared as an 'appdisk' in the manifest instead.
@@ -227,9 +227,12 @@ if __name__ == '__main__':
   if args.add_esxi or args.add_to_dvs:
     creation, create_key = configure(args)
   else:
-    # load manifest yaml file for hw info from pkg
-    with open('/etc/manifest') as f:
-      manifest = yaml.safe_load(f)
+    # hw info from the compiled manifest in ipplan.db (manifest2db)
+    conn = sqlite3.connect(DB_FILE)
+    manifest = {'packages': {
+        name: json.loads(spec) for name, spec in
+        conn.execute('SELECT name, spec FROM package_spec')}}
+    conn.close()
 
     # check if server has hw info in pkg
     pkglist = getpkgs(args.hostname)

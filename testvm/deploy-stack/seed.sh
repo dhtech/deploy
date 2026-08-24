@@ -45,8 +45,6 @@ EOF
 [ -n "$vault_lines" ] && printf "%s\n" "$vault_lines" >> /etc/deploy.yaml
 chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 
-cp "$stack/manifest.yaml" /etc/manifest
-chmod 644 /etc/manifest
 
 python3 - <<'EOF'
 import sqlite3
@@ -119,6 +117,9 @@ conn.commit()
 conn.close()
 print('ipplan.db seeded')
 EOF
+# compile the manifest into the db - provision reads ONLY ipplan.db
+python3 "$repo/utils/manifest2db" "$stack/manifest.yaml" /etc/ipplan.db
+rm -f /etc/manifest  # gen-3: provision reads only the db
 chmod 644 /etc/ipplan.db
 
 # --- hosted data ----------------------------------------------------------
