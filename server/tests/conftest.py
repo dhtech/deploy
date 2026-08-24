@@ -84,7 +84,7 @@ def ipplan(tmp_path, monkeypatch, manifest):
                                                             tool))
     loader = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(loader)
-    loader.load(str(mpath), str(db))
+    loader.load([str(mpath)], str(db))
     return db
 
 

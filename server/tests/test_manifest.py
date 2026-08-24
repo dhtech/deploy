@@ -1,18 +1,28 @@
-# The manifest file itself (testvm/deploy-stack/manifest.yaml - the
-# file that will live in svn): it must be valid yaml and structurally
-# sound, so a bad edit fails here instead of on provision1.
+# The manifest files themselves (testvm/deploy-stack/manifest.yaml +
+# appstore.yaml - the files that will live in svn): they must be valid
+# yaml and structurally sound, so a bad edit fails here instead of on
+# provision1. Parts merge at the top level; ipplan2db rejects
+# duplicate keys, and so does the merge here.
 
 import os
 
 import yaml
 
-MANIFEST = os.path.join(os.path.dirname(__file__), '..', '..',
-                        'testvm', 'deploy-stack', 'manifest.yaml')
+STACK = os.path.join(os.path.dirname(__file__), '..', '..',
+                     'testvm', 'deploy-stack')
+PARTS = ['manifest.yaml', 'appstore.yaml']
 
 
 def load():
-    with open(MANIFEST) as f:
-        return yaml.safe_load(f)
+    data = {}
+    for part in PARTS:
+        with open(os.path.join(STACK, part)) as f:
+            loaded = yaml.safe_load(f)
+        assert isinstance(loaded, dict), part
+        dup = set(data) & set(loaded)
+        assert not dup, 'duplicate top-level keys across parts: %s' % dup
+        data.update(loaded)
+    return data
 
 
 def test_parses_as_yaml():

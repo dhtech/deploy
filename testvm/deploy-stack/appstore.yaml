@@ -1,0 +1,13 @@
+# Application artifacts: dh-appstore-sync mirrors these onto the
+# puppet master (the only machine that talks to the internet) and the
+# puppet fileserver serves them to app servers - which therefore need
+# no internet. kind pip = wheelhouse tarball of the packages with
+# dependencies; kind github = the release tarball of repo. Default is
+# the LATEST release (the daily sync follows upstream); pin with
+# version: (github tag) or == in packages: (pip) when necessary.
+apps:
+  puppetboard:
+    kind: pip
+    packages:
+      - puppetboard
+      - gunicorn

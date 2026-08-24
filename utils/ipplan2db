@@ -13,7 +13,11 @@ run by seed.sh today and the svn pipeline in production. It loads:
                   to_host, port)            the ruleset is data: query
                                             it, diff it between builds
 
-Usage: ipplan2db <manifest.yaml> <ipplan.db>
+The manifest may be split into parts (manifest.yaml + appstore.yaml
+today): parts are merged at the top level and a key appearing in two
+parts is a build error - never a silent override.
+
+Usage: ipplan2db <manifest.yaml> [<part.yaml> ...] <ipplan.db>
 """
 
 import json
@@ -29,9 +33,25 @@ from libdhdeploy import flows      # noqa: E402
 from libdhdeploy import metadata   # noqa: E402
 
 
-def load(manifest_path, db_path):
-    with open(manifest_path) as f:
-        manifest = yaml.safe_load(f)
+def merge(paths):
+    """Merge manifest parts at the top level; duplicate keys are a
+    build error so no part can silently override another."""
+    manifest = {}
+    for path in paths:
+        with open(path) as f:
+            part = yaml.safe_load(f) or {}
+        if not isinstance(part, dict):
+            sys.exit('%s: not a yaml mapping' % path)
+        for key in part:
+            if key in manifest:
+                sys.exit('%s: top-level key %r already defined in an '
+                         'earlier part' % (path, key))
+        manifest.update(part)
+    return manifest
+
+
+def load(manifest_paths, db_path):
+    manifest = merge(manifest_paths)
 
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -120,6 +140,7 @@ def load(manifest_path, db_path):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        sys.exit('usage: ipplan2db <manifest.yaml> <ipplan.db>')
-    load(sys.argv[1], sys.argv[2])
+    if len(sys.argv) < 3:
+        sys.exit('usage: ipplan2db <manifest.yaml> [<part.yaml> ...] '
+                 '<ipplan.db>')
+    load(sys.argv[1:-1], sys.argv[-1])
