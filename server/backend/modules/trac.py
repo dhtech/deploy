@@ -22,6 +22,6 @@ def generate(host, params, manifest):
     out['dhfail2ban'] = {
         'ignore_ips': sorted(metadata.host_ip(h) for h, _ in
                              metadata.hosts_with_pkg('jumpgate')),
-        'jails': ['apache-auth'],
+        'jails': {'apache-auth': {}},
     }
     return out
