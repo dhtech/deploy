@@ -8,8 +8,9 @@ import enc
 
 def test_lam_params(ipplan, manifest):
     conn = sqlite3.connect(str(ipplan))
-    conn.execute("INSERT INTO option VALUES "
-                 "(14, 'webname', 'directory.dh.example')")
+    conn.execute("INSERT INTO option VALUES (NULL, "
+                 "(SELECT node_id FROM host WHERE name = 'directory1.test'), "
+                 "'webname', 'directory.dh.example')")
     conn.commit()
     conn.close()
     classes = enc.classify('directory1.test', manifest)

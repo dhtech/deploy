@@ -1,0 +1,29 @@
+# Lab colo site ipplan (gen-3). Vendored SNAPSHOT for bootstrap: svn
+# on doc1 owns this file once the pipeline is live; seed.sh compiles
+# it with utils/ipplan2db. Same grammar as prod (allevents/colo/sto2).
+#
+# gen-3 extension: gw= on a network line overrides the computed
+# gateway - the lab default route is provision1's NAT at .2, not .1.
+
+#@ IPV4-COLO-NET	10.200.0.0/24
+
+#Name		#Net		#Terminator	#VLAN	#Options
+COLO		10.200.0.0/24	R1		200	gw=10.200.0.2
+#$ provision1.colo.notproduction.net	10.200.0.2	os=debian;pkg=jumpgate,deploy;webname=deploy.dh.notproduction.net
+#$ web1.colo.notproduction.net		10.200.0.60	os=debian;pkg=base,web(port=80)
+#$ vault1.colo.notproduction.net	10.200.0.61	os=debian;pkg=vault;webname=vault.dh.notproduction.net
+#$ puppet1.colo.notproduction.net	10.200.0.62	os=debian;pkg=puppetserver;webname=puppet.dh.notproduction.net
+#$ directory1.colo.notproduction.net	10.200.0.63	os=debian;pkg=lam;webname=directory.dh.notproduction.net
+#$ doc1.colo.notproduction.net		10.200.0.64	os=debian;pkg=trac,svn;webname=doc.dh.notproduction.net
+#$ ldap1-master.colo.notproduction.net	10.200.0.65	os=debian;pkg=ldap(role=master,id=1)
+#$ ldap2-master.colo.notproduction.net	10.200.0.66	os=debian;pkg=ldap(role=master,id=2)
+#$ ldap1.colo.notproduction.net		10.200.0.67	os=debian;pkg=ldap
+#$ ldap2.colo.notproduction.net		10.200.0.68	os=debian;pkg=ldap
+#$ jumpgate1.colo.notproduction.net	10.200.0.69	os=debian;pkg=jumpgate,base
+
+# The hypervisors: a proper MGMT network (they used to squat in the
+# colo network with foreign addresses). Puppet-enrolled by hand,
+# never deployed - the gw value is cosmetic.
+MGMT		10.10.10.0/24	R1	10	othernet;gw=10.10.10.1
+#$ pve1.colo.notproduction.net		10.10.10.1	os=debian;pkg=pve;webname=pve1.dh.notproduction.net
+#$ pve2.colo.notproduction.net		10.10.10.3	os=debian;pkg=pve;webname=pve2.dh.notproduction.net

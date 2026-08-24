@@ -319,7 +319,7 @@ def get_manifest():
     c = conn.cursor()
     services = {}
     for name, desc, ports in c.execute(
-            'SELECT name, description, dest_ports FROM service'):
+            'SELECT name, description, dst_ports FROM service'):
         services[name] = {'description': desc,
                           'destport': ports.split(',') if ports else []}
     flow_names = [r[0] for r in c.execute('SELECT name FROM flow')]
@@ -337,18 +337,37 @@ def get_manifest():
     return manifest
 
 
+def tcp_ports(entries):
+    """destport entries like '636/tcp' or '5900-5910/tcp' to a port
+    list. Only tcp: dhfirewall has no scoped udp support yet."""
+    ports = []
+    for entry in entries:
+        port, _, proto = entry.partition('/')
+        if proto != 'tcp':
+            continue
+        lo, _, hi = port.partition('-')
+        ports.extend(range(int(lo), int(hi or lo) + 1))
+    return ports
+
+
 def firewall_rules_to(hostname):
-    """Precomputed firewall openings for a host (ipplan2db writes
-    them at db build): {port: [source ips]}."""
+    """Precomputed firewall openings for a host: {port: [source ips]}.
+    ipplan2db writes prod's node-id firewall_rule rows at db build;
+    this reads them back through the ip-level view, expanding each
+    service's tcp destports."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    rules = collections.defaultdict(list)
-    for port, ip in c.execute(
-            'SELECT port, from_ip FROM firewall_rule WHERE to_host = ? '
-            'ORDER BY port, from_ip', (hostname,)):
-        rules[port].append(ip)
+    rules = collections.defaultdict(set)
+    for ip, ports in c.execute(
+            'SELECT from_ipv4, service_dst_ports '
+            'FROM firewall_rule_ip_level '
+            'WHERE to_node_name = ? AND is_ipv4 = 1', (hostname,)):
+        if not ip:
+            continue
+        for port in tcp_ports(ports.split(',') if ports else []):
+            rules[port].add(ip)
     conn.close()
-    return dict(rules)
+    return {port: sorted(ips) for port, ips in rules.items()}
 
 
 def get_appdisks(hostname):

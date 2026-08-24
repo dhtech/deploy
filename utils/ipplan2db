@@ -1,28 +1,52 @@
 #!/usr/bin/env python3
-"""Compile the manifest yaml into ipplan.db (gen-3 ipplan2sqlite).
+"""Compile ipplan text files + the manifest into ipplan.db (gen-3).
 
-Provision reads ONLY the database at runtime; the yaml is the
-human-edited source (svn later) and this loader is the build step,
-run by seed.sh today and the svn pipeline in production. It loads:
+The gen-2 ipplan2sqlite engine absorbed as modern python: the same
+text grammar (#@ masters, network lines, #$ hosts with ;-separated
+options), stdlib ipaddress instead of ipcalc, and the gen-3 manifest
+and flow-pairing firewall build on top. Provision and puppet read
+ONLY the database at runtime; svn (the deploy repo's vendored
+snapshot until then) owns the sources and this compiler is the build
+step - run by seed.sh today, by the svn pre-commit/post-commit
+pipeline in production.
 
-    service(name, description, dest_ports)  services and their ports
-    flow(name)                              named cross-site flows
-    package_spec(name, spec)                full package spec as json
-    meta_data manifest_globals/_apps        json rows
-    firewall_rule(from_host, from_ip,       PRECOMPUTED flow pairings -
-                  to_host, port)            the ruleset is data: query
-                                            it, diff it between builds
+Inputs (an svn-tree root):
+    allevents/colo/<site>/ipplan   one file per colo site
+    <event>/core/ipplan            the event selected by currentevent
+                                   (missing file = no event compiled -
+                                   that IS the teardown mechanism)
+    currentevent                   key=value: currentevent, apt_freeze,
+                                   change_freeze
+plus the manifest parts (manifest.yaml + appstore.yaml today): merged
+at the top level, a key in two parts is a build error.
 
-The manifest may be split into parts (manifest.yaml + appstore.yaml
-today): parts are merged at the top level and a key appearing in two
-parts is a build error - never a silent override.
+The emitted schema is prod's verbatim (gen-2 tables.py: shared node id
+space, network/host integer+text ip forms, option/package double
+truth, service/flow ids, node-id firewall_rule, the node_any /
+active_switch / firewall_rule_ip_level views) so every old consumer
+keeps working - hardened writer-side: foreign keys ON during build,
+UNIQUE indexes that turn duplicate hosts/networks into build
+failures, and additive meta rows (schema_version, tool_version,
+svn_revision, build_time, current_event, apt_freeze, change_freeze).
 
-Usage: ipplan2db <manifest.yaml> [<part.yaml> ...] <ipplan.db>
+Gen-3 grammar extensions (prod files are unaffected):
+    gw=<ip> network option   overrides the computed gateway (the lab's
+                             gateway is provision1 at .2, not .1)
+    IPv6 master optional     a site with no IPV6-*-NET line gets NULL
+                             ipv6 columns instead of derived garbage
+
+Usage: ipplan2db --ipplan-root DIR --manifest FILE [--manifest FILE]
+                 [--svn-revision REV] <ipplan.db>
 """
 
+import argparse
+import collections
+import datetime
+import glob
+import ipaddress
 import json
 import os
-import sqlite3
+import re
 import sys
 
 import yaml
@@ -31,6 +55,226 @@ sys.path.insert(0, os.path.join(os.path.dirname(
     os.path.abspath(__file__)), '..', 'server'))
 from libdhdeploy import flows      # noqa: E402
 from libdhdeploy import metadata   # noqa: E402
+
+TOOL_VERSION = '3.0.0'
+SCHEMA_VERSION = '3'
+
+
+class BuildError(Exception):
+    """All validation errors of a build, reported at once."""
+
+    def __init__(self, errors):
+        super().__init__('\n'.join(errors))
+        self.errors = errors
+
+
+Network = collections.namedtuple('Network', (
+    'node_id', 'name', 'short_name', 'vlan', 'terminator',
+    'ipv4', 'ipv6', 'ipv4_gateway', 'ipv6_gateway', 'line'))
+Host = collections.namedtuple('Host', (
+    'node_id', 'name', 'ipv4', 'ipv6', 'network_id', 'line'))
+
+
+class Model:
+    """The parsed topology: one shared node id space, insertion order
+    identical to gen-2 (networks and hosts numbered as encountered)."""
+
+    def __init__(self):
+        self.next_node = 0
+        self.networks = []
+        self.hosts = []
+        self.options = []   # (node_id, name, value)
+        self.errors = []
+
+    def node(self):
+        self.next_node += 1
+        return self.next_node
+
+
+def split_value(string):
+    """Split a comma list but preserve parenthesized pkg options:
+    'a,b(x=1,y=2),c' -> ['a', 'b(x=1,y=2)', 'c']."""
+    result = []
+    level = 0
+    buf = []
+    for entry in string.split(','):
+        level += entry.count('(') - entry.count(')')
+        buf.append(entry)
+        if level == 0:
+            result.append(','.join(buf))
+            buf = []
+    return result
+
+
+class Parser:
+    """One ipplan text file: #@ master pair sets the domain and v6
+    base, network lines open a network, #$ lines attach hosts to the
+    most recent network. Gen-2 processor.py grammar."""
+
+    def __init__(self, model, path):
+        self.model = model
+        self.path = path
+        self.domain = None
+        self.v6_base = None
+        self.pending_master = None
+        self.current_network = None
+
+    def fail(self, lineno, message):
+        self.model.errors.append('%s:%d: %s' % (self.path, lineno, message))
+
+    def options(self, node_id, raw):
+        for option in raw.split(';'):
+            name, sep, value = option.partition('=')
+            if not name:
+                continue
+            if sep:
+                for entry in split_value(value):
+                    self.model.options.append((node_id, name, entry))
+            else:
+                self.model.options.append((node_id, name, '1'))
+
+    def option_of(self, node_id, name):
+        for nid, oname, value in self.model.options:
+            if nid == node_id and oname == name:
+                return value
+        return None
+
+    def master(self, tokens, lineno):
+        if self.pending_master is None:
+            if not re.match(r'IPV4-[A-Z0-9]+-NET$', tokens[1]):
+                self.fail(lineno, 'master pair must start with '
+                          'IPV4-<DOMAIN>-NET, got %r' % tokens[1])
+                return
+            self.pending_master = (tokens, lineno)
+            self.domain = tokens[1].split('-')[1]
+            return
+        # second line of the pair: the IPv6 master
+        v4_tokens, v4_lineno = self.pending_master
+        self.pending_master = None
+        if not re.match(r'IPV6-[A-Z0-9]+-NET$', tokens[1]):
+            self.fail(lineno, 'expected IPV6-%s-NET after the IPv4 '
+                      'master, got %r' % (self.domain, tokens[1]))
+            return
+        try:
+            net = ipaddress.ip_network(v4_tokens[2])
+        except ValueError as error:
+            self.fail(v4_lineno, str(error))
+            return
+        self.v6_base = tokens[2].split('::', 1)[0]
+        v6_prefix = tokens[2].split('/', 1)[1]
+        node_id = self.model.node()
+        self.model.networks.append(Network(
+            node_id=node_id,
+            name='%s@DREAMHACK' % self.domain, short_name='DREAMHACK',
+            vlan=0, terminator='', ipv4=net,
+            ipv6=(tokens[2], v6_prefix),
+            ipv4_gateway=net.network_address + 1,
+            ipv6_gateway='%s::1' % self.v6_base, line=v4_lineno))
+
+    def flush_master(self):
+        """An IPv4 master with no IPv6 pair (gen-3 extension: a site
+        without v6). No network row, no v6 derivation."""
+        if self.pending_master is None:
+            return
+        v4_tokens, v4_lineno = self.pending_master
+        self.pending_master = None
+        try:
+            net = ipaddress.ip_network(v4_tokens[2])
+        except ValueError as error:
+            self.fail(v4_lineno, str(error))
+            return
+        node_id = self.model.node()
+        self.model.networks.append(Network(
+            node_id=node_id,
+            name='%s@DREAMHACK' % self.domain, short_name='DREAMHACK',
+            vlan=0, terminator='', ipv4=net, ipv6=None,
+            ipv4_gateway=net.network_address + 1,
+            ipv6_gateway=None, line=v4_lineno))
+
+    def network(self, tokens, lineno):
+        self.flush_master()
+        if self.domain is None:
+            self.fail(lineno, 'network line before any #@ master')
+            return
+        if len(tokens) < 4:
+            self.fail(lineno, 'network line needs name, net, '
+                      'terminator, vlan')
+            return
+        short_name = tokens[0]
+        try:
+            net = ipaddress.ip_network(tokens[1])
+        except ValueError as error:
+            self.fail(lineno, str(error))
+            return
+        terminator = tokens[2]
+        vlan = None if tokens[3] == '-' else int(tokens[3])
+        node_id = self.model.node()
+        if vlan and self.v6_base:
+            ipv6 = ('%s:%d::/64' % (self.v6_base, vlan), '64')
+            ipv6_gateway = '%s:%d::1' % (self.v6_base, vlan)
+        else:
+            ipv6 = None
+            ipv6_gateway = None
+        network = Network(
+            node_id=node_id,
+            name='%s@%s' % (self.domain, short_name),
+            short_name=short_name, vlan=vlan, terminator=terminator,
+            ipv4=net, ipv6=ipv6,
+            ipv4_gateway=net.network_address + 1,
+            ipv6_gateway=ipv6_gateway, line=lineno)
+        self.model.networks.append(network)
+        if len(tokens) > 4:
+            self.options(node_id, tokens[4])
+        # gen-3 extension: gw= overrides the computed gateway
+        gw = self.option_of(node_id, 'gw')
+        if gw is not None:
+            network = network._replace(
+                ipv4_gateway=ipaddress.ip_address(gw))
+            self.model.networks[-1] = network
+        self.current_network = network
+
+    def host(self, tokens, lineno):
+        self.flush_master()
+        if self.current_network is None:
+            self.fail(lineno, 'host line before any network line')
+            return
+        if len(tokens) < 3:
+            self.fail(lineno, 'host line needs name and address')
+            return
+        name = tokens[1]
+        ip = tokens[2]
+        vlan = self.current_network.vlan
+        if '.' in ip:
+            ipv4 = ip
+            ipv6 = None
+            if vlan and self.v6_base:
+                ipv6 = '%s:%d::%d' % (self.v6_base, vlan,
+                                      int(ip.rsplit('.', 1)[1]))
+        else:
+            ipv4 = None
+            ipv6 = ip
+            if vlan and self.v6_base and ip.startswith('::'):
+                ipv6 = '%s:%d%s' % (self.v6_base, vlan, ip)
+        node_id = self.model.node()
+        self.model.hosts.append(Host(
+            node_id=node_id, name=name, ipv4=ipv4, ipv6=ipv6,
+            network_id=self.current_network.node_id, line=lineno))
+        if len(tokens) > 3:
+            self.options(node_id, tokens[3])
+
+    def parse(self):
+        with open(self.path) as f:
+            for lineno, line in enumerate(f, 1):
+                tokens = line.split()
+                if not tokens:
+                    continue
+                if tokens[0] == '#@':
+                    self.master(tokens, lineno)
+                elif tokens[0] == '#$':
+                    self.host(tokens, lineno)
+                elif re.match(r'^[A-Z]', tokens[0]):
+                    self.network(tokens, lineno)
+        self.flush_master()
 
 
 def merge(paths):
@@ -50,32 +294,298 @@ def merge(paths):
     return manifest
 
 
-def load(manifest_paths, db_path):
-    manifest = merge(manifest_paths)
+def read_currentevent(path):
+    """currentevent's key=value lines. Prod has one line today;
+    gen-3 adds apt_freeze and change_freeze."""
+    values = {'currentevent': None,
+              'apt_freeze': 'false', 'change_freeze': 'false'}
+    with open(path) as f:
+        for line in f:
+            key, sep, value = line.strip().partition('=')
+            if sep and key:
+                values[key] = value
+    if not values['currentevent']:
+        sys.exit('%s: no currentevent= line' % path)
+    return values
 
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
+
+def ipplan_files(root, current_event):
+    """The build is always sites/* + the currentevent-selected event;
+    a missing event file means no event topology (teardown)."""
+    files = sorted(glob.glob(
+        os.path.join(root, 'allevents', 'colo', '*', 'ipplan')))
+    if not files:
+        sys.exit('%s: no site ipplan files under allevents/colo/' % root)
+    event = os.path.join(root, current_event, 'core', 'ipplan')
+    if os.path.exists(event):
+        files.append(event)
+    return files
+
+
+def parse_all(paths):
+    model = Model()
+    for path in paths:
+        Parser(model, path).parse()
+    return model
+
+
+def resolve(model, manifest):
+    """Materialize the implied pkg set into host options so the option
+    and package tables (and every consumer) see ONE truth: network pkgs
+    inherit to their hosts, manifest defaults apply per os, and a -pkg
+    blacklist beats everything (gen-2 packages.py semantics)."""
+    by_node = collections.defaultdict(list)
+    for node_id, name, value in model.options:
+        by_node[node_id].append((name, value))
+
+    def values(node_id, name):
+        return [v for n, v in by_node[node_id] if n == name]
+
+    defaults = manifest.get('default') or {}
+    network_ids = {n.node_id for n in model.networks}
+    for host in model.hosts:
+        have = values(host.node_id, 'pkg')
+        names = {v.split('(', 1)[0].lstrip('-') for v in have}
+        added = []
+        # network pkg options inherit to the network's hosts
+        for value in values(host.network_id, 'pkg'):
+            if value.split('(', 1)[0].lstrip('-') not in names:
+                added.append(value)
+                names.add(value.split('(', 1)[0].lstrip('-'))
+        # manifest defaults by os, unless the host opted out
+        if '-default' not in have:
+            osname = next(iter(values(host.node_id, 'os')), None)
+            wanted = (list(defaults.get(osname, []))
+                      + list(defaults.get('all', [])))
+            for pkg in wanted:
+                if pkg.split('(', 1)[0] not in names:
+                    added.append(pkg)
+                    names.add(pkg.split('(', 1)[0])
+        for value in added:
+            model.options.append((host.node_id, 'pkg', value))
+            by_node[host.node_id].append(('pkg', value))
+
+    # blacklist: a -pkg row deletes the pkg (and itself) on that node
+    blacklisted = {(nid, value[1:]) for nid, name, value in model.options
+                   if name == 'pkg' and value.startswith('-')
+                   and value != '-default'}
+    if blacklisted:
+        model.options = [
+            (nid, name, value) for nid, name, value in model.options
+            if not (name == 'pkg'
+                    and (nid, value.split('(', 1)[0].lstrip('-'))
+                    in blacklisted)]
+    model.options = [
+        (nid, name, value) for nid, name, value in model.options
+        if not (name == 'pkg' and value == '-default')]
+    del network_ids  # networks keep their raw options untouched
+
+
+def validate(model):
+    """Structural validation; every failure reported, none silently
+    dropped. Duplicate hosts/networks are build failures (the UNIQUE
+    indexes would also catch them - this names the lines)."""
+    seen = {}
+    for host in model.hosts:
+        for key in [('host', host.name)] + (
+                [('ip', host.ipv4)] if host.ipv4 else []):
+            if key in seen:
+                model.errors.append(
+                    'line %d: duplicate %s %s (first at line %d)'
+                    % (host.line, key[0], key[1], seen[key]))
+            else:
+                seen[key] = host.line
+    names = {}
+    for network in model.networks:
+        if network.name in names:
+            model.errors.append(
+                'line %d: duplicate network %s (first at line %d)'
+                % (network.line, network.name, names[network.name]))
+        else:
+            names[network.name] = network.line
+    if model.errors:
+        raise BuildError(model.errors)
+
+
+def create_schema(c):
+    """Prod's schema verbatim (gen-2 tables.py) + gen-3 additions and
+    the writer-side hardening indexes."""
     c.executescript('''
-        CREATE TABLE IF NOT EXISTS service (
-            name TEXT PRIMARY KEY, description TEXT, dest_ports TEXT);
-        CREATE TABLE IF NOT EXISTS flow (name TEXT PRIMARY KEY);
-        CREATE TABLE IF NOT EXISTS package_spec (
-            name TEXT PRIMARY KEY, spec TEXT);
-        CREATE TABLE IF NOT EXISTS firewall_rule (
-            from_host TEXT, from_ip TEXT, to_host TEXT, port INTEGER);
-        DELETE FROM service; DELETE FROM flow;
-        DELETE FROM package_spec; DELETE FROM firewall_rule;
-        DELETE FROM meta_data
-            WHERE name IN ('manifest_globals', 'manifest_apps');
-    ''')
+        PRAGMA foreign_keys = ON;
+        CREATE TABLE node(id INTEGER PRIMARY KEY AUTOINCREMENT);
+        CREATE TABLE host(
+            node_id INTEGER, name TEXT,
+            ipv4_addr INTEGER, ipv4_addr_txt TEXT, ipv6_addr_txt TEXT,
+            network_id INTEGER,
+            FOREIGN KEY (node_id) REFERENCES node (id),
+            FOREIGN KEY (network_id) REFERENCES node (id));
+        CREATE TABLE network(
+            node_id INTEGER, name TEXT, short_name TEXT, vlan INTEGER,
+            terminator TEXT,
+            ipv4 INTEGER, ipv4_txt TEXT, ipv6_txt TEXT,
+            ipv4_netmask INTEGER, ipv4_netmask_txt TEXT,
+            ipv6_netmask_txt TEXT,
+            ipv4_gateway INTEGER, ipv4_gateway_txt TEXT,
+            ipv6_gateway_txt TEXT,
+            ipv4_netmask_dec INTEGER, ipv6_capable INTEGER,
+            FOREIGN KEY (node_id) REFERENCES node (id));
+        CREATE TABLE option(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_id INTEGER, name TEXT, value TEXT,
+            FOREIGN KEY (node_id) REFERENCES node (id));
+        CREATE TABLE package(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_id INTEGER, name TEXT, option TEXT,
+            FOREIGN KEY (node_id) REFERENCES node (id));
+        CREATE TABLE service(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, description TEXT, dst_ports TEXT, src_ports TEXT);
+        CREATE TABLE flow(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT, description TEXT);
+        CREATE TABLE firewall_rule(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_node_id INTEGER, to_node_id INTEGER,
+            service_id INTEGER, flow_id INTEGER,
+            is_ipv4 BOOLEAN, is_ipv6 BOOLEAN,
+            FOREIGN KEY (from_node_id) REFERENCES node (id),
+            FOREIGN KEY (to_node_id) REFERENCES node (id),
+            FOREIGN KEY (service_id) REFERENCES service (id),
+            FOREIGN KEY (flow_id) REFERENCES flow (id));
+        CREATE TABLE table_coordinates(
+            name TEXT, hall TEXT, x1 INTEGER, x2 INTEGER, y1 INTEGER,
+            y2 INTEGER, x_start INTEGER, y_start INTEGER, width INTEGER,
+            height INTEGER, horizontal INTEGER);
+        CREATE TABLE switch_coordinates(
+            name TEXT, x INTEGER, y INTEGER, table_name TEXT);
+        CREATE TABLE hall_positions(name TEXT, x INTEGER, y INTEGER);
+        CREATE TABLE meta_data(name TEXT, value TEXT);
+        CREATE TABLE package_spec(name TEXT PRIMARY KEY, spec TEXT);
 
+        CREATE VIEW node_any AS
+            SELECT node_id, name, ipv4_addr_txt AS ipv4_txt,
+                   ipv6_addr_txt AS ipv6_txt
+            FROM host
+            UNION SELECT node_id, name, ipv4_txt, ipv6_txt FROM network;
+        CREATE VIEW firewall_rule_ip_level AS
+            SELECT fw.is_ipv4, fw.is_ipv6,
+                   f.name AS from_node_name, f.ipv4_txt AS from_ipv4,
+                   f.ipv6_txt AS from_ipv6,
+                   t.name AS to_node_name, t.ipv4_txt AS to_ipv4,
+                   t.ipv6_txt AS to_ipv6,
+                   fl.name AS flow_name, s.name AS service_name,
+                   s.description AS service_description,
+                   s.dst_ports AS service_dst_ports,
+                   s.src_ports AS service_src_ports
+            FROM node_any f, node_any t, service s, firewall_rule fw,
+                 flow fl
+            WHERE s.id = fw.service_id AND fl.id = fw.flow_id
+              AND f.node_id = fw.from_node_id
+              AND t.node_id = fw.to_node_id;
+
+        CREATE UNIQUE INDEX idx_host_name ON host (name);
+        CREATE UNIQUE INDEX idx_host_ipv4 ON host (ipv4_addr_txt);
+        CREATE UNIQUE INDEX idx_network_name ON network (name);
+        CREATE INDEX idx_option_node ON option (node_id, name);
+        CREATE INDEX idx_package_node ON package (node_id);
+        CREATE INDEX idx_fw_to ON firewall_rule (to_node_id);
+    ''')
+    c.executescript('''CREATE VIEW active_switch AS
+        SELECT n.node_id, h.ipv4_addr_txt, n.ipv4_txt,
+               substr(o.value, 1, 1) AS sw,
+               LOWER(n.short_name) || '-' || substr(o.value, 1, 1)
+                   || '.event.dreamhack.local' AS switch_name
+        FROM option o, network n, host h
+        WHERE h.name = switch_name AND o.name = 'sw'
+          AND n.node_id = o.node_id AND sw <> ''
+        UNION
+        SELECT n.node_id, h.ipv4_addr_txt, n.ipv4_txt,
+               substr(o.value, 2, 1) AS sw,
+               LOWER(n.short_name) || '-' || substr(o.value, 2, 1)
+                   || '.event.dreamhack.local' AS switch_name
+        FROM option o, network n, host h
+        WHERE h.name = switch_name AND o.name = 'sw'
+          AND n.node_id = o.node_id AND sw <> ''
+        UNION
+        SELECT n.node_id, h.ipv4_addr_txt, n.ipv4_txt,
+               substr(o.value, 3, 1) AS sw,
+               LOWER(n.short_name) || '-' || substr(o.value, 3, 1)
+                   || '.event.dreamhack.local' AS switch_name
+        FROM option o, network n, host h
+        WHERE h.name = switch_name AND o.name = 'sw'
+          AND n.node_id = o.node_id AND sw <> '';''')
+
+
+def emit_topology(model, c):
+    for _ in range(model.next_node):
+        c.execute('INSERT INTO node VALUES (NULL)')
+    for n in model.networks:
+        net = n.ipv4
+        c.execute(
+            'INSERT INTO network VALUES '
+            '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (n.node_id, n.name, n.short_name, n.vlan, n.terminator,
+             int(net.network_address), str(net),
+             n.ipv6[0] if n.ipv6 else None,
+             int(net.netmask), str(net.netmask),
+             n.ipv6[1] if n.ipv6 else None,
+             int(n.ipv4_gateway), str(n.ipv4_gateway),
+             n.ipv6_gateway, net.prefixlen,
+             1 if n.ipv6 or n.vlan == 0 else 0))
+    for h in model.hosts:
+        c.execute(
+            'INSERT INTO host VALUES (?, ?, ?, ?, ?, ?)',
+            (h.node_id, h.name,
+             int(ipaddress.ip_address(h.ipv4)) if h.ipv4 else None,
+             h.ipv4, h.ipv6, h.network_id))
+    for node_id, name, value in model.options:
+        c.execute('INSERT INTO option VALUES (NULL, ?, ?, ?)',
+                  (node_id, name, value))
+
+
+def emit_packages(model, c):
+    """The package table: the same resolved pkg set as the option
+    rows, name and parenthesized options split (gen-2 packages.py
+    output shape). One parse, two projections - they cannot disagree."""
+    per_node = collections.defaultdict(
+        lambda: collections.defaultdict(list))
+    for node_id, name, value in model.options:
+        if name != 'pkg':
+            continue
+        match = re.match(r'^(.*?)\((.*)\)$', value)
+        if match:
+            per_node[node_id][match.group(1)].extend(
+                match.group(2).split(','))
+        else:
+            per_node[node_id][value]
+    for node_id in sorted(per_node):
+        for pkg, options in sorted(per_node[node_id].items()):
+            for option in options or [None]:
+                c.execute('INSERT INTO package VALUES (NULL, ?, ?, ?)',
+                          (node_id, pkg, option))
+
+
+def emit_manifest(manifest, model, c):
+    """Services and flows with prod ids; the full package specs and
+    globals/apps as gen-3 additions. Site names (network domain
+    lowercased) are auto-registered as flows: they are the default
+    flow of every spec, and the ip-level view needs the join to
+    resolve."""
+    service_ids = {}
     for name, spec in sorted((manifest.get('services') or {}).items()):
         spec = spec or {}
-        c.execute('INSERT INTO service VALUES (?, ?, ?)',
+        c.execute('INSERT INTO service VALUES (NULL, ?, ?, ?, ?)',
                   (name, spec.get('description', name),
-                   ','.join(spec.get('destport', []))))
-    for name in manifest.get('flows') or []:
-        c.execute('INSERT INTO flow VALUES (?)', (name,))
+                   ','.join(spec.get('destport', [])),
+                   ','.join(spec.get('sourceport', [])) or None))
+        service_ids[name] = c.lastrowid
+    sites = sorted({n.name.split('@', 1)[0].lower()
+                    for n in model.networks})
+    flow_ids = {}
+    for name in list(manifest.get('flows') or []) + [
+            s for s in sites if s not in (manifest.get('flows') or [])]:
+        c.execute('INSERT INTO flow VALUES (NULL, ?, ?)', (name, name))
+        flow_ids[name] = c.lastrowid
     for name, spec in sorted((manifest.get('packages') or {}).items()):
         c.execute('INSERT INTO package_spec VALUES (?, ?)',
                   (name, json.dumps(spec or {}, sort_keys=True)))
@@ -83,64 +593,90 @@ def load(manifest_paths, db_path):
         if manifest.get(key) is not None:
             c.execute('INSERT INTO meta_data VALUES (?, ?)',
                       ('manifest_' + key, json.dumps(manifest[key])))
-    conn.commit()
+    return service_ids, flow_ids
 
-    # default packages by os (manifest default: section): materialize
-    # into the option table so every consumer sees them; -<pkg> or
-    # -default on the host opts out (gen-2 semantics)
-    defaults = manifest.get('default') or {}
-    c.execute("SELECT node_id, value FROM option WHERE name = 'os'")
-    host_os = dict(c.fetchall())
-    added = 0
-    for node, osname in sorted(host_os.items()):
-        wanted = list(defaults.get(osname, [])) + list(defaults.get('all', []))
-        if not wanted:
-            continue
-        c.execute("SELECT value FROM option WHERE node_id = ? "
-                  "AND name = 'pkg'", (node,))
-        have = [r[0] for r in c.fetchall()]
-        if '-default' in have:
-            continue
-        names = {v.split('(', 1)[0].lstrip('-') for v in have}
-        for pkg in wanted:
-            if pkg not in names:
-                c.execute('INSERT INTO option VALUES (?, ?, ?)',
-                          (node, 'pkg', pkg))
-                added += 1
-    # a -pkg blacklist beats even an explicit assignment (gen-2
-    # packages.py semantics)
-    c.execute("SELECT node_id, value FROM option WHERE name = 'pkg' "
-              "AND value LIKE '-%'")
-    for node, value in c.fetchall():
-        pkg = value[1:]
-        if pkg != 'default':
-            c.execute("DELETE FROM option WHERE node_id = ? AND "
-                      "name = 'pkg' AND (value = ? OR value LIKE ?)",
-                      (node, pkg, pkg + '(%'))
-    conn.commit()
 
-    # materialize the flow pairings: the same engine that used to run
-    # at ENC time now runs once here
+def emit_firewall(manifest, model, c, service_ids, flow_ids, db_path):
+    """Precompute the flow pairings in prod's node-id form; consumers
+    read the firewall_rule_ip_level view. The same gen-3 flows engine
+    that used to run at ENC time runs once here."""
     metadata.DB_FILE = db_path
+    node_of = {h.name: h.node_id for h in model.hosts}
+    has_v6 = {h.name: bool(h.ipv6) for h in model.hosts}
     rules = 0
-    for host in sorted(metadata.all_hosts_pkgs()):
-        fw = flows.firewall_params(host, manifest)
-        for port, sources in sorted(fw.get('open_tcp_scoped', {}).items()):
-            for ip in sources:
-                c.execute('INSERT INTO firewall_rule VALUES (?, ?, ?, ?)',
-                          (metadata.lookup_ip(ip) or '', ip, host, port))
-                rules += 1
+    for host in sorted(node_of):
+        for client, flow, service in flows.firewall_pairs(host, manifest):
+            c.execute(
+                'INSERT INTO firewall_rule VALUES (NULL, ?, ?, ?, ?, ?, ?)',
+                (node_of[client], node_of[host],
+                 service_ids[service], flow_ids[flow],
+                 1, 1 if has_v6[client] and has_v6[host] else 0))
+            rules += 1
+    return rules
+
+
+def build(ipplan_root, manifest_paths, db_path, svn_revision=None):
+    manifest = merge(manifest_paths)
+    current = read_currentevent(os.path.join(ipplan_root, 'currentevent'))
+    files = ipplan_files(ipplan_root, current['currentevent'])
+    model = parse_all(files)
+    resolve(model, manifest)
+    validate(model)
+
+    if os.path.exists(db_path):
+        os.unlink(db_path)
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    create_schema(c)
+    emit_topology(model, c)
+    emit_packages(model, c)
+    service_ids, flow_ids = emit_manifest(manifest, model, c)
+    conn.commit()
+    rules = emit_firewall(manifest, model, c, service_ids, flow_ids,
+                          db_path)
+    c.executemany('INSERT INTO meta_data VALUES (?, ?)', [
+        ('schema_version', SCHEMA_VERSION),
+        ('tool_version', TOOL_VERSION),
+        ('svn_revision', str(svn_revision or 0)),
+        ('build_time', datetime.datetime.now(
+            datetime.timezone.utc).isoformat(timespec='seconds')),
+        ('current_event', current['currentevent']),
+        ('apt_freeze', current['apt_freeze']),
+        ('change_freeze', current['change_freeze']),
+    ])
     conn.commit()
     conn.close()
-    print('manifest compiled: %d services, %d flows, %d packages, '
-          '%d default pkgs added, %d firewall rules' % (
-              len(manifest.get('services') or {}),
-              len(manifest.get('flows') or []),
-              len(manifest.get('packages') or {}), added, rules))
+    print('ipplan compiled: %d networks, %d hosts, %d services, '
+          '%d flows, %d packages, %d firewall rules (event %s)' % (
+              len(model.networks), len(model.hosts),
+              len(service_ids), len(flow_ids),
+              len(manifest.get('packages') or {}), rules,
+              current['currentevent']))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='compile ipplan text files + the manifest into '
+                    'ipplan.db')
+    parser.add_argument('--ipplan-root', required=True,
+                        help='svn-tree root: allevents/colo/*/ipplan, '
+                             '<event>/core/ipplan, currentevent')
+    parser.add_argument('--manifest', action='append', required=True,
+                        help='manifest part (repeat: manifest.yaml, '
+                             'appstore.yaml)')
+    parser.add_argument('--svn-revision',
+                        help='revision stamp for the meta_data row')
+    parser.add_argument('db', help='output database')
+    args = parser.parse_args()
+    try:
+        build(args.ipplan_root, args.manifest, args.db,
+              args.svn_revision)
+    except BuildError as error:
+        for line in error.errors:
+            print(line, file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        sys.exit('usage: ipplan2db <manifest.yaml> [<part.yaml> ...] '
-                 '<ipplan.db>')
-    load(sys.argv[1:-1], sys.argv[-1])
+    main()

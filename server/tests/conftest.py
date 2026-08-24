@@ -5,7 +5,6 @@
 import importlib
 import importlib.util
 import os
-import sqlite3
 import sys
 import types
 
@@ -24,67 +23,56 @@ sys.modules['lib.metadata'] = _lib.metadata
 sys.modules['lib.flows'] = _lib.flows
 
 
-@pytest.fixture
-def ipplan(tmp_path, monkeypatch, manifest):
-    """A seeded throwaway ipplan.db mirroring the lab topology."""
-    db = tmp_path / 'ipplan.db'
-    conn = sqlite3.connect(db)
-    c = conn.cursor()
-    c.executescript('''
-        CREATE TABLE network (node_id INTEGER PRIMARY KEY, name TEXT,
-            vlan INTEGER, ipv4_gateway_txt TEXT, ipv4_netmask_txt TEXT,
-            ipv4_netmask_dec INTEGER, ipv6_gateway_txt TEXT,
-            ipv6_netmask_txt TEXT);
-        CREATE TABLE host (node_id INTEGER PRIMARY KEY, name TEXT,
-            ipv4_addr_txt TEXT, ipv6_addr_txt TEXT, network_id INTEGER);
-        CREATE TABLE option (node_id INTEGER, name TEXT, value TEXT);
-        CREATE TABLE meta_data (name TEXT, value TEXT);
-    ''')
-    c.execute("INSERT INTO network VALUES (1, 'colo@prod', 200, "
-              "'10.200.0.2', '255.255.255.0', 24, NULL, NULL)")
-    c.execute("INSERT INTO network VALUES (2, 'EVENT@prod', 300, "
-              "'10.201.0.2', '255.255.255.0', 24, NULL, NULL)")
-    hosts = [
-        (13, 'provision1.test', '10.200.0.2', 1),
-        (11, 'vault1.test', '10.200.0.61', 1),
-        (12, 'puppet1.test', '10.200.0.62', 1),
-        (14, 'directory1.test', '10.200.0.63', 1),
-        (16, 'ldap1-master.test', '10.200.0.65', 1),
-        (17, 'ldap2-master.test', '10.200.0.66', 1),
-        (18, 'ldap1.test', '10.200.0.67', 1),
-        (10, 'web1.test', '10.200.0.60', 1),
-        (20, 'pve1.test', '10.10.10.1', 1),
-        (30, 'evtbox1.test', '10.201.0.60', 2),
-    ]
-    c.executemany('INSERT INTO host VALUES (?, ?, ?, NULL, ?)', hosts)
-    c.executemany('INSERT INTO option VALUES (?, ?, ?)', [
-        (13, 'pkg', 'jumpgate'),
-        (11, 'pkg', 'vault'), (11, 'webname', 'vault.dh.example'),
-        (11, 'os', 'debian'), (11, 'pkg', '-login'),
-        (12, 'pkg', 'puppetserver'), (12, 'os', 'debian'),
-        (14, 'pkg', 'lam'),
-        (16, 'pkg', 'ldap(role=master,id=1)'),
-        (17, 'pkg', 'ldap(role=master,id=2)'),
-        (18, 'pkg', 'ldap'),
-        (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
-        (10, 'os', 'debian'),
-        (20, 'pkg', 'pve'), (20, 'webname', 'pve.dh.example'),
-        (30, 'pkg', 'login'),
-    ])
-    conn.commit()
-    conn.close()
-    monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE', str(db))
-    # compile the fixture manifest with the REAL loader so the db has
-    # service/flow/package_spec and precomputed firewall_rule tables
-    mpath = tmp_path / 'manifest.yaml'
-    mpath.write_text(yaml.safe_dump(manifest))
+IPPLAN_COLO = '''\
+#@ IPV4-COLO-NET\t10.200.0.0/24
+COLO\t10.200.0.0/24\tR1\t200\tgw=10.200.0.2
+#$ provision1.test\t10.200.0.2\tpkg=jumpgate
+#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)
+#$ vault1.test\t10.200.0.61\tos=debian;pkg=vault,-login;webname=vault.dh.example
+#$ puppet1.test\t10.200.0.62\tos=debian;pkg=puppetserver
+#$ directory1.test\t10.200.0.63\tpkg=lam
+#$ ldap1-master.test\t10.200.0.65\tpkg=ldap(role=master,id=1)
+#$ ldap2-master.test\t10.200.0.66\tpkg=ldap(role=master,id=2)
+#$ ldap1.test\t10.200.0.67\tpkg=ldap
+MGMT\t10.10.10.0/24\tR1\t10\tgw=10.10.10.1
+#$ pve1.test\t10.10.10.1\tpkg=pve;webname=pve.dh.example
+'''
+
+IPPLAN_EVENT = '''\
+#@ IPV4-EVENT-NET\t10.201.0.0/24
+EVENT\t10.201.0.0/24\tR1\t300\tgw=10.201.0.2
+#$ evtbox1.test\t10.201.0.60\tpkg=login
+'''
+
+
+def load_ipplan2db():
     tool = os.path.join(HERE, '..', '..', 'utils', 'ipplan2db')
     spec = importlib.util.spec_from_loader(
         'ipplan2db', importlib.machinery.SourceFileLoader('ipplan2db',
-                                                            tool))
+                                                          tool))
     loader = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(loader)
-    loader.load([str(mpath)], str(db))
+    return loader
+
+
+@pytest.fixture
+def ipplan(tmp_path, monkeypatch, manifest):
+    """A throwaway ipplan.db built by the REAL compiler from a small
+    ipplan text tree mirroring the lab topology."""
+    root = tmp_path / 'svn'
+    site = root / 'allevents' / 'colo' / 'colo'
+    event = root / 'test' / 'core'
+    site.mkdir(parents=True)
+    event.mkdir(parents=True)
+    (site / 'ipplan').write_text(IPPLAN_COLO)
+    (event / 'ipplan').write_text(IPPLAN_EVENT)
+    (root / 'currentevent').write_text(
+        'currentevent=test\napt_freeze=false\nchange_freeze=false\n')
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text(yaml.safe_dump(manifest))
+    db = tmp_path / 'ipplan.db'
+    monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE', str(db))
+    load_ipplan2db().build(str(root), [str(mpath)], str(db))
     return db
 
 

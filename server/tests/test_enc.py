@@ -93,7 +93,7 @@ def test_appstore_apps_and_event_freeze(ipplan, manifest):
     # the freeze flag is operational state in ipplan meta_data (the
     # svn current-event file in production), not manifest policy
     conn = sqlite3.connect(str(ipplan))
-    conn.execute("INSERT INTO meta_data VALUES ('change_freeze', 'true')")
+    conn.execute("UPDATE meta_data SET value = 'true' WHERE name = 'change_freeze'")
     conn.commit()
     conn.close()
     classes = enc.classify('puppet1.test', manifest)
@@ -108,7 +108,7 @@ def test_autoupdate_colo_only_and_freeze(ipplan, manifest):
         'dhautoupdate'] == {'enabled': False}
     # the event change freeze switches colo off too
     conn = sqlite3.connect(str(ipplan))
-    conn.execute("INSERT INTO meta_data VALUES ('change_freeze', 'true')")
+    conn.execute("UPDATE meta_data SET value = 'true' WHERE name = 'change_freeze'")
     conn.commit()
     conn.close()
     assert enc.classify('web1.test', manifest)[

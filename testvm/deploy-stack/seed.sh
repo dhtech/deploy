@@ -46,82 +46,12 @@ chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
 fi
 
 
-python3 - <<'EOF'
-import sqlite3
-
-conn = sqlite3.connect('/etc/ipplan.db')
-c = conn.cursor()
-c.executescript('''
-CREATE TABLE IF NOT EXISTS network (
-  node_id INTEGER PRIMARY KEY, name TEXT, vlan INTEGER,
-  ipv4_gateway_txt TEXT, ipv4_netmask_txt TEXT, ipv4_netmask_dec INTEGER,
-  ipv6_gateway_txt TEXT, ipv6_netmask_txt TEXT);
-CREATE TABLE IF NOT EXISTS host (
-  node_id INTEGER PRIMARY KEY, name TEXT, ipv4_addr_txt TEXT,
-  ipv6_addr_txt TEXT, network_id INTEGER);
-CREATE TABLE IF NOT EXISTS option (node_id INTEGER, name TEXT, value TEXT);
-CREATE TABLE IF NOT EXISTS meta_data (name TEXT, value TEXT);
-DELETE FROM network; DELETE FROM host; DELETE FROM option; DELETE FROM meta_data;
-''')
-c.execute("INSERT INTO network VALUES (1, 'colo@prod', 200, "
-          "'10.200.0.2', '255.255.255.0', 24, NULL, NULL)")
-# Reserved: event network (no hosts yet). domain=EVENT drives the
-# LUKS + services-<event> secret flow in the deploy backend.
-c.execute("INSERT INTO network VALUES (2, 'EVENT@prod', 300, "
-          "'10.201.0.2', '255.255.255.0', 24, NULL, NULL)")
-c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
-    (10, 'web1.colo.notproduction.net', '10.200.0.60'),
-    (11, 'vault1.colo.notproduction.net', '10.200.0.61'),
-    (12, 'puppet1.colo.notproduction.net', '10.200.0.62'),
-    (13, 'provision1.colo.notproduction.net', '10.200.0.2'),
-    (14, 'directory1.colo.notproduction.net', '10.200.0.63'),
-    (15, 'doc1.colo.notproduction.net', '10.200.0.64'),
-    (16, 'ldap1-master.colo.notproduction.net', '10.200.0.65'),
-    (17, 'ldap2-master.colo.notproduction.net', '10.200.0.66'),
-    (18, 'ldap1.colo.notproduction.net', '10.200.0.67'),
-    (19, 'ldap2.colo.notproduction.net', '10.200.0.68'),
-    # the hypervisors (mgmt VLAN) - puppet-enrolled by hand, never deployed
-    (20, 'pve1.colo.notproduction.net', '10.10.10.1'),
-    (21, 'pve2.colo.notproduction.net', '10.10.10.3'),
-    # ssh entry point for users - like production
-    (22, 'jumpgate1.colo.notproduction.net', '10.200.0.69'),
-])
-c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
-    (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
-    (13, 'pkg', 'jumpgate'), (13, 'pkg', 'deploy'),
-    (13, 'os', 'debian'),
-    (22, 'os', 'debian'), (22, 'pkg', 'jumpgate'), (22, 'pkg', 'base'),
-    (11, 'os', 'debian'), (11, 'pkg', 'vault'),
-    (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
-    (12, 'webname', 'puppet.dh.notproduction.net'),
-    (14, 'os', 'debian'), (14, 'pkg', 'lam'),
-    (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
-    (16, 'os', 'debian'), (16, 'pkg', 'ldap(role=master,id=1)'),
-    (17, 'os', 'debian'), (17, 'pkg', 'ldap(role=master,id=2)'),
-    (18, 'os', 'debian'), (18, 'pkg', 'ldap'),
-    (19, 'os', 'debian'), (19, 'pkg', 'ldap'),
-    (20, 'os', 'debian'), (20, 'pkg', 'pve'),
-    # public website names (webname): drives certs, nginx server_name,
-    # the issuer domain list - single source of truth
-    (11, 'webname', 'vault.dh.notproduction.net'),
-    (14, 'webname', 'directory.dh.notproduction.net'),
-    (15, 'webname', 'doc.dh.notproduction.net'),
-    (20, 'webname', 'pve1.dh.notproduction.net'),
-    (21, 'os', 'debian'), (21, 'pkg', 'pve'),
-    (21, 'webname', 'pve2.dh.notproduction.net'),
-    (13, 'webname', 'deploy.dh.notproduction.net'),
-])
-c.execute("INSERT INTO meta_data VALUES ('current_event', 'test')")
-# Operational flags ride with current_event (in prod both come from
-# the current-event file in svn -> ipplan db). change_freeze=true
-# during events: the appstore stops following upstream releases.
-c.execute("INSERT INTO meta_data VALUES ('change_freeze', 'false')")
-conn.commit()
-conn.close()
-print('ipplan.db seeded')
-EOF
-# compile the manifest into the db - provision reads ONLY ipplan.db
-python3 "$repo/utils/ipplan2db" "$stack/manifest.yaml" "$stack/appstore.yaml" /etc/ipplan.db
+# compile the vendored ipplan snapshot + manifest into the db -
+# provision reads ONLY ipplan.db. In production the svn pipeline
+# on doc1 runs this same compiler and puppet distributes the db.
+python3 "$repo/utils/ipplan2db" --ipplan-root "$stack/ipplan" \
+    --manifest "$stack/manifest.yaml" --manifest "$stack/appstore.yaml" \
+    /etc/ipplan.db
 rm -f /etc/manifest  # gen-3: provision reads only the db
 chmod 644 /etc/ipplan.db
 

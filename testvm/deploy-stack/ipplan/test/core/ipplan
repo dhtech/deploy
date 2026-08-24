@@ -1,0 +1,9 @@
+# Lab event 'test' (gen-3): the EVENT network, reserved - no hosts
+# yet. Selected by currentevent; pointing currentevent away from
+# 'test' removes this whole topology from the next build (teardown).
+# domain=EVENT drives the LUKS + services-<event> secret flow.
+
+#@ IPV4-EVENT-NET	10.201.0.0/24
+
+#Name		#Net		#Terminator	#VLAN	#Options
+EVENT		10.201.0.0/24	R1		300	gw=10.201.0.2

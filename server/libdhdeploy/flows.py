@@ -28,14 +28,7 @@ def _parse_spec(spec, default_flow):
 def _tcp_ports(service_def):
     """destport entries like '636/tcp' or '5900-5910/tcp' to a port list.
     Only tcp: dhfirewall has no scoped udp support yet."""
-    ports = []
-    for entry in service_def.get('destport', []):
-        port, _, proto = entry.partition('/')
-        if proto != 'tcp':
-            continue
-        lo, _, hi = port.partition('-')
-        ports.extend(range(int(lo), int(hi or lo) + 1))
-    return ports
+    return metadata.tcp_ports(service_def.get('destport', []))
 
 
 def _specs(packages, pkg, params, access):
@@ -53,43 +46,51 @@ def _specs(packages, pkg, params, access):
     return (packages.get(pkg) or {}).get(access, [])
 
 
-def firewall_params(hostname, manifest):
-    """dhfirewall parameters for a host derived from the manifest's
-    client/server flow declarations: each service this host serves gets
-    its tcp destports opened to the hosts whose client spec matches on
-    (flow, service). Empty dict when the host serves nothing."""
+def firewall_pairs(hostname, manifest):
+    """The flow pairings for a host: for each service this host
+    serves, every host whose client spec matches on (flow, service).
+    Returns sorted (client_host, flow, service) tuples - what
+    ipplan2db precomputes into prod's node-id firewall_rule form."""
     packages = manifest.get('packages', {})
-    services = manifest.get('services', {})
 
     server_specs = []
     for pkg, params in metadata.pkgs_with_params(hostname):
         server_specs.extend(_specs(packages, pkg, params, 'server'))
     if not server_specs:
-        return {}
+        return []
 
-    # (flow, service) -> client IPs, from every host's client specs
+    # (flow, service) -> client hosts, from every host's client specs
     clients = collections.defaultdict(set)
     for other, pkgs in metadata.all_hosts_pkgs().items():
         if other == hostname:
             continue
         site = metadata.host_site(other)
-        ip = metadata.host_ip(other)
-        if not ip:
+        if not metadata.host_ip(other):
             continue
         for pkg, params in pkgs:
             for spec in _specs(packages, pkg, params, 'client'):
-                clients[_parse_spec(spec, site)].add(ip)
+                clients[_parse_spec(spec, site)].add(other)
 
     my_site = metadata.host_site(hostname)
-    scoped = collections.defaultdict(set)
+    pairs = set()
     for spec in server_specs:
         flow, service = _parse_spec(spec, my_site)
-        sources = clients.get((flow, service))
-        if not sources:
-            continue
-        for port in _tcp_ports(services.get(service) or {}):
-            scoped[port] |= sources
+        for client in clients.get((flow, service), ()):
+            pairs.add((client, flow, service))
+    return sorted(pairs)
 
+
+def firewall_params(hostname, manifest):
+    """dhfirewall parameters for a host derived from the manifest's
+    client/server flow declarations: each service this host serves gets
+    its tcp destports opened to the hosts whose client spec matches on
+    (flow, service). Empty dict when the host serves nothing."""
+    services = manifest.get('services', {})
+    scoped = collections.defaultdict(set)
+    for client, _flow, service in firewall_pairs(hostname, manifest):
+        ip = metadata.host_ip(client)
+        for port in _tcp_ports(services.get(service) or {}):
+            scoped[port].add(ip)
     if not scoped:
         return {}
     return {'open_tcp_scoped': {port: sorted(ips)
