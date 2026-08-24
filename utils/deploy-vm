@@ -227,7 +227,7 @@ if __name__ == '__main__':
   if args.add_esxi or args.add_to_dvs:
     creation, create_key = configure(args)
   else:
-    # hw info from the compiled manifest in ipplan.db (manifest2db)
+    # hw info from the compiled manifest in ipplan.db (ipplan2db)
     conn = sqlite3.connect(DB_FILE)
     manifest = {'packages': {
         name: json.loads(spec) for name, spec in

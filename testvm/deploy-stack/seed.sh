@@ -118,7 +118,7 @@ conn.close()
 print('ipplan.db seeded')
 EOF
 # compile the manifest into the db - provision reads ONLY ipplan.db
-python3 "$repo/utils/manifest2db" "$stack/manifest.yaml" /etc/ipplan.db
+python3 "$repo/utils/ipplan2db" "$stack/manifest.yaml" /etc/ipplan.db
 rm -f /etc/manifest  # gen-3: provision reads only the db
 chmod 644 /etc/ipplan.db
 

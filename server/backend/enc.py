@@ -49,7 +49,7 @@ def classify(hostname, manifest):
             continue
         merge_params(classes, generator.generate(hostname, params, manifest))
 
-    # Firewall flows: precomputed by manifest2db at db build (the
+    # Firewall flows: precomputed by ipplan2db at db build (the
     # ruleset is data - query firewall_rule to audit or diff it).
     scoped = metadata.firewall_rules_to(hostname)
     if scoped:

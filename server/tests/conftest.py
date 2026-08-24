@@ -77,9 +77,9 @@ def ipplan(tmp_path, monkeypatch, manifest):
     # service/flow/package_spec and precomputed firewall_rule tables
     mpath = tmp_path / 'manifest.yaml'
     mpath.write_text(yaml.safe_dump(manifest))
-    tool = os.path.join(HERE, '..', '..', 'utils', 'manifest2db')
+    tool = os.path.join(HERE, '..', '..', 'utils', 'ipplan2db')
     spec = importlib.util.spec_from_loader(
-        'manifest2db', importlib.machinery.SourceFileLoader('manifest2db',
+        'ipplan2db', importlib.machinery.SourceFileLoader('ipplan2db',
                                                             tool))
     loader = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(loader)

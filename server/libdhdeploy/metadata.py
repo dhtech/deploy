@@ -313,7 +313,7 @@ def host_ip(hostname):
 
 def get_manifest():
     """The manifest, reassembled from the database. The yaml file is a
-    BUILD input (svn later): utils/manifest2db compiles it in, and
+    BUILD input (svn later): utils/ipplan2db compiles it in, and
     provision reads only ipplan.db at runtime."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -338,7 +338,7 @@ def get_manifest():
 
 
 def firewall_rules_to(hostname):
-    """Precomputed firewall openings for a host (manifest2db writes
+    """Precomputed firewall openings for a host (ipplan2db writes
     them at db build): {port: [source ips]}."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
