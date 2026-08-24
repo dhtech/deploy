@@ -135,6 +135,10 @@ def test_merge_lists_union_scalars_override():
     assert 'b' in target
 
 
-def test_unknown_host_gets_firewall_only(ipplan, manifest):
+def test_unknown_host_gets_firewall_and_ipplan(ipplan, manifest):
+    # the safe floor: locked-down firewall, and the ipplan consumer -
+    # granted by the ENC for every host, never by the (possibly
+    # lagging) db itself
     assert enc.classify('nosuch.test', manifest) == {
-        'dhfirewall': {'jumpgates': ['10.200.0.2']}}
+        'dhfirewall': {'jumpgates': ['10.200.0.2']},
+        'dhipplan': {}}
