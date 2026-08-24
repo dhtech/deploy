@@ -19,6 +19,9 @@ def generate(host, params, manifest):
     webname = metadata.host_option(host, 'webname')
     if webname:
         out['dhpve']['cert_name'] = webname
+        # WebAuthn rp id: the parent domain, so credentials work on
+        # every pve web name (pve1/pve2 both end in it)
+        out['dhpve']['webauthn_rp_id'] = webname.split('.', 1)[1]
         out['dhacme::cert'] = {
             'cert_name': webname,
             'vault_addr': _ldap.vault_addr(),

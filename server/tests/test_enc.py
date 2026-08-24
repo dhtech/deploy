@@ -70,6 +70,8 @@ def test_pve_ldap_realm_params(ipplan, manifest):
     assert pve['ldap_base'] == 'dc=dreamhack,dc=se'
     assert pve['admin_group_dn'] == 'cn=g,dc=x'
     assert pve['admin_role'] == 'Administrator'
+    # webauthn rp id = parent domain of the webname
+    assert pve['webauthn_rp_id'] == 'dh.example'
 
 
 def test_login_host_flows_only_reach_same_site(ipplan, manifest):
