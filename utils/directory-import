@@ -142,6 +142,13 @@ def transform(stream, out):
         if not new_ocs or new_ocs == ['top']:
             skipped += 1
             continue
+        # user entries get the dhPerson extension up front: the ACLs
+        # let people edit their own dhtech attributes but never their
+        # objectClass, so self-service needs the class pre-provisioned
+        lower_ocs = [oc.lower() for oc in new_ocs]
+        if ('posixaccount' in lower_ocs and 'inetorgperson' in lower_ocs
+                and 'dhperson' not in lower_ocs):
+            new_ocs.append('dhPerson')
         new_attrs = [('objectClass', oc, False) for oc in new_ocs]
         new_attrs += [(a, v, b) for a, v, b in attrs
                       if a.lower() != 'objectclass' and keep_attr(a)]
