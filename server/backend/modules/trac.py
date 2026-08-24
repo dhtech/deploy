@@ -16,4 +16,5 @@ def generate(host, params, manifest):
                                'reload_cmd': 'systemctl reload apache2'}
         out['dhdoc'] = {'server_name': webname,
                         'ldap_uris': _ldap.slave_uris()}
+        out['dhdoc::trac'] = {'ldap_uris': _ldap.slave_uris()}
     return out
