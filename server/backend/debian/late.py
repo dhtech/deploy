@@ -19,7 +19,10 @@ client, cm = metadata.find(ip)
 config = metadata.config()
 base = metadata.base_url()
 
-jumpgates = config.get('jumpgates', [])
+# jumpgates come from ipplan.db (pkg jumpgate), the same source the
+# steady-state firewall uses - one truth from the first boot onward
+jumpgates = [metadata.host_ip(h)
+             for h, _ in metadata.hosts_with_pkg('jumpgate')]
 puppet_server = config.get('puppet_server', 'puppet.tech.dreamhack.se')
 resolvers = config.get('resolvers', ['8.8.8.8'])
 ssh_port = int(config.get('ssh_port', 22))

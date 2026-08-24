@@ -36,7 +36,6 @@ cat > /etc/deploy.yaml <<EOF
 redis:
   host: localhost
 base_url: http://10.100.0.2:8080
-jumpgates: [10.200.0.2]
 puppet_server: puppet1.colo.notproduction.net
 syslog_host: 10.100.0.2
 resolvers: [10.200.0.2]
