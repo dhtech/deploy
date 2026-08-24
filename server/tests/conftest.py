@@ -60,13 +60,14 @@ def ipplan(tmp_path, monkeypatch, manifest):
     c.executemany('INSERT INTO option VALUES (?, ?, ?)', [
         (13, 'pkg', 'jumpgate'),
         (11, 'pkg', 'vault'), (11, 'webname', 'vault.dh.example'),
-        (12, 'pkg', 'puppetserver'),
+        (11, 'os', 'debian'), (11, 'pkg', '-login'),
+        (12, 'pkg', 'puppetserver'), (12, 'os', 'debian'),
         (14, 'pkg', 'lam'),
         (16, 'pkg', 'ldap(role=master,id=1)'),
         (17, 'pkg', 'ldap(role=master,id=2)'),
         (18, 'pkg', 'ldap'),
         (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
-        (10, 'pkg', 'login'),
+        (10, 'os', 'debian'),
         (20, 'pkg', 'pve'), (20, 'webname', 'pve.dh.example'),
         (30, 'pkg', 'login'),
     ])
@@ -92,6 +93,7 @@ def manifest():
     return {
         'globals': {'acme': {'email': 'a@example', 'server': 'https://acme'}},
         'flows': ['ldaprepl', 'ldapwrite'],
+        'default': {'debian': ['login']},
         'services': {
             'ldaps': {'destport': ['636/tcp']},
         },

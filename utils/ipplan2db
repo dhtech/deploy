@@ -65,6 +65,40 @@ def load(manifest_path, db_path):
                       ('manifest_' + key, json.dumps(manifest[key])))
     conn.commit()
 
+    # default packages by os (manifest default: section): materialize
+    # into the option table so every consumer sees them; -<pkg> or
+    # -default on the host opts out (gen-2 semantics)
+    defaults = manifest.get('default') or {}
+    c.execute("SELECT node_id, value FROM option WHERE name = 'os'")
+    host_os = dict(c.fetchall())
+    added = 0
+    for node, osname in sorted(host_os.items()):
+        wanted = list(defaults.get(osname, [])) + list(defaults.get('all', []))
+        if not wanted:
+            continue
+        c.execute("SELECT value FROM option WHERE node_id = ? "
+                  "AND name = 'pkg'", (node,))
+        have = [r[0] for r in c.fetchall()]
+        if '-default' in have:
+            continue
+        names = {v.split('(', 1)[0].lstrip('-') for v in have}
+        for pkg in wanted:
+            if pkg not in names:
+                c.execute('INSERT INTO option VALUES (?, ?, ?)',
+                          (node, 'pkg', pkg))
+                added += 1
+    # a -pkg blacklist beats even an explicit assignment (gen-2
+    # packages.py semantics)
+    c.execute("SELECT node_id, value FROM option WHERE name = 'pkg' "
+              "AND value LIKE '-%'")
+    for node, value in c.fetchall():
+        pkg = value[1:]
+        if pkg != 'default':
+            c.execute("DELETE FROM option WHERE node_id = ? AND "
+                      "name = 'pkg' AND (value = ? OR value LIKE ?)",
+                      (node, pkg, pkg + '(%'))
+    conn.commit()
+
     # materialize the flow pairings: the same engine that used to run
     # at ENC time now runs once here
     metadata.DB_FILE = db_path
@@ -79,10 +113,10 @@ def load(manifest_path, db_path):
     conn.commit()
     conn.close()
     print('manifest compiled: %d services, %d flows, %d packages, '
-          '%d firewall rules' % (
+          '%d default pkgs added, %d firewall rules' % (
               len(manifest.get('services') or {}),
               len(manifest.get('flows') or []),
-              len(manifest.get('packages') or {}), rules))
+              len(manifest.get('packages') or {}), added, rules))
 
 
 if __name__ == '__main__':

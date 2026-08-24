@@ -25,10 +25,11 @@ def test_ldap_slave_defaults(ipplan, manifest):
     assert classes['dhldap::server']['role'] == 'slave'
     assert 'server_id' not in classes['dhldap::server']
     # flows: a slave serves the declared ldaps clients of its OWN site
-    # (login/vault/pve; pve1 sits on the mgmt net outside the site
-    # CIDR, the flow still finds it; evtbox1 is another site - no)
+    # (web1+puppet1 get login via the debian DEFAULT, vault/pve declare
+    # it; pve1 sits on the mgmt net outside the site CIDR, the flow
+    # still finds it; evtbox1 is another site - no)
     assert classes['dhfirewall']['open_tcp_scoped'] == {
-        636: ['10.10.10.1', '10.200.0.60', '10.200.0.61']}
+        636: ['10.10.10.1', '10.200.0.60', '10.200.0.61', '10.200.0.62']}
 
 
 def test_web_port_from_pkg_arg(ipplan, manifest):
@@ -112,6 +113,13 @@ def test_autoupdate_colo_only_and_freeze(ipplan, manifest):
     conn.close()
     assert enc.classify('web1.test', manifest)[
         'dhautoupdate'] == {'enabled': False}
+
+
+def test_default_packages_by_os(ipplan, manifest):
+    # debian hosts get pkg login by default; -login opts out
+    assert 'dhlogin' in enc.classify('web1.test', manifest)
+    assert 'dhlogin' in enc.classify('puppet1.test', manifest)
+    assert 'dhlogin' not in enc.classify('vault1.test', manifest)
 
 
 def test_jumpgates_from_ipplan(ipplan, manifest):

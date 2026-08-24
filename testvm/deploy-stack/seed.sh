@@ -86,11 +86,10 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
-    (10, 'pkg', 'login'),
     (13, 'pkg', 'jumpgate'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
-    (12, 'pkg', 'login'), (12, 'webname', 'puppet.dh.notproduction.net'),
+    (12, 'webname', 'puppet.dh.notproduction.net'),
     (14, 'os', 'debian'), (14, 'pkg', 'lam'),
     (15, 'os', 'debian'), (15, 'pkg', 'trac'), (15, 'pkg', 'svn'),
     (16, 'os', 'debian'), (16, 'pkg', 'ldap(role=master,id=1)'),
