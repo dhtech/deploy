@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""svn pre-commit gate: the ipplan pipeline's quality door (gen-3).
+
+Rework of prod's verify-only pre-commit (allevents/colo/svn-hooks):
+the gate now runs a FULL ipplan2db compile of the transaction - every
+site ipplan, the currentevent-selected event file and the manifest
+parts - into a throwaway database. A commit that would not build is
+rejected, with ALL failing checks in the commit error, not just the
+first.
+
+The successful build is STASHED, keyed by the sha256 of its input
+files: it becomes THE artifact. post-commit publishes the stashed db
+for the committed revision instead of rebuilding what the gate
+already built (on an input-hash mismatch - a racing commit - it
+rebuilds with the same tool).
+
+This script lives IN the repository (allevents/colo/svn-hooks/, prod
+convention) next to the vendored toolchain (ipplan2db + libdhdeploy).
+The repo-side hooks/pre-commit shim exports the LAST-COMMITTED copy
+and runs that - never the transaction's own hook code.
+
+Usage: svn-pre-commit <repo-path> <txn-name> (svn hook calling
+convention); set DH_TXN_REV=-r to gate a committed revision instead
+of a transaction (post-commit rebuild fallback, tests).
+"""
+
+import hashlib
+import importlib.machinery
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+STASH = '/var/lib/dh-ipplan/stash'
+STASH_KEEP = 20
+
+# The build inputs: everything under these paths participates in the
+# compile AND in the input hash. Any other path commits ungated.
+MANIFEST_PARTS = ('services/manifest.yaml', 'services/appstore.yaml')
+
+
+def svnlook(cmd, repo, flag, txn, *args):
+    return subprocess.run(
+        ['svnlook', cmd, flag, txn, repo] + list(args),
+        capture_output=True, text=True, check=True).stdout
+
+
+def load_ipplan2db():
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_loader(
+        'ipplan2db', importlib.machinery.SourceFileLoader(
+            'ipplan2db', os.path.join(here, 'ipplan2db')))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def build_inputs(repo, flag, txn):
+    """The compile-relevant files present in the transaction's tree:
+    {repo-path: content}. svnlook tree gives the whole tree state, so
+    a commit touching one file still compiles against everything."""
+    inputs = {}
+    tree = svnlook('tree', repo, flag, txn, '--full-paths')
+    for line in tree.splitlines():
+        path = line.strip()
+        if not path or path.endswith('/'):
+            continue
+        if (path == 'currentevent' or path in MANIFEST_PARTS
+                or (path.endswith('/ipplan')
+                    and 'svn-hooks' not in path)):
+            inputs[path] = svnlook('cat', repo, flag, txn, path)
+    return inputs
+
+
+def input_hash(inputs):
+    digest = hashlib.sha256()
+    for path in sorted(inputs):
+        digest.update(path.encode() + b'\0')
+        digest.update(inputs[path].encode() + b'\0')
+    return digest.hexdigest()
+
+
+def compile_tree(inputs, db_path):
+    """Materialize the inputs as the tree ipplan2db expects and build.
+    Raises ipplan2db.BuildError with every failing check on bad input."""
+    tool = load_ipplan2db()
+    with tempfile.TemporaryDirectory() as root:
+        for path, content in inputs.items():
+            target = os.path.join(root, path)
+            os.makedirs(os.path.dirname(target) or root, exist_ok=True)
+            with open(target, 'w') as f:
+                f.write(content)
+        manifests = [os.path.join(root, p) for p in MANIFEST_PARTS
+                     if os.path.exists(os.path.join(root, p))]
+        if not manifests:
+            raise tool.BuildError(['services/manifest.yaml missing: '
+                                   'the manifest is a build input'])
+        if not os.path.exists(os.path.join(root, 'currentevent')):
+            raise tool.BuildError(['currentevent missing: it selects '
+                                   'the event to compile'])
+        tool.build(root, manifests, db_path)
+    return tool
+
+
+def stash(db_path, key):
+    os.makedirs(STASH, exist_ok=True)
+    target = os.path.join(STASH, key + '.db')
+    os.replace(db_path, target)
+    os.chmod(target, 0o644)
+    stashes = sorted((os.path.getmtime(os.path.join(STASH, f)), f)
+                     for f in os.listdir(STASH) if f.endswith('.db'))
+    for _, old in stashes[:-STASH_KEEP]:
+        os.unlink(os.path.join(STASH, old))
+    return target
+
+
+def main():
+    repo, txn = sys.argv[1], sys.argv[2]
+    flag = os.environ.get('DH_TXN_REV', '-t')
+
+    changed = svnlook('changed', repo, flag, txn)
+    relevant = [parts[1] for parts in
+                (line.split(None, 1) for line in changed.splitlines())
+                if len(parts) == 2]
+    if not any(p == 'currentevent' or p in MANIFEST_PARTS
+               or (p.endswith('/ipplan') and 'svn-hooks' not in p)
+               for p in relevant):
+        return 0
+
+    inputs = build_inputs(repo, flag, txn)
+    key = input_hash(inputs)
+    # build inside the stash filesystem so the final rename is atomic
+    # (and possible - /tmp is another device)
+    os.makedirs(STASH, exist_ok=True)
+    db_path = os.path.join(
+        STASH, '.build-%d-%s.db' % (os.getpid(), key[:12]))
+    try:
+        tool = compile_tree(inputs, db_path)
+    except (Exception, SystemExit) as error:
+        # the compiler reports manifest/currentevent problems via
+        # sys.exit(message) - in-process that is a SystemExit
+        errors = getattr(error, 'errors', None) or [str(error)]
+        print('ipplan build REJECTED (%d error%s):' % (
+            len(errors), 's' if len(errors) != 1 else ''), file=sys.stderr)
+        for line in errors:
+            print('  ' + line, file=sys.stderr)
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        return 1
+
+    target = stash(db_path, key)
+    meta = {'input_hash': key, 'stashed_at': int(time.time()),
+            'tool_version': tool.TOOL_VERSION}
+    with open(target[:-3] + '.json', 'w') as f:
+        json.dump(meta, f)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

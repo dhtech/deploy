@@ -4,7 +4,6 @@ import sqlite3
 import ssl
 import urllib.request
 
-import redis
 import yaml
 
 # Standardized in gen-3: one path for the ipplan database (was three
@@ -36,6 +35,9 @@ def config():
 
 
 def connection():
+    # imported lazily: the ipplan toolchain (ipplan2db + this module)
+    # is vendored onto hosts like doc1 that have no redis at all
+    import redis
     return redis.Redis(**config()['redis'])
 
 
