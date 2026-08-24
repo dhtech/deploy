@@ -47,7 +47,7 @@ browser
 | `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
 | `127.0.0.1:8444` | → directory1:443 (DNAT) | Directory UI (LAM) | live |
-| `127.0.0.1:8445` | → doc1:443 (DNAT) | Trac + SVN (doc) | reserved |
+| `127.0.0.1:8445` | → doc1:443 (DNAT) | Trac + SVN (doc) | live |
 | `127.0.0.1:8447` | → puppet1:443 (DNAT) | **puppetboard** (nginx + LE, tech group) | live |
 
 Live URLs:
