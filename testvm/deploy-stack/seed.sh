@@ -30,8 +30,9 @@ install -m 755 "$repo/server/frontend/status.json.py" /var/www/status.json.py
 install -m 755 "$repo/utils/deploy-vm" /usr/local/bin/deploy-vm
 
 # --- config: deploy.yaml, manifest, ipplan.db ----------------------------
-# Preserve live-provisioned secret-store settings across reseeds
-vault_lines=$(grep -E "^vault_(addr|token|cacert|cert|key):" /etc/deploy.yaml 2>/dev/null || true)
+# Bootstrap only on a fresh bench: puppet (dhdeploy::config) owns
+# this file once provision1 is enrolled - reseeds never touch it.
+if [ ! -f /etc/deploy.yaml ]; then
 cat > /etc/deploy.yaml <<EOF
 redis:
   host: localhost
@@ -41,8 +42,8 @@ syslog_host: 10.100.0.2
 resolvers: [10.200.0.2]
 ssh_port: 22
 EOF
-[ -n "$vault_lines" ] && printf "%s\n" "$vault_lines" >> /etc/deploy.yaml
 chown root:www-data /etc/deploy.yaml; chmod 640 /etc/deploy.yaml
+fi
 
 
 python3 - <<'EOF'
@@ -87,8 +88,9 @@ c.executemany("INSERT INTO host VALUES (?, ?, ?, NULL, 1)", [
 ])
 c.executemany("INSERT INTO option VALUES (?, ?, ?)", [
     (10, 'os', 'debian'), (10, 'pkg', 'base'), (10, 'pkg', 'web(port=80)'),
-    (13, 'pkg', 'jumpgate'),
-    (22, 'os', 'debian'), (22, 'pkg', 'jumpgate'),
+    (13, 'pkg', 'jumpgate'), (13, 'pkg', 'deploy'),
+    (13, 'os', 'debian'),
+    (22, 'os', 'debian'), (22, 'pkg', 'jumpgate'), (22, 'pkg', 'base'),
     (11, 'os', 'debian'), (11, 'pkg', 'vault'),
     (12, 'os', 'debian'), (12, 'pkg', 'puppetserver'),
     (12, 'webname', 'puppet.dh.notproduction.net'),
