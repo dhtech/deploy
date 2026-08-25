@@ -45,6 +45,22 @@ def test_no_diff_dir_no_changes_section(ipplan):
     assert 'Recent changes' not in load_stats().render(str(ipplan))
 
 
+def test_tabs_are_pure_html5(ipplan, tmp_path):
+    """Tabbed layout with NO JavaScript: radio/label CSS tabs, all
+    five tabs present, Download tab lists the publish artifacts."""
+    (tmp_path / 'ipplan.db.xz').write_bytes(b'x' * 2048)
+    (tmp_path / 'REVISION').write_text('9\n')
+    (tmp_path / 'ipplan-r9.db.xz').write_bytes(b'x')
+    page = load_stats().render(str(ipplan), str(tmp_path))
+    assert '<script' not in page
+    for tab in ('overview', 'heatmap', 'free', 'changes', 'download'):
+        assert 'id="pick-%s"' % tab in page
+        assert 'id="tab-%s"' % tab in page
+    assert '<a href="ipplan.db.xz">ipplan.db.xz</a>' in page
+    assert '2.0 KiB' in page
+    assert page.index('"REVISION"') < page.index('"ipplan-r9.db.xz"')
+
+
 def test_network_holes(ipplan):
     """Unallocated ranges inside networks: the lab colo /24 has hosts
     at .2 and .60-.69, so .3-.59 must show as a free range."""
