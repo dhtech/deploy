@@ -21,7 +21,7 @@ COLO		10.200.0.0/24	R1		200	nat;pkg=servers
 #$ ldap2-master.colo.notproduction.net	10.200.0.66	os=debian;pkg=ldap(role=master,id=2)
 #$ ldap1.colo.notproduction.net		10.200.0.67	os=debian;pkg=ldap
 #$ ldap2.colo.notproduction.net		10.200.0.68	os=debian;pkg=ldap
-#$ jumpgate1.colo.notproduction.net	10.200.0.69	os=debian;pkg=jumpgate,base;expose=2022:22
+#$ jumpgate1.colo.notproduction.net	10.200.0.69	os=debian;pkg=jumpgate,base;expose=2022:2022
 #$ prometheus1.colo.notproduction.net	10.200.0.70	os=debian;pkg=prometheus;expose=448:443;webname=prometheus.dh.notproduction.net
 
 # The deployment VLAN: installers live here (dynamic, PXE - no host
