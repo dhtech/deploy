@@ -28,7 +28,6 @@ apps:
   deploy-backend:
     kind: local
     repo: /srv/deploy.git
-    path: server
     interval: fast
   deployd:
     kind: local
