@@ -1,0 +1,21 @@
+[Unit]
+Description=Dreamhack deploy daemon (deployd)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deployd
+Group=deployd
+# Secrets (REDIS_PASSWORD, PVE_TOKEN_SECRET, VAULT_CERT/VAULT_KEY, VAULT_MOUNT)
+EnvironmentFile=-/etc/deployd/deployd.env
+ExecStart=/opt/deployd/bin/python -m deployd --config /etc/deployd/config.yaml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/deployd
+
+[Install]
+WantedBy=multi-user.target
