@@ -33,6 +33,17 @@ def merge_params(target, extra):
                 continue
             if isinstance(value, list) and isinstance(slot.get(key), list):
                 slot[key] = slot[key] + [v for v in value if v not in slot[key]]
+            elif isinstance(value, dict) and isinstance(slot.get(key), dict):
+                # dict params merge per key (open_tcp_scoped maps from
+                # several sources must COMBINE - a later contributor
+                # must not wipe an earlier one's ports)
+                for k2, v2 in value.items():
+                    if (isinstance(v2, list)
+                            and isinstance(slot[key].get(k2), list)):
+                        slot[key][k2] = slot[key][k2] + [
+                            v for v in v2 if v not in slot[key][k2]]
+                    else:
+                        slot[key][k2] = v2
             else:
                 slot[key] = value
 
