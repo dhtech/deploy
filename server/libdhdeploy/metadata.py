@@ -435,8 +435,11 @@ def _vault_context(cfg):
 def _vault_token(cfg, context):
     if cfg.get('vault_token'):
         return cfg['vault_token']
+    # named role: the deploy server's cert maps to the scoped 'deploy'
+    # role (services/*); generic hosts use the minimal 'host' role
     request = urllib.request.Request(
-        '%s/v1/auth/cert/login' % cfg['vault_addr'], data=b'{}', method='POST')
+        '%s/v1/auth/cert/login' % cfg['vault_addr'],
+        data=b'{"name": "deploy"}', method='POST')
     with urllib.request.urlopen(request, timeout=10, context=context) as response:
         return json.load(response)['auth']['client_token']
 
