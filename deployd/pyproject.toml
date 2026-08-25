@@ -7,14 +7,16 @@ name = "deployd"
 version = "3.0.0"
 description = "Dreamhack deploy VM/hardware provisioner (Proxmox, VMware, C7000, OCP)"
 requires-python = ">=3.11"
+# floors/ceilings match what Debian 13 ships (deps come as debs in
+# production, apt does not enforce these - pip installs do)
 dependencies = [
     "proxmoxer~=2.2",
     "requests~=2.32",
     "pyvmomi~=8.0",
-    "redis~=5.2",
+    "redis>=5.2,<7",
     "hvac~=2.3",
     "PyYAML~=6.0",
-    "pyghmi~=1.6",
+    "pyghmi>=1.5.70,<2",
 ]
 
 [project.optional-dependencies]
