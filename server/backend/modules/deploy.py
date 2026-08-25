@@ -9,10 +9,14 @@ from . import ldap as _ldap
 
 def generate(host, params, manifest):
     puppetservers = metadata.hosts_with_pkg('puppetserver')
-    return {
+    out = {
         'dhdeploy::config': {
             'puppet_server': puppetservers[0][0] if puppetservers else None,
             'resolvers': [metadata.host_ip(host)],
             'vault_addr': _ldap.vault_addr(),
         },
     }
+    webname = metadata.host_option(host, 'webname')
+    if webname:
+        out['dhdeploy::web'] = {'webname': webname}
+    return out
