@@ -412,6 +412,44 @@ def validate(model):
         raise BuildError(model.errors)
 
 
+def db_state(c):
+    """Row sets per table, id columns excluded so a renumbered build
+    is not noise - the input of the build-to-build diff (gen-2 parity:
+    ipplan2sqlite lib/diff.py)."""
+    state = {}
+    c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    for (table,) in c.fetchall():
+        if table in ('meta_data', 'sqlite_sequence'):
+            continue
+        c.execute('PRAGMA table_info(%s)' % table)
+        columns = [row[1] for row in c.fetchall() if 'id' not in row[1]]
+        if columns:
+            c.execute('SELECT %s FROM %s' % (', '.join(columns), table))
+            state[table] = set(c.fetchall())
+        else:
+            state[table] = set()
+    return state
+
+
+def format_diff(before, after, limit=50):
+    """The change report between two builds: per-table +/- rows,
+    capped per table. Printed when a build overwrites a previous db,
+    and by the post-commit publisher so the committer sees what the
+    commit actually changed."""
+    lines = []
+    for table in sorted(set(before) | set(after)):
+        added = after.get(table, set()) - before.get(table, set())
+        removed = before.get(table, set()) - after.get(table, set())
+        if not added and not removed:
+            continue
+        lines.append('%s: +%d -%d' % (table, len(added), len(removed)))
+        for row in sorted(added, key=repr)[:limit]:
+            lines.append('  + %s' % (row,))
+        for row in sorted(removed, key=repr)[:limit]:
+            lines.append('  - %s' % (row,))
+    return lines
+
+
 def create_schema(c):
     """Prod's schema verbatim (gen-2 tables.py) + gen-3 additions and
     the writer-side hardening indexes."""
@@ -628,9 +666,16 @@ def build(ipplan_root, manifest_paths, db_path, svn_revision=None):
     resolve(model, manifest)
     validate(model)
 
-    if os.path.exists(db_path):
-        os.unlink(db_path)
     import sqlite3
+    before = None
+    if os.path.exists(db_path):
+        try:
+            prev = sqlite3.connect(db_path)
+            before = db_state(prev.cursor())
+            prev.close()
+        except sqlite3.Error:
+            before = None
+        os.unlink(db_path)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     create_schema(c)
@@ -651,6 +696,9 @@ def build(ipplan_root, manifest_paths, db_path, svn_revision=None):
         ('change_freeze', current['change_freeze']),
     ])
     conn.commit()
+    if before is not None:
+        for line in format_diff(before, db_state(c)):
+            print(line)
     conn.close()
     print('ipplan compiled: %d networks, %d hosts, %d services, '
           '%d flows, %d packages, %d firewall rules (event %s)' % (

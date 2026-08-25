@@ -82,6 +82,45 @@ def notify(gate, repo, rev):
     # puppet parameter configures them
 
 
+def report_diff(gate, rev, work):
+    """What this revision changed vs the published db, on stderr:
+    svn shows post-commit stderr to the committer, so the change
+    report lands in their commit output (gen-2 diff parity). Never
+    blocks the publish - report failures only syslog."""
+    current = os.path.join(PUBLISH, 'ipplan.db.xz')
+    if not os.path.exists(current):
+        return
+    try:
+        tool = gate.load_ipplan2db()
+        old_db = work + '.prev'
+        with open(old_db, 'wb') as out:
+            subprocess.run(['xz', '-dc', current], stdout=out, check=True)
+        prev = sqlite3.connect(old_db)
+        before = tool.db_state(prev.cursor())
+        prev.close()
+        os.unlink(old_db)
+        new = sqlite3.connect(work)
+        lines = tool.format_diff(before, tool.db_state(new.cursor()))
+        new.close()
+        if lines:
+            print('ipplan r%s changes:' % rev, file=sys.stderr)
+            for line in lines:
+                print(line, file=sys.stderr)
+            syslog.syslog('r%s publish: %s' % (
+                rev, '; '.join(entry for entry in lines
+                               if not entry.startswith(' '))))
+            # durable copy next to the dated builds (svn clients only
+            # see post-commit stderr when the hook fails)
+            tmp = os.path.join(PUBLISH, '.new-ipplan-r%s.diff' % rev)
+            with open(tmp, 'w') as f:
+                f.write('\n'.join(lines) + '\n')
+            os.replace(tmp, os.path.join(
+                PUBLISH, 'ipplan-r%s.diff' % rev))
+    except Exception as error:
+        syslog.syslog(syslog.LOG_WARNING,
+                      'r%s: diff report failed: %s' % (rev, error))
+
+
 def publish(gate, repo, rev):
     changed = gate.svnlook('changed', repo, '-r', rev)
     relevant = [parts[1] for parts in
@@ -114,6 +153,8 @@ def publish(gate, repo, rev):
     conn.commit()
     conn.close()
 
+    report_diff(gate, rev, work)
+
     dated = 'ipplan-r%s.db.xz' % rev
     with open(work, 'rb') as raw, \
             open(os.path.join(PUBLISH, '.new-' + dated), 'wb') as out:
@@ -138,6 +179,12 @@ def publish(gate, repo, rev):
             f.write(content)
         os.replace(tmp, os.path.join(PUBLISH, name))
 
+    diffs = [f for f in os.listdir(PUBLISH)
+             if f.startswith('ipplan-r') and f.endswith('.diff')]
+    for old in sorted(diffs,
+                      key=lambda f: int(f[len('ipplan-r'):-len('.diff')])
+                      )[:-KEEP]:
+        os.unlink(os.path.join(PUBLISH, old))
     dated_builds = sorted(
         f for f in os.listdir(PUBLISH)
         if f.startswith('ipplan-r') and f.endswith('.db.xz'))
