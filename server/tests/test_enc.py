@@ -141,6 +141,9 @@ def test_known_but_pkgless_host_gets_safe_floor(ipplan, manifest):
     # from the possibly-lagging db itself). UNKNOWN certnames never
     # reach classify - main() hard-fails them (anomalies must be
     # seen, not floored; user call)
-    assert enc.classify('nosuch.test', manifest) == {
-        'dhfirewall': {'jumpgates': ['10.200.0.2']},
-        'dhipplan': {}, 'dhguest': {}}
+    result = enc.classify('nosuch.test', manifest)
+    assert result['dhfirewall'] == {'jumpgates': ['10.200.0.2']}
+    assert result['dhipplan'] == {}
+    assert result['dhguest'] == {}
+    # no host carries pkg deploy in this fixture -> no cache proxy
+    assert 'dhaptcache' not in result

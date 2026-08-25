@@ -32,10 +32,31 @@ def generate(host, params, manifest):
     # + tftp for the deployment VLAN, installer syslog. ssh comes
     # world-open from the jumpgate pkg.
     out['dhfirewall'] = {
-        'open_tcp': [53, 443, 446, 3142, 8080],
+        'open_tcp': [53, 443, 446, 8080],
+        # apt-cache: the SERVER vlan (the deploy host's own network)
+        # + the deployment vlan (the installers' preseed proxy) -
+        # not MGMT, never the outside. More server vlans join here
+        # via a network option when prod needs them.
+        'open_tcp_scoped': {3142: _cache_networks(host)},
         'open_udp': [53, 67, 69, 514],
     }
     return out
+
+
+def _cache_networks(host):
+    """Where the apt-cache is reachable from: the deploy host's own
+    network (the server vlan) and the native/deployment network (the
+    installers' preseed proxy)."""
+    import sqlite3
+    conn = sqlite3.connect(metadata.DB_FILE)
+    rows = conn.execute(
+        'SELECT n.ipv4_txt FROM network n, host h '
+        'WHERE h.name = ? AND n.node_id = h.network_id '
+        'UNION SELECT n.ipv4_txt FROM network n, option o '
+        'WHERE o.node_id = n.node_id AND o.name = "native" '
+        'ORDER BY 1', (host,)).fetchall()
+    conn.close()
+    return [r[0] for r in rows if r[0]]
 
 
 def _native_gateway():

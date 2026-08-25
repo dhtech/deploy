@@ -78,6 +78,13 @@ def classify(hostname, manifest):
     # fleet baseline: the qemu guest agent (udev-activated; covers
     # pre-pipeline VMs the hardening never touched)
     classes.setdefault('dhguest', {})
+    # fleet baseline: apt through the deploy server's cache (the
+    # installed system, not just the installer) - except the cache
+    # host itself
+    deploys = metadata.hosts_with_pkg('deploy')
+    if deploys and not any(h == hostname for h, _ in deploys):
+        classes.setdefault('dhaptcache', {
+            'proxy': 'http://%s:3142' % metadata.host_ip(deploys[0][0])})
     if 'dhfirewall' in classes:
         jumpgates = [metadata.host_ip(h)
                      for h, _ in metadata.hosts_with_pkg('jumpgate')]

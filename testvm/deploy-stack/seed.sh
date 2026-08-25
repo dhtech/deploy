@@ -84,48 +84,14 @@ systemctl reload apache2
 sed -i 's#filename "http://10.100.0.2/data/dhtech.ipxe";#filename "http://10.100.0.2:8080/data/dhtech.ipxe";#' /etc/dhcp/dhcpd.conf
 systemctl restart isc-dhcp-server
 
-# --- router role: NAT the deployment VLAN, resolve DNS for it -------------
-cat > /etc/sysctl.d/90-deploy-forward.conf <<EOF
-net.ipv4.ip_forward=1
-EOF
-sysctl -q -p /etc/sysctl.d/90-deploy-forward.conf
-
-cat > /etc/nftables.conf <<EOF
-#!/usr/sbin/nft -f
-# the deploy server: NAT the deployment VLAN out via the test-only NAT NIC.
-flush ruleset
-table ip nat {
-  chain postrouting {
-    type nat hook postrouting priority srcnat;
-    oifname "ens18" ip saddr 10.100.0.0/24 masquerade
-    oifname "ens18" ip saddr 10.200.0.0/24 masquerade
-    oifname "ens21" ip daddr 10.200.0.61 tcp dport { 443, 8200 } masquerade
-    oifname "ens21" ip daddr 10.200.0.63 tcp dport 443 masquerade
-    oifname "ens21" ip daddr 10.200.0.64 tcp dport 443 masquerade
-    oifname "ens21" ip daddr 10.200.0.62 tcp dport 443 masquerade
-    oifname "ens21" ip daddr 10.200.0.69 tcp dport 22 masquerade
-  }
-}
-table ip deploynat {
-  chain prerouting {
-    type nat hook prerouting priority dstnat;
-    # Workstation-facing forwards via the NAT NIC (see WEBSITES.md):
-    # OpenBao API/UI (puppet-CA listener)
-    iifname "ens18" tcp dport 8200 dnat to 10.200.0.61:8200
-    # vault website (nginx + Let's Encrypt)
-    iifname "ens18" tcp dport 443 dnat to 10.200.0.61:443
-    # directory (LAM) and doc1 (Trac+SVN) websites
-    iifname "ens18" tcp dport 444 dnat to 10.200.0.63:443
-    iifname "ens18" tcp dport 445 dnat to 10.200.0.64:443
-    # puppetboard website (puppet1)
-    iifname "ens18" tcp dport 447 dnat to 10.200.0.62:443
-    # user ssh entry: jumpgate1
-    iifname "ens18" tcp dport 2022 dnat to 10.200.0.69:22
-  }
-}
-EOF
-systemctl enable --now nftables >/dev/null 2>&1
-nft -f /etc/nftables.conf
+# --- router role: GONE (The Lab Router, P5/P6 2026-08-25) -----------------
+# NAT, DNAT and inter-VLAN routing live on the router VM (pkg=router,
+# deployed through the pipeline; everything derived from ipplan).
+# Fresh-bench order: seed the deploy server (it has its own slirp leg
+# for apt-cacher upstream - no NAT role), then deploy the router as
+# the FIRST pipeline VM; the deployment VLAN needs nothing but the
+# deploy server for installs. The deploy server itself is an ordinary
+# dhfirewall host from enrollment onward.
 
 cat > /etc/dnsmasq.d/deploy.conf <<EOF
 # Resolver for the deployment VLAN. Explicit upstream: Debian's
