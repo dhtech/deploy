@@ -1,6 +1,6 @@
 #!/bin/sh
-# Idempotent setup of the full deploy stack on provision1 (test env).
-# Run as root on provision1 with the repo tree at /root/src/deploy.
+# Idempotent setup of the full deploy stack on the deploy server (test env).
+# Run as root on the deploy server with the repo tree at /root/src/deploy.
 # Puppet does the equivalent of this in production.
 
 set -eu
@@ -31,7 +31,7 @@ install -m 755 "$repo/utils/deploy-vm" /usr/local/bin/deploy-vm
 
 # --- config: deploy.yaml, manifest, ipplan.db ----------------------------
 # Bootstrap only on a fresh bench: puppet (dhdeploy::config) owns
-# this file once provision1 is enrolled - reseeds never touch it.
+# this file once the deploy server is enrolled - reseeds never touch it.
 if [ ! -f /etc/deploy.yaml ]; then
 cat > /etc/deploy.yaml <<EOF
 redis:
@@ -92,7 +92,7 @@ sysctl -q -p /etc/sysctl.d/90-deploy-forward.conf
 
 cat > /etc/nftables.conf <<EOF
 #!/usr/sbin/nft -f
-# provision1: NAT the deployment VLAN out via the test-only NAT NIC.
+# the deploy server: NAT the deployment VLAN out via the test-only NAT NIC.
 flush ruleset
 table ip nat {
   chain postrouting {
@@ -138,7 +138,6 @@ no-dhcp-interface=ens20
 no-dhcp-interface=ens21
 no-resolv
 server=10.0.2.3
-host-record=provision1.colo.notproduction.net,10.200.0.2
 host-record=web1.colo.notproduction.net,10.200.0.60
 host-record=vault1.colo.notproduction.net,10.200.0.61
 host-record=vault.dh.notproduction.net,10.200.0.61
@@ -156,7 +155,7 @@ host-record=pve2.dh.notproduction.net,10.10.10.3
 host-record=doc1.colo.notproduction.net,10.200.0.64
 host-record=directory.dh.notproduction.net,10.200.0.63
 host-record=doc.dh.notproduction.net,10.200.0.64
-host-record=deploy.dh.notproduction.net,10.200.0.2
+host-record=deploy.colo.notproduction.net,10.200.0.2
 EOF
 systemctl restart dnsmasq
 
@@ -179,14 +178,14 @@ systemctl enable --now dh-syslog-receiver
 
 # --- deploy website: nginx + LE cert on 443, proxying the status page ----
 # (puppet's dhacme::cert/dhnginx pattern, hand-seeded here because
-# provision1 is not puppet-managed in the test env)
+# the deploy server is not puppet-managed in the test env)
 apt-get -qq install -y nginx >/dev/null
 cat > /usr/local/sbin/dh-cert-sync <<"EOF"
 #!/bin/sh
 # Fetch the deploy website cert from the secret store (cert-auth with
 # the provision server identity in /etc/deploy-ssl).
 set -eu
-name=deploy.dh.notproduction.net
+name=deploy.colo.notproduction.net
 D=/etc/deploy-ssl
 TOKEN=$(curl -sf --cacert "$D/puppet-ca.pem" --cert "$D/node.pem" --key "$D/node.key" \
   -XPOST "https://vault1.colo.notproduction.net:8200/v1/auth/cert/login" | \
@@ -237,9 +236,9 @@ server {
   # internal access.
   listen 443 ssl;
   listen 446 ssl;
-  server_name deploy.dh.notproduction.net;
-  ssl_certificate     /etc/dh-certs/deploy.dh.notproduction.net.fullchain.pem;
-  ssl_certificate_key /etc/dh-certs/deploy.dh.notproduction.net.key;
+  server_name deploy.colo.notproduction.net;
+  ssl_certificate     /etc/dh-certs/deploy.colo.notproduction.net.fullchain.pem;
+  ssl_certificate_key /etc/dh-certs/deploy.colo.notproduction.net.key;
   location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_set_header Host \$host;
@@ -248,7 +247,7 @@ server {
 EOF
 ln -sf /etc/nginx/sites-available/deploy-web /etc/nginx/sites-enabled/deploy-web
 rm -f /etc/nginx/sites-enabled/default
-if [ -f /etc/dh-certs/deploy.dh.notproduction.net.fullchain.pem ]; then
+if [ -f /etc/dh-certs/deploy.colo.notproduction.net.fullchain.pem ]; then
   systemctl reload nginx || systemctl restart nginx
 fi
 

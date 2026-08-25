@@ -195,7 +195,7 @@
         <thead><tr><th>Service</th><th>URL</th><th>Certificate</th></tr></thead>
         <tbody>
           <tr><td>Deploy status (this page)</td>
-              <td><a href="https://deploy.dh.notproduction.net:8446/">deploy.dh.notproduction.net:8446</a>
+              <td><a href="https://deploy.colo.notproduction.net:8446/">deploy.colo.notproduction.net:8446</a>
                   / <a href="http://localhost:8768/">localhost:8768</a></td>
               <td>Let's Encrypt (8446 after next bench restart)</td></tr>
           <tr><td>Proxmox web UI</td>
@@ -251,7 +251,7 @@ xz -d ipplan.db.xz   # then: sqlite3 ipplan.db</pre>
 127.0.0.1 directory.dh.notproduction.net
 127.0.0.1 doc.dh.notproduction.net
 127.0.0.1 puppet.dh.notproduction.net
-127.0.0.1 deploy.dh.notproduction.net</pre>
+127.0.0.1 deploy.colo.notproduction.net</pre>
 
       <h4>SSH access</h4>
       <p>Machines accept <b>directory logins</b>: your directory
@@ -278,7 +278,7 @@ Host *.colo.notproduction.net
   User &lt;user&gt;
   ProxyJump jumpgate1</pre>
       <p>Operators: the root path stays
-      <code>ssh -p 4455 root@localhost</code> (provision1).</p>
+      <code>ssh -p 4455 root@localhost</code> (the deploy server).</p>
 
       <h4>Machine names</h4>
       <p>Machines (<code>*.colo.notproduction.net</code>) resolve only
