@@ -132,7 +132,7 @@
       PXE-boots and installs Debian unattended (root and admin passwords go to
       the secret store). When the installer finishes, the machine is moved to
       its <em>production VLAN</em> and boots from disk. It then auto-enrolls
-      in puppet with a one-time token (<em>Puppet CA ok</em>) and the first
+      in puppet with a one-time token (<em>Puppet signed</em>) and the first
       successful puppet run — reported back by the puppetserver — marks the
       deployment <em>Done</em>, with the completion timestamp shown.</p>
 
@@ -150,7 +150,7 @@
         <dt><span class="state converging">Converging (puppet)</span></dt>
         <dd>On the production VLAN, booting the installed system; waiting
         for the machine to enroll in puppet.</dd>
-        <dt><span class="state converging">Puppet CA ok</span></dt>
+        <dt><span class="state converging">Puppet signed</span></dt>
         <dd>The machine's certificate was signed (one-time enrollment token
         accepted); the first puppet run is in progress.</dd>
         <dt><span class="state done">Done</span></dt>
@@ -320,7 +320,7 @@ const STATE_LABELS = {
   "waiting-for-provision": "Waiting for provision",
   "installing": "Installing",
   "converging": "Converging (puppet)",
-  "puppet-ssl": "Puppet CA ok",
+  "puppet-ssl": "Puppet signed",
   "starting": "Starting installation",
 };
 
