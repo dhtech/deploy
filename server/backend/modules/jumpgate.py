@@ -8,10 +8,18 @@ from lib import metadata
 
 
 def generate(host, params, manifest):
-    return {
+    out = {
         'dhfail2ban': {
             'ignore_ips': sorted(metadata.host_ip(h) for h, _ in
                                  metadata.hosts_with_pkg('jumpgate')),
             'jails': {'sshd': {'backend': 'systemd'}},
         },
     }
+    # the ssh entry accepts the WORLD on 22 (the jail handles abuse) -
+    # that is the role. The deploy server also carries this pkg but
+    # keeps its own ruleset (documented carve-out): no dhfirewall
+    # while pkg deploy is present.
+    if not any(pkg == 'deploy'
+               for pkg, _ in metadata.pkgs_with_params(host)):
+        out['dhfirewall'] = {'open_tcp': [22]}
+    return out
