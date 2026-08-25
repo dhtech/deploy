@@ -16,10 +16,8 @@ def generate(host, params, manifest):
         },
     }
     # the ssh entry accepts the WORLD on 22 (the jail handles abuse) -
-    # that is the role. The deploy server also carries this pkg but
-    # keeps its own ruleset (documented carve-out): no dhfirewall
-    # while pkg deploy is present.
-    if not any(pkg == 'deploy'
-               for pkg, _ in metadata.pkgs_with_params(host)):
-        out['dhfirewall'] = {'open_tcp': [22]}
+    # that is the role. Since P6 the deploy server is an ordinary
+    # dhfirewall host too (the old NAT carve-out retired with its
+    # router role).
+    out['dhfirewall'] = {'open_tcp': [22]}
     return out

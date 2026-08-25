@@ -25,6 +25,16 @@ def generate(host, params, manifest):
     gateway = _native_gateway()
     if gateway:
         out['dhdeploy::pxe'] = {'gateway': gateway}
+    # P6: the deploy server is an ordinary dhfirewall host now (the
+    # NAT/router role moved to the router). Its serving ports: the
+    # backend/status web (8080 + nginx 443/446), apt-cacher (3142),
+    # and udp - dns for the fleet (until dhresolver moves it), dhcp
+    # + tftp for the deployment VLAN, installer syslog. ssh comes
+    # world-open from the jumpgate pkg.
+    out['dhfirewall'] = {
+        'open_tcp': [53, 443, 446, 3142, 8080],
+        'open_udp': [53, 67, 69, 514],
+    }
     return out
 
 
