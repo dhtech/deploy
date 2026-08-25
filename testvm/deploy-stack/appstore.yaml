@@ -21,3 +21,17 @@ apps:
     kind: github
     repo: authelia/authelia
     asset: 'authelia_*_amd64.deb'
+  # the deploy stack itself, served to the deploy server(s) - built
+  # from the deploy repo pushed to /srv/deploy.git on the master
+  # (kind local until prod GitHub releases exist). deploy-backend =
+  # the CGI tree + frontend + lib; deployd = the provisioner daemon.
+  deploy-backend:
+    kind: local
+    repo: /srv/deploy.git
+    path: server
+    interval: fast
+  deployd:
+    kind: local
+    repo: /srv/deploy.git
+    path: deployd
+    interval: fast
