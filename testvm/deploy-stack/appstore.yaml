@@ -14,3 +14,10 @@ apps:
     packages:
       - puppetboard
       - gunicorn
+  # mirror-only for now: the MFA portal evaluation (Authelia plan).
+  # Upstream ships official .deb release assets; nothing installs
+  # this yet - it just exists in the appstore/fileserver.
+  authelia:
+    kind: github
+    repo: authelia/authelia
+    asset: 'authelia_*_amd64.deb'
