@@ -143,4 +143,4 @@ def test_known_but_pkgless_host_gets_safe_floor(ipplan, manifest):
     # seen, not floored; user call)
     assert enc.classify('nosuch.test', manifest) == {
         'dhfirewall': {'jumpgates': ['10.200.0.2']},
-        'dhipplan': {}}
+        'dhipplan': {}, 'dhguest': {}}

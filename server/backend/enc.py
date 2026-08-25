@@ -75,6 +75,9 @@ def classify(hostname, manifest):
     # pin to an old revision) must still keep receiving updates, or
     # it freezes on the pinned build even after the override clears
     classes.setdefault('dhipplan', {})
+    # fleet baseline: the qemu guest agent (udev-activated; covers
+    # pre-pipeline VMs the hardening never touched)
+    classes.setdefault('dhguest', {})
     if 'dhfirewall' in classes:
         jumpgates = [metadata.host_ip(h)
                      for h, _ in metadata.hosts_with_pkg('jumpgate')]
