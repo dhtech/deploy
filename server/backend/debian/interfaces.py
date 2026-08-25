@@ -7,7 +7,8 @@
 # trunk on ifs[0] - the native-flagged network untagged, every other
 # vlan'd leg as a subinterface - plus dedicated NICs for the legs in
 # un-vlan'd networks (the OUTSIDE slirp net), where the default route
-# lives.
+# lives. A vlan'd othernet (MGMT) is a trunk subinterface like any
+# other vlan leg.
 
 import ipaddress
 import os
@@ -80,7 +81,7 @@ def router_config(hostname, ifs):
                       key=lambda leg: (not leg['native'], leg['vlan'])):
         if leg['native']:
             iface = trunk
-        elif leg['vlan'] and not leg['othernet']:
+        elif leg['vlan']:
             iface = '%s.%d' % (trunk, leg['vlan'])
         else:
             if not extra:

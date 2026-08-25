@@ -5,9 +5,11 @@
 # forward permits (precomputed flow pairs that cross between two of
 # its networks). The outside interface name is host-level config and
 # comes from the manifest params (dhfirewall router_outside), not from
-# here. Egress is permissive by decision (2026-08-25): every nat
-# network may initiate outward - the per-host internet allow-list is
-# deferred.
+# here. Egress AND intra-site forwarding are permissive by decision
+# (2026-08-25): every nat network may initiate outward, and the
+# router's own networks talk freely among themselves (the strict
+# per-pair forward is emitted but not yet the only permit - unscoped
+# services like puppet 8140 have no flow pairs).
 
 import ipaddress
 import sqlite3
@@ -123,6 +125,12 @@ def generate(host, params, manifest):
             'router': {
                 'nat_networks': sorted(
                     cidr for _, _, cidr, nat in networks if nat),
+                # intra-site forward is PERMISSIVE between the
+                # router's networks (strictness deferred with the
+                # egress decision - unscoped services have no pairs);
+                # the flow pairs below are the future strict mode
+                'site_networks': sorted(
+                    cidr for _, _, cidr, _ in networks),
                 'dnat': dnat_entries([nid for nid, _, _, _ in networks]),
                 'forward': forward_rules(host, networks),
             },
