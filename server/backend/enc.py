@@ -93,13 +93,17 @@ def classify(hostname, manifest):
     # installed system, not just the installer) - except the cache
     # host itself
     deploys = metadata.hosts_with_pkg('deploy')
-    if (deploys and not any(h == hostname for h, _ in deploys)
-            and _in_servers_network(hostname)):
-        # only hosts inside a pkg=servers network get the proxy -
-        # the cache port is scoped to exactly those networks (a MGMT
-        # host pointed at it would just be firewalled off)
-        classes.setdefault('dhaptcache', {
-            'proxy': 'http://%s:3142' % metadata.host_ip(deploys[0][0])})
+    if deploys and not any(h == hostname for h, _ in deploys):
+        # the class is ALWAYS in the catalog (so a host that leaves
+        # the servers scope gets the file removed); the proxy value
+        # only inside a pkg=servers network - the cache port is
+        # scoped to exactly those networks
+        if _in_servers_network(hostname):
+            classes.setdefault('dhaptcache', {
+                'proxy': 'http://%s:3142' % metadata.host_ip(
+                    deploys[0][0])})
+        else:
+            classes.setdefault('dhaptcache', {})
     # fleet baseline: node metrics, once a prometheus host exists;
     # 9100 opens ONLY to the prometheus host(s) - and only where
     # dhfirewall is ours (pve manages its own firewall)
