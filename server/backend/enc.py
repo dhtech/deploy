@@ -82,7 +82,11 @@ def classify(hostname, manifest):
     # installed system, not just the installer) - except the cache
     # host itself
     deploys = metadata.hosts_with_pkg('deploy')
-    if deploys and not any(h == hostname for h, _ in deploys):
+    if (deploys and not any(h == hostname for h, _ in deploys)
+            and _in_servers_network(hostname)):
+        # only hosts inside a pkg=servers network get the proxy -
+        # the cache port is scoped to exactly those networks (a MGMT
+        # host pointed at it would just be firewalled off)
         classes.setdefault('dhaptcache', {
             'proxy': 'http://%s:3142' % metadata.host_ip(deploys[0][0])})
     # fleet baseline: node metrics, once a prometheus host exists;
@@ -100,6 +104,22 @@ def classify(hostname, manifest):
         if jumpgates:
             classes['dhfirewall'].setdefault('jumpgates', jumpgates)
     return classes
+
+
+def _in_servers_network(hostname):
+    import ipaddress
+    import sqlite3
+    ip = metadata.host_ip(hostname)
+    if not ip:
+        return False
+    conn = sqlite3.connect(metadata.DB_FILE)
+    rows = conn.execute(
+        'SELECT n.ipv4_txt FROM network n, option o '
+        'WHERE o.node_id = n.node_id AND o.name = "pkg" '
+        'AND o.value = "servers"').fetchall()
+    conn.close()
+    addr = ipaddress.ip_address(ip)
+    return any(addr in ipaddress.ip_network(r[0]) for r in rows if r[0])
 
 
 def main():
