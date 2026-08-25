@@ -51,6 +51,7 @@ browser
 | `127.0.0.1:8445` | router → doc1:443 (expose=) | Trac + SVN (doc) | live |
 | `127.0.0.1:8447` | router → puppet1:443 (expose=) | **puppetboard** (nginx + LE, tech group) | live |
 | `127.0.0.1:2222` | router → jumpgate1:22 (expose=) | **user ssh entry** (directory logins) | live |
+| `127.0.0.1:8448` | router → prometheus1:443 (expose=) | **prometheus** (+ /alertmanager/; nginx + LE, tech group) | live (hostfwd at next lab restart) |
 
 The DNAT table is DATA: `expose=EXT:INT` on the host's ipplan line;
 the router's ruleset (masquerade, DNAT, forward) is derived from
@@ -97,6 +98,7 @@ the real ipplan file). Current inventory:
 | `ldap2-master.colo.notproduction.net` | 10.200.0.66 | `ldap` | directory master B (writable, mirror mode) | `/var/lib/ldap` 10G | live |
 | `ldap1.colo.notproduction.net` | 10.200.0.67 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | live |
 | `ldap2.colo.notproduction.net` | 10.200.0.68 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | live |
+| `prometheus1.colo.notproduction.net` | 10.200.0.70 | `prometheus` | Prometheus + Alertmanager (appstore artifacts) + website | `/var/lib/prometheus` 20G | live |
 
 Directory topology: two mirror-mode **masters** in colo take all writes
 and directory administration (LAM); **applications read and
