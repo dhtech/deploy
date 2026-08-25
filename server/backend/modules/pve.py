@@ -14,6 +14,10 @@ def generate(host, params, manifest):
         'dhpve': {
             'ldap_servers': _ldap.slave_hosts(),
             'ldap_base': 'dc=dreamhack,dc=se',
+            # the svc bind account is provisioned under the host's
+            # IPPLAN shortname - never derive it from the OS hostname
+            # (pve-test's hostname predates its ipplan identity)
+            'svc_name': host.split('.', 1)[0],
         },
     }
     webname = metadata.host_option(host, 'webname')
