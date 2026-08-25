@@ -51,10 +51,21 @@ def merge_params(target, extra):
 def classify(hostname, manifest):
     classes = {}
     for pkg, params in metadata.pkgs_with_params(hostname):
-        spec = (manifest.get('packages', {}).get(pkg) or {}).get('puppet') or {}
+        pkg_spec = manifest.get('packages', {}).get(pkg) or {}
+        spec = pkg_spec.get('puppet') or {}
         for cls in spec.get('classes', []):
             classes.setdefault(cls, {})
         merge_params(classes, spec.get('params') or {})
+        # world specs (prod model): the named services' destports
+        # open UNSCOPED - the jumpgate's dhssh 2022 entry
+        for svc in pkg_spec.get('world') or []:
+            ports = metadata.ports_by_proto(
+                (manifest.get('services', {}).get(svc) or {})
+                .get('destport') or [])
+            merge_params(classes, {'dhfirewall': {
+                'open_tcp': ports.get('tcp', []),
+                'open_udp': ports.get('udp', []),
+            }})
         try:
             generator = importlib.import_module('modules.%s' % pkg)
         except ImportError:

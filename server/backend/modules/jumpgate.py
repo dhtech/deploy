@@ -16,16 +16,15 @@ def generate(host, params, manifest):
                                'port': '22,2022'}},
         },
     }
-    # PROD MODEL (user decision 2026-08-26): the jumpgate's sshd
-    # LISTENS on 2022 - that is the internet entry port, world-open
-    # (the jail handles abuse); 22 stays internal-only via the
-    # built-in jumpgates rule. The deploy server (also jumpgate-pkg)
-    # keeps plain 22: its ssh is the slirp-only mgmt door
-    # (workstation hostfwd 4455).
+    # PROD MODEL: the entry service is dhssh (2022/tcp) - declared
+    # as a WORLD spec on the jumpgate pkg in the manifest (the port
+    # comes from the service, not from here); dhssh (the class) makes
+    # sshd listen on it. 22 stays internal via the built-in jumpgates
+    # rule. The deploy server (also jumpgate-pkg) keeps plain 22: its
+    # ssh is the slirp-only mgmt door (workstation hostfwd 4455).
     if any(pkg == 'deploy'
            for pkg, _ in metadata.pkgs_with_params(host)):
         out['dhfirewall'] = {'open_tcp': [22]}
     else:
-        out['dhjumpgate'] = {}
-        out['dhfirewall'] = {'open_tcp': [2022]}
+        out['dhssh'] = {}
     return out
