@@ -60,6 +60,13 @@ Live URLs:
   `127.0.0.1 puppet.dh.notproduction.net`; directory login, tech group)
 - **Vault website**: <https://vault.dh.notproduction.net:8443/ui>
   (real Let's Encrypt certificate — green padlock)
+- **ipplan statistics**: <https://doc.dh.notproduction.net:8445/ipplan/>
+  (on the doc site; directory login from outside, machines fetch
+  freely from the internal networks). `/ipplan/` is the home for ALL
+  pipeline artifacts: the statistics page (`index.html`, regenerated
+  by post-commit on every publish), `ipplan.db.xz` + sha256 +
+  `REVISION`, dated `ipplan-r<rev>.db.xz` builds and the per-revision
+  `ipplan-r<rev>.diff` change reports.
 
 Each service gets its **own dedicated VM**, deployed through the stack
 like everything else: the directory UI (LAM) on `directory1`, with the directory itself
