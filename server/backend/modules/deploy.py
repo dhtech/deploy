@@ -44,18 +44,15 @@ def generate(host, params, manifest):
 
 
 def _cache_networks(host):
-    """Where the apt-cache is reachable from: the server vlan(s) -
-    network lines carrying pkg=servers in ipplan - plus the
-    native/deployment network (the installers' preseed proxy)."""
+    """Where the apt-cache is reachable from: exactly the network
+    lines carrying pkg=servers in ipplan (the server vlan and the
+    deployment vlan both carry the marker)."""
     import sqlite3
     conn = sqlite3.connect(metadata.DB_FILE)
     rows = conn.execute(
         'SELECT n.ipv4_txt FROM network n, option o '
         'WHERE o.node_id = n.node_id AND o.name = "pkg" '
-        'AND o.value = "servers" '
-        'UNION SELECT n.ipv4_txt FROM network n, option o '
-        'WHERE o.node_id = n.node_id AND o.name = "native" '
-        'ORDER BY 1').fetchall()
+        'AND o.value = "servers" ORDER BY 1').fetchall()
     conn.close()
     return [r[0] for r in rows if r[0]]
 

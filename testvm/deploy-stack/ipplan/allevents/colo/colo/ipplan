@@ -25,7 +25,7 @@ COLO		10.200.0.0/24	R1		200	nat;pkg=servers
 
 # The deployment VLAN: installers live here (dynamic, PXE - no host
 # lines). gw= stays on the deploy server until the router cutover.
-DEPLOY		10.100.0.0/24	R1		100	nat;native
+DEPLOY		10.100.0.0/24	R1		100	nat;native;pkg=servers
 
 # The hypervisors: a proper MGMT network (they used to squat in the
 # colo network with foreign addresses). Puppet-enrolled by hand,
