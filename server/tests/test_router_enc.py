@@ -19,11 +19,12 @@ TOOL = load_ipplan2db()
 IPPLAN = '''\
 #@ IPV4-COLO-NET\t10.200.0.0/24
 COLO\t10.200.0.0/24\tR1\t200\tnat
-#$ router.colo.test\t10.200.0.1\tos=debian;pkg=router,resolver,ntp;addr=10.100.0.1
+#$ router.colo.test\t10.200.0.1\tos=debian;pkg=router,resolver,ntp;addr=10.100.0.1,10.0.2.17
 #$ vault1.colo.test\t10.200.0.61\tos=debian;pkg=vault;expose=443:443,8200:8200
 #$ jumpgate1.colo.test\t10.200.0.69\tos=debian;pkg=base;expose=2022:22
-DEPLOY\t10.100.0.0/24\tR1\t100\tnat;client=colo-ldaps
+DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;client=colo-ldaps
 MGMT\t10.10.10.0/24\tR1\t10\tothernet;gw=10.10.10.254
+OUTSIDE\t10.0.2.0/24\t-\t-\tothernet;gw=10.0.2.2
 '''
 
 MANIFEST = {
@@ -96,9 +97,39 @@ def test_not_the_router_yet_emits_nothing(tmp_path):
     try:
         IPPLAN = kept.replace('COLO\t10.200.0.0/24\tR1\t200\tnat',
                               'COLO\t10.200.0.0/24\tR1\t200\tnat;gw=10.200.0.2') \
-                     .replace('DEPLOY\t10.100.0.0/24\tR1\t100\tnat;client=colo-ldaps',
-                              'DEPLOY\t10.100.0.0/24\tR1\t100\tnat;gw=10.100.0.2;client=colo-ldaps')
+                     .replace('DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;client=colo-ldaps',
+                              'DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;gw=10.100.0.2;client=colo-ldaps')
         params = router_params(build(tmp_path))
         assert params == {}
     finally:
         IPPLAN = kept
+
+
+def test_interfaces_router_config(tmp_path):
+    """interfaces.py renders the trunk shape: native DEPLOY leg
+    untagged on the trunk, COLO as trunk.200, the OUTSIDE leg on the
+    second NIC carrying the only default route."""
+    import importlib.machinery
+    import importlib.util
+    import os
+    db = build(tmp_path)
+    sys.modules['lib.metadata'].DB_FILE = str(db)
+    tool = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        '..', 'backend', 'debian', 'interfaces.py')
+    spec = importlib.util.spec_from_loader(
+        'dh_interfaces', importlib.machinery.SourceFileLoader(
+            'dh_interfaces', tool))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.is_router('router.colo.test')
+    assert not mod.is_router('vault1.colo.test')
+    text = mod.router_config('router.colo.test', ['ens18', 'ens19'])
+    assert 'auto ens18\niface ens18 inet static' in text
+    assert '\taddress 10.100.0.1' in text
+    assert 'auto ens18.200\niface ens18.200 inet static' in text
+    assert '\tvlan-raw-device ens18' in text
+    assert '\taddress 10.200.0.1' in text
+    assert 'auto ens19\niface ens19 inet static' in text
+    assert '\taddress 10.0.2.17' in text
+    assert text.count('gateway') == 1
+    assert '\tgateway 10.0.2.2' in text

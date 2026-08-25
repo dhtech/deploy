@@ -142,6 +142,11 @@ class ProxmoxBackend(Provisioner):
         net0 = f"virtio,bridge={self._config.bridge}"
         if deploy_vlan:
             net0 += f",tag={deploy_vlan}"
+        if order.shape == "router":
+            # trunk from birth: native deploy VLAN (PXE) + its other
+            # legs tagged; net1 = the untagged outside
+            if order.trunks:
+                net0 += ",trunks=" + ";".join(str(v) for v in order.trunks)
 
         params: dict[str, Any] = {
             "vmid": vmid,
@@ -154,6 +159,8 @@ class ProxmoxBackend(Provisioner):
             "machine": "q35",
             "ostype": OSTYPE_MAP.get(order.os, "l26"),
             "scsihw": "virtio-scsi-single",
+            **({"net1": f"virtio,bridge={self._config.bridge}"}
+               if order.shape == "router" else {}),
             # qemu-guest-agent channel (the agent itself is installed by
             # the hardening step): clean shutdowns, IPs in the UI,
             # qm guest exec

@@ -46,6 +46,10 @@ class CreateOrder:
     # Application LVs on the single app disk:
     # [{size (bytes), mountpoint, options, lv}, ...]
     appdisks: list[dict[str, Any]] | None = None
+    # "router": trunk NIC from birth (native deploy VLAN + trunks) +
+    # an untagged outside NIC; no VLAN move after install
+    shape: str | None = None
+    trunks: list[int] | None = None
 
     @classmethod
     def from_json(cls, key: str, raw: str | bytes) -> CreateOrder:
@@ -70,6 +74,8 @@ class CreateOrder:
             datastore=data.get("datastore"),
             ipv4=ipv4,
             appdisks=data.get("appdisks") or None,
+            shape=data.get("shape"),
+            trunks=[int(v) for v in data.get("trunks") or []] or None,
         )
 
 

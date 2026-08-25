@@ -136,6 +136,33 @@ def create_vm(args):
     'AND option.name = "os" '
     'AND host.name = ?', (args.hostname,))
   os_query = c.fetchone()
+
+  # ROUTER shape: pkg router gets a trunk NIC from birth (native =
+  # the deployment VLAN it PXEs on, its other gatewayed legs tagged)
+  # plus an untagged outside NIC - and no VLAN move after install.
+  c.execute(
+    'SELECT 1 FROM host, option WHERE host.node_id = option.node_id '
+    'AND option.name = "pkg" AND option.value = "router" '
+    'AND host.name = ?', (args.hostname,))
+  is_router = bool(c.fetchone())
+  trunks = []
+  if is_router:
+    c.execute(
+      'SELECT o.value FROM option o, host h WHERE o.node_id = '
+      'h.node_id AND h.name = ? AND o.name = "addr"', (args.hostname,))
+    leg_addrs = [ipv4_address] + [r[0] for r in c.fetchall()]
+    import ipaddress as _ip
+    for cidr, leg_vlan, net_id in c.execute(
+        'SELECT ipv4_txt, vlan, node_id FROM network '
+        'WHERE ipv4_txt IS NOT NULL AND vlan > 0 '
+        'AND name NOT LIKE "%@DREAMHACK"').fetchall():
+      net = _ip.ip_network(cidr)
+      if not any(_ip.ip_address(a) in net for a in leg_addrs):
+        continue
+      c.execute('SELECT 1 FROM option WHERE node_id = ? '
+                'AND name = "native"', (net_id,))
+      if not c.fetchone():
+        trunks.append(int(leg_vlan))
   conn.close()
 
   # We default to debian if no specific OS is set.
@@ -173,6 +200,8 @@ def create_vm(args):
       'datastore': args.datastore,
       'os': os,
       'appdisks': getattr(args, 'appdisk_spec', None) or [],
+      'shape': 'router' if is_router else None,
+      'trunks': sorted(trunks),
       'ipv4': {
         'vlan': vlan,
         'address': ipv4_address,

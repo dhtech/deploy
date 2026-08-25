@@ -159,7 +159,7 @@ d-i apt-setup/contrib boolean true
 
 tasksel tasksel/first multiselect standard, ssh-server
 # Hardening + ops package set from production, plus the deploy-flow needs
-d-i pkgsel/include string vim mtr-tiny tmux tcpdump ntpsec lsof dnsutils htop lsscsi sysstat apt-transport-https sudo auditd audispd-plugins curl apparmor-utils libpam-pwquality libyaml-tiny-perl libsort-naturally-perl libfile-slurp-perl nftables wget ca-certificates puppet-agent
+d-i pkgsel/include string vim mtr-tiny tmux tcpdump ntpsec lsof dnsutils htop lsscsi sysstat apt-transport-https sudo auditd audispd-plugins curl apparmor-utils libpam-pwquality libyaml-tiny-perl libsort-naturally-perl libfile-slurp-perl nftables wget ca-certificates puppet-agent vlan
 d-i pkgsel/upgrade select full-upgrade
 popularity-contest popularity-contest/participate boolean false
 

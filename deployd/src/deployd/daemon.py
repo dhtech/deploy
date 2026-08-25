@@ -22,6 +22,7 @@ import redis
 
 from deployd.backends.base import Capability, HwProvisioner, Provisioner, VmInfo
 from deployd.orders import CreateOrder, HostRecord, write_error
+from deployd import ipplan
 
 RUN_INTERVAL = 7
 INVENTORY_TTL = 600
@@ -258,6 +259,12 @@ class VmManagerLoop:
             datacenter = None
             if host.client and host.client.get("domain"):
                 datacenter = str(host.client["domain"]).lower()
+
+            if ipplan.is_router(vm.name):
+                # trunk set at create time - a tag move would tear the
+                # trunk down; production leg is a subinterface already
+                log.info("[%s] router %s: trunk NIC, no VLAN move", self.backend.name, vm.name)
+                continue
 
             try:
                 self.backend.provision_vm(vm, vlan, datacenter)

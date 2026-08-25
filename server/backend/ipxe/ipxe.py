@@ -51,7 +51,10 @@ def debian(label, vga=False, debug=False, serial='ttyS0', variant='debian'):
     # ride along on the kernel command line.
     args.append('dh_fqdn=${hostname}')
     args.append('dh_base=%s' % BASE)
-    args.append('netcfg/choose_interface=auto')
+    # pin d-i to the NIC we PXE-booted on (net0): a multi-NIC host
+    # (the router: trunk + outside) must not install over a NIC whose
+    # DHCP cannot reach the deploy server
+    args.append('netcfg/choose_interface=${net0/mac}')
     args.append('netcfg/get_hostname=${shortname}')
     args.append('netcfg/hostname=${shortname}')
     args.append('netcfg/get_domain=${dns_domain}')

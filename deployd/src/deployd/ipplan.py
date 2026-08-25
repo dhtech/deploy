@@ -49,3 +49,19 @@ def all_vlans_in_same_domain(
                 yield str(network), int(vlan)
     finally:
         conn.close()
+
+
+def is_router(hostname: str, db_file: str = DB_FILE) -> bool:
+    """Router-shaped host: carries addr= legs (its trunk is set at
+    create time; the post-install VLAN move must not touch it)."""
+    try:
+        conn = sqlite3.connect(db_file)
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM option o, host h WHERE o.node_id = h.node_id "
+                "AND h.name = ? AND o.name = 'addr'", (hostname,)).fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return False
+    return bool(row)
