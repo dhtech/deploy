@@ -12,7 +12,8 @@ every stage failure screams to syslog:
              pick up the pre-commit's STASHED build by input hash;
              on a mismatch (racing commit) rebuild with the same
              tool -> stamp svn_revision -> xz -> ATOMIC rename-swap
-             into the publish dir: ipplan.db.xz + .sha256 + REVISION,
+             into the publish dir (/var/www/ipplan, served as /ipplan):
+             ipplan.db.xz + .sha256 + REVISION,
              dated ipplan-r<rev>.db.xz builds kept for rollback and
              diffing (pruned to KEEP)
     postpub  empty slot for downstream regeneration (prod: dhmap)
@@ -37,7 +38,7 @@ import subprocess
 import sys
 import syslog
 
-PUBLISH = '/var/www/stuff'
+PUBLISH = '/var/www/ipplan'
 KEEP = 10
 TRAC_ENV = '/srv/trac/dh'
 TRAC_REPO = 'dh'
@@ -196,7 +197,23 @@ def publish(gate, repo, rev):
 
 
 def post_publish(gate, repo, rev):
-    """Downstream regeneration slot (prod: dhmap). Empty until needed."""
+    """Downstream regeneration (prod's dhmap slot): the statistics
+    page - /ipplan/'s index.html - from the just-published db plus the
+    recent change reports."""
+    current = os.path.join(PUBLISH, 'ipplan.db.xz')
+    if not os.path.exists(current):
+        return
+    here = os.path.dirname(os.path.abspath(__file__))
+    db = os.path.join(PUBLISH, '.stats-src.db')
+    with open(db, 'wb') as out:
+        subprocess.run(['xz', '-dc', current], stdout=out, check=True)
+    try:
+        subprocess.run(
+            ['python3', os.path.join(here, 'ipplan-stats'), db,
+             os.path.join(PUBLISH, 'index.html'),
+             '--diff-dir=%s' % PUBLISH], check=True)
+    finally:
+        os.unlink(db)
 
 
 def main():
