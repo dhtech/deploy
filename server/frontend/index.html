@@ -68,6 +68,7 @@
   .state.installing, .state.starting, .state.converging, .state.puppet-ssl { color: var(--accent); }
   .error { color: var(--err); font-family: var(--mono); font-size: 0.8rem; }
   .empty { padding: 0.7rem 0.9rem; color: var(--muted); }
+  .empty-cell { color: var(--muted); font-size: 0.8rem; }
   .help-body {
     margin-top: 1.5rem; background: var(--card); border: 1px solid var(--border);
     border-radius: 8px; padding: 0.4rem 1.1rem 1rem; font-size: 0.88rem;
@@ -116,7 +117,7 @@
     <div class="card"><div id="hw-orders" class="empty">—</div></div>
   </section>
   <section>
-    <h2>Known VMs</h2>
+    <h2>The fleet</h2>
     <div class="card"><div id="vms" class="empty">—</div></div>
   </section>
   <section>
@@ -177,9 +178,11 @@
         <dd>Orders waiting to be picked up by a provisioner. Virtual machine
         orders disappear once the VM is created; an order that lingers with an
         error means no provisioner could complete it.</dd>
-        <dt>Known VMs</dt>
-        <dd>All VMs each provisioner currently sees on its hypervisor —
-        the inventory used to identify PXE-booting machines.</dd>
+        <dt>The fleet</dt>
+        <dd>Every host ipplan knows, joined with the provisioners' VM
+        inventory. A host without a provisioner is hand-enrolled
+        (the hypervisors); a host that is in ipplan but not yet
+        deployed shows here before its first install.</dd>
         <dt>Hardware bays</dt>
         <dd>Physical bays/nodes reported by hardware managers (blade
         chassis, OCP), with serials used for install matching.</dd>
@@ -197,7 +200,7 @@
           <tr><td>Deploy status (this page)</td>
               <td><a href="https://deploy.colo.notproduction.net:8446/">deploy.colo.notproduction.net:8446</a>
                   / <a href="http://localhost:8768/">localhost:8768</a></td>
-              <td>Let's Encrypt (8446 after next bench restart)</td></tr>
+              <td>Let's Encrypt</td></tr>
           <tr><td>Proxmox web UI</td>
               <td><a href="https://pve1.dh.notproduction.net:8006/">pve1.dh.notproduction.net:8006</a></td>
               <td>Let's Encrypt</td></tr>
@@ -215,6 +218,13 @@
               <td>Let's Encrypt</td></tr>
           <tr><td>Trac + SVN (doc)</td>
               <td><a href="https://doc.dh.notproduction.net:8445/">doc.dh.notproduction.net:8445</a></td>
+              <td>Let's Encrypt</td></tr>
+          <tr><td>Prometheus (directory login, tech group;
+              <code>/alertmanager/</code> for Alertmanager)</td>
+              <td><a href="https://prometheus.colo.notproduction.net:8448/">prometheus.colo.notproduction.net:8448</a></td>
+              <td>Let's Encrypt</td></tr>
+          <tr><td>ipplan statistics (per-event allocation, heatmaps)</td>
+              <td><a href="https://doc.dh.notproduction.net:8445/ipplan/">doc.dh.notproduction.net:8445/ipplan/</a></td>
               <td>Let's Encrypt</td></tr>
           <tr><td>Published ipplan.db (crew download)</td>
               <td><a href="https://doc.dh.notproduction.net:8445/stuff/">doc.dh.notproduction.net:8445/stuff/</a></td>
@@ -251,7 +261,8 @@ xz -d ipplan.db.xz   # then: sqlite3 ipplan.db</pre>
 127.0.0.1 directory.dh.notproduction.net
 127.0.0.1 doc.dh.notproduction.net
 127.0.0.1 puppet.dh.notproduction.net
-127.0.0.1 deploy.colo.notproduction.net</pre>
+127.0.0.1 deploy.colo.notproduction.net
+127.0.0.1 prometheus.colo.notproduction.net</pre>
 
       <h4>SSH access</h4>
       <p>Machines accept <b>directory logins</b>: your directory
@@ -368,8 +379,12 @@ function render(data) {
       )) + "</div>";
 
   document.getElementById("vms").outerHTML = '<div id="vms">'
-    + table(["Host", "Provisioner"], data.vms.map((v) =>
-        `<td>${esc(v.name)}</td><td>${esc(v.manager)}</td>`
+    + table(["Host", "IP", "VLAN", "OS", "Packages", "Provisioner"],
+        (data.fleet || []).map((h) =>
+        `<td>${esc(h.hostname)}</td><td>${esc(h.ip)}</td>`
+        + `<td class="ttl">${esc(h.vlan)}</td><td>${esc(h.os)}</td>`
+        + `<td>${esc((h.pkgs || []).join(", "))}</td>`
+        + `<td>${h.manager ? esc(h.manager) : '<span class="empty-cell">hand-enrolled</span>'}</td>`
       )) + "</div>";
 
   const bays = Object.entries(data.bays);
