@@ -46,6 +46,8 @@ PAGE = '''<!doctype html>
     font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   main { max-width: 60rem; margin: 0 auto; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
   h1 { font-size: 1.5rem; margin: 0; }
   h1 small { color: var(--muted); font-weight: 400; font-size: 1rem; }
   h2 { font-size: 1.05rem; margin: 2.25rem 0 .6rem; }
