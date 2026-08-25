@@ -20,13 +20,18 @@ def verify_vm_identity(r, hostname, uuid):
     if uuid:
         for key in r.keys('vm-*-' + uuid.lower()):
             claimed = json.loads(r.get(key))['name']
-    if claimed is not None and claimed != hostname:
-        return 'uuid %s belongs to %s, not %s' % (uuid, claimed, hostname)
+    if claimed is not None:
+        if claimed != hostname:
+            return 'uuid %s belongs to %s, not %s' % (
+                uuid, claimed, hostname)
+        # positive proof: the presented uuid names exactly this host.
+        # A STALE record for the same name (destroy-and-recreate binds
+        # a new uuid before the old record's TTL runs out) must not
+        # deny a positively identified machine.
+        return None
     for key in r.keys('vm-*'):
         record = json.loads(r.get(key))
-        if (record.get('name') == hostname
-                and (not uuid
-                     or not key.decode().endswith(uuid.lower()))):
+        if record.get('name') == hostname:
             return '%s is a VM being created under another uuid' % hostname
     return None
 
