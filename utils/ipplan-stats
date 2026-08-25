@@ -89,6 +89,8 @@ PAGE = '''<!doctype html>
   summary { cursor: pointer; font-size: .88rem; }
   pre { overflow-x: auto; font: .8rem/1.45 ui-monospace, monospace;
         color: var(--muted); margin: .6rem 0 .3rem; }
+  td.ranges { white-space: normal; font-variant-numeric: tabular-nums; }
+  .full { color: var(--muted); font-style: italic; }
   footer { color: var(--muted); font-size: .78rem; margin-top: 3rem; }
 </style>
 </head>
@@ -119,6 +121,26 @@ tool %(tool)s</p>
 <table>
 <thead><tr><th>Package</th><th class="num">Hosts</th><th></th></tr></thead>
 <tbody>%(packages)s
+</tbody>
+</table>
+</div>
+
+<h2>Free space &mdash; supernet holes</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Domain</th><th>Supernet</th><th>Free block</th>
+<th class="num">Addresses</th></tr></thead>
+<tbody>%(supernet_holes)s
+</tbody>
+</table>
+</div>
+
+<h2>Free space &mdash; holes inside networks</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Network</th><th class="num">Free</th>
+<th>Unallocated ranges</th></tr></thead>
+<tbody>%(network_holes)s
 </tbody>
 </table>
 </div>
@@ -199,6 +221,117 @@ def package_rows(c):
         for name, n in counts)
 
 
+def _masters_and_networks(c):
+    """Split network rows: the <DOMAIN>@DREAMHACK rows are the
+    supernet masters (#@ blocks), the rest are real networks."""
+    masters, networks = [], []
+    for row in c.execute(
+            'SELECT node_id, name, ipv4_txt, ipv4_gateway_txt '
+            'FROM network ORDER BY name'):
+        (networks, masters)[row[1].endswith('@DREAMHACK')].append(row)
+    return masters, networks
+
+
+def supernet_hole_rows(c):
+    """Free blocks inside each supernet: the master's range minus its
+    networks - computed, where prod tracks #-FREE- comments by hand."""
+    masters, networks = _masters_and_networks(c)
+    rows = []
+    for _, name, cidr, _ in masters:
+        try:
+            supernet = ipaddress.ip_network(cidr)
+        except ValueError:
+            continue
+        domain = name.split('@', 1)[0]
+        blocks = [supernet]
+        for _, nname, ncidr, _ in networks:
+            if nname.split('@', 1)[0] != domain or not ncidr:
+                continue
+            try:
+                child = ipaddress.ip_network(ncidr)
+            except ValueError:
+                continue
+            nxt = []
+            for block in blocks:
+                if child == block:
+                    continue
+                if child.subnet_of(block):
+                    nxt.extend(block.address_exclude(child))
+                elif block.subnet_of(child):
+                    continue
+                else:
+                    nxt.append(block)
+            blocks = nxt
+        if blocks:
+            for block in sorted(blocks):
+                rows.append(
+                    '\n<tr><td>%s</td><td>%s</td><td>%s</td>'
+                    '<td class="num">%d</td></tr>'
+                    % (esc(domain), esc(cidr), esc(block),
+                       block.num_addresses))
+        else:
+            rows.append(
+                '\n<tr><td>%s</td><td>%s</td>'
+                '<td colspan="2" class="full">fully allocated</td></tr>'
+                % (esc(domain), esc(cidr)))
+    return ''.join(rows)
+
+
+def _free_ranges(net, used):
+    """Gap-walk the usable span: (start, end) int pairs not in used."""
+    lo = int(net.network_address) + 1
+    hi = int(net.broadcast_address) - 1
+    ranges, cursor = [], lo
+    for addr in sorted(a for a in used if lo <= a <= hi):
+        if addr > cursor:
+            ranges.append((cursor, addr - 1))
+        cursor = max(cursor, addr + 1)
+    if cursor <= hi:
+        ranges.append((cursor, hi))
+    return ranges
+
+
+def network_hole_rows(c, limit=6):
+    """Unallocated ranges inside each network (gateway, network and
+    broadcast count as used) - where the next IP comes from."""
+    _, networks = _masters_and_networks(c)
+    rows = []
+    for node_id, name, cidr, gateway in networks:
+        if not cidr:
+            continue
+        try:
+            net = ipaddress.ip_network(cidr)
+        except ValueError:
+            continue
+        if net.num_addresses <= 2:
+            continue
+        used = {addr for (addr,) in c.execute(
+            'SELECT ipv4_addr FROM host WHERE network_id = ? '
+            'AND ipv4_addr IS NOT NULL', (node_id,))}
+        if gateway:
+            used.add(int(ipaddress.ip_address(gateway)))
+        ranges = _free_ranges(net, used)
+        free = sum(end - start + 1 for start, end in ranges)
+        shown = []
+        for start, end in ranges[:limit]:
+            first = ipaddress.ip_address(start)
+            if start == end:
+                shown.append(str(first))
+            else:
+                shown.append('%s &ndash; %s' % (
+                    first, ipaddress.ip_address(end)))
+        more = len(ranges) - limit
+        if more > 0:
+            shown.append('&#8230; +%d more' % more)
+        rows.append(
+            '\n<tr><td>%s</td><td class="num">%d</td>'
+            '<td class="ranges">%s</td></tr>'
+            % (esc(name), free,
+               ', '.join(shown) if shown else
+               '<span class="full">none free</span>'))
+    return ''.join(rows)
+
+
 def recent_changes(diff_dir, limit=5):
     if not diff_dir or not os.path.isdir(diff_dir):
         return ''
@@ -238,6 +371,8 @@ def render(db_path, diff_dir=None):
         'cards': cards(c),
         'networks': network_rows(c),
         'packages': package_rows(c),
+        'supernet_holes': supernet_hole_rows(c),
+        'network_holes': network_hole_rows(c),
         'changes': recent_changes(diff_dir),
     }
     conn.close()

@@ -43,3 +43,45 @@ def test_recent_changes_from_diff_dir(ipplan, tmp_path):
 
 def test_no_diff_dir_no_changes_section(ipplan):
     assert 'Recent changes' not in load_stats().render(str(ipplan))
+
+
+def test_network_holes(ipplan):
+    """Unallocated ranges inside networks: the lab colo /24 has hosts
+    at .2 and .60-.69, so .3-.59 must show as a free range."""
+    page = load_stats().render(str(ipplan))
+    assert 'holes inside networks' in page
+    assert '10.200.0.3 &ndash; 10.200.0.59' in page
+
+
+def test_supernet_holes_match_prod_free_markers():
+    """The computed supernet holes reproduce the last event's
+    hand-kept #-FREE- markers (dhb26): every annotated public free
+    block appears in the computed output. Skipped without corpus."""
+    import os
+    import sqlite3
+    import pytest
+    from conftest import load_ipplan2db
+    path = os.path.expanduser('~/repos/dh/svn/dhb26/core/ipplan')
+    if not os.path.exists(path):
+        pytest.skip('prod corpus not present')
+    tool = load_ipplan2db()
+    model = tool.parse_all([path])
+    conn = sqlite3.connect(':memory:')
+    c = conn.cursor()
+    tool.create_schema(c)
+    tool.emit_topology(model, c)
+    holes = load_stats().supernet_hole_rows(c)
+    with open(path) as f:
+        markers = [line.split()[1] for line in f
+                   if line.startswith('#-FREE-')
+                   and 'RFC1918' not in line]
+    assert markers, 'corpus lost its FREE markers?'
+    # the computation merges adjacent hand-marked blocks into larger
+    # CIDRs - assert COVERAGE: every marker lies in a computed hole
+    import ipaddress
+    import re
+    blocks = [ipaddress.ip_network(m) for m in re.findall(
+        r'<td>(\d+\.\d+\.\d+\.\d+/\d+)</td><td class="num">', holes)]
+    for marker in markers:
+        net = ipaddress.ip_network(marker)
+        assert any(net.subnet_of(b) for b in blocks), marker
