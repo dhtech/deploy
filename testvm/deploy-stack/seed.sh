@@ -13,11 +13,11 @@ apt-get -qq install -y ipxe dnsmasq nftables apt-cacher-ng >/dev/null
 # --- deploy backend CGIs + lib -------------------------------------------
 mkdir -p /var/www/deploy
 cp -r "$repo/server/backend/ipxe" "$repo/server/backend/debian" /var/www/deploy/
-cp "$repo/server/backend/finish.py" "$repo/server/backend/enc.py" "$repo/server/backend/autosign.py" "$repo/server/backend/enrollments.py" "$repo/server/backend/report.py" /var/www/deploy/
-cp -r "$repo/server/backend/modules" /var/www/deploy/
+# no enc.py / generator modules here: the ENC lives ON the puppet
+# server (dhenc) - provision gets all its data from puppet
+cp "$repo/server/backend/finish.py" "$repo/server/backend/autosign.py" "$repo/server/backend/enrollments.py" "$repo/server/backend/report.py" /var/www/deploy/
 mkdir -p /var/www/deploy/lib
 cp "$repo/server/libdhdeploy/metadata.py" /var/www/deploy/lib/
-cp "$repo/server/libdhdeploy/flows.py" /var/www/deploy/lib/
 touch /var/www/deploy/lib/__init__.py
 chmod -R a+rX /var/www/deploy
 find /var/www/deploy -name '*.py' -exec chmod 755 {} +
