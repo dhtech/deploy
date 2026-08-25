@@ -15,8 +15,8 @@ PAIRS = [
     ('libdhdeploy/metadata.py', 'lib/metadata.py'),
 ] + [('backend/modules/%s.py' % m, 'modules/%s.py' % m)
      for m in ('__init__', 'deploy', 'jumpgate', 'lam', 'ldap', 'login',
-               'prometheus', 'puppetserver', 'pve', 'router', 'trac', 'vault',
-               'web')]
+               'grafana', 'prometheus', 'puppetserver', 'pve', 'router', 'trac',
+               'vault', 'web')]
 
 pytestmark = pytest.mark.skipif(
     not os.path.isdir(PUPPET), reason='puppet repo checkout not present')

@@ -22,7 +22,8 @@ COLO		10.200.0.0/24	R1		200	nat;pkg=servers
 #$ ldap1.colo.notproduction.net		10.200.0.67	os=debian;pkg=ldap
 #$ ldap2.colo.notproduction.net		10.200.0.68	os=debian;pkg=ldap
 #$ jumpgate1.colo.notproduction.net	10.200.0.69	os=debian;pkg=jumpgate,base;expose=2022:2022
-#$ prometheus1.colo.notproduction.net	10.200.0.70	os=debian;pkg=prometheus;expose=448:443;webname=prometheus.colo.notproduction.net
+#$ prometheus.colo.notproduction.net	10.200.0.70	os=debian;pkg=prometheus;expose=448:443;webname=prometheus.colo.notproduction.net
+#$ grafana.colo.notproduction.net	10.200.0.71	os=debian;pkg=grafana;expose=449:443;webname=grafana.colo.notproduction.net
 
 # The deployment VLAN: installers live here (dynamic, PXE - no host
 # lines). gw= stays on the deploy server until the router cutover.

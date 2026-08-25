@@ -115,15 +115,18 @@ def classify(hostname, manifest):
                     deploys[0][0])})
         else:
             classes.setdefault('dhaptcache', {})
-    # fleet baseline: node metrics, once a prometheus host exists;
-    # 9100 opens ONLY to the prometheus host(s) - and only where
-    # dhfirewall is ours (pve manages its own firewall)
-    proms = metadata.hosts_with_pkg('prometheus')
+    # fleet baseline: node metrics, once the host's OWN SITE has a
+    # prometheus (monitoring is site-local - another site's prometheus
+    # never scrapes here); 9100 opens ONLY to that site prometheus -
+    # and only where dhfirewall is ours (pve manages its own firewall)
+    site = metadata.host_site(hostname)
+    proms = [h for h, _ in metadata.hosts_with_pkg('prometheus')
+             if metadata.host_site(h) == site]
     if proms:
         classes.setdefault('dhnodeexporter', {})
         if 'dhfirewall' in classes:
             merge_params(classes, {'dhfirewall': {'open_tcp_scoped': {
-                9100: sorted(metadata.host_ip(h) for h, _ in proms)}}})
+                9100: sorted(metadata.host_ip(h) for h in proms)}}})
     if 'dhfirewall' in classes:
         jumpgates = [metadata.host_ip(h)
                      for h, _ in metadata.hosts_with_pkg('jumpgate')]
