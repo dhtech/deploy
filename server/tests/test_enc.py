@@ -135,10 +135,12 @@ def test_merge_lists_union_scalars_override():
     assert 'b' in target
 
 
-def test_unknown_host_gets_firewall_and_ipplan(ipplan, manifest):
-    # the safe floor: locked-down firewall, and the ipplan consumer -
-    # granted by the ENC for every host, never by the (possibly
-    # lagging) db itself
+def test_known_but_pkgless_host_gets_safe_floor(ipplan, manifest):
+    # a host that IS in ipplan but carries no pkgs still converges:
+    # locked-down firewall + the ipplan consumer (ENC-granted, never
+    # from the possibly-lagging db itself). UNKNOWN certnames never
+    # reach classify - main() hard-fails them (anomalies must be
+    # seen, not floored; user call)
     assert enc.classify('nosuch.test', manifest) == {
         'dhfirewall': {'jumpgates': ['10.200.0.2']},
         'dhipplan': {}}

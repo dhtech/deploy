@@ -91,6 +91,13 @@ def main():
         hostname = query_string['hostname'][0]
         print('')
 
+    # a certname that is not in ipplan is an ANOMALY, and anomalies
+    # must be SEEN: hard-fail the classification (failed agent run,
+    # red in puppetboard) instead of handing out a quiet safe floor
+    if metadata.get_vlan(hostname)[0] is None:
+        print('%s: not in ipplan' % hostname, file=sys.stderr)
+        sys.exit(1)
+
     manifest = metadata.get_manifest()
 
     output = {'classes': classify(hostname, manifest)}
