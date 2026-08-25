@@ -9,7 +9,7 @@
 #@ IPV4-COLO-NET	10.200.0.0/24
 
 #Name		#Net		#Terminator	#VLAN	#Options
-COLO		10.200.0.0/24	R1		200	nat
+COLO		10.200.0.0/24	R1		200	nat;pkg=servers
 #$ router.colo.notproduction.net	10.200.0.1	os=debian;pkg=router,resolver,ntp;addr=10.100.0.1,10.0.2.17,10.10.10.254
 #$ deploy.colo.notproduction.net	10.200.0.2	os=debian;pkg=jumpgate,deploy;webname=deploy.colo.notproduction.net
 #$ web1.colo.notproduction.net		10.200.0.60	os=debian;pkg=base,web(port=80)
