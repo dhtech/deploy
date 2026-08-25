@@ -15,7 +15,7 @@ browser
        ▼
      QEMU hostfwd on the workstation (start.sh, unprivileged port)
        ▼
-     the deploy server DNAT (nftables, keyed on destination port)
+     the ROUTER's DNAT (dhfirewall router mode - expose= in ipplan)
        ▼
      nginx on the service VM, port 443
        │  single-name Let's Encrypt certificate (no wildcards)
@@ -42,14 +42,19 @@ browser
 |---|---|---|---|
 | `127.0.0.1:4454` | pve:22 | pve-test SSH | live |
 | `127.0.0.1:8006` | pve:8006 | Proxmox web UI | live |
-| `127.0.0.1:4455` | the deploy server:22 | the deploy server SSH | live |
-| `127.0.0.1:8768` | the deploy server:8080 | deploy status page | live |
-| `127.0.0.1:8200` | → vault1:8200 (DNAT) | OpenBao API/UI (puppet CA) | live |
-| `127.0.0.1:8443` | → vault1:443 (DNAT) | **vault website** (nginx + LE) | live |
-| `127.0.0.1:8444` | → directory1:443 (DNAT) | Directory UI (LAM) | live |
-| `127.0.0.1:8445` | → doc1:443 (DNAT) | Trac + SVN (doc) | live |
-| `127.0.0.1:8447` | → puppet1:443 (DNAT) | **puppetboard** (nginx + LE, tech group) | live |
-| `127.0.0.1:2222` | → jumpgate1:22 (DNAT) | **user ssh entry** (directory logins) | live |
+| `127.0.0.1:4455` | the deploy server:22 (direct) | mgmt SSH - kept on deploy by design | live |
+| `127.0.0.1:8768` | the deploy server:8080 (direct) | deploy status page | live |
+| `127.0.0.1:8446` | the deploy server:446 (direct) | deploy website (nginx + LE) | live |
+| `127.0.0.1:8200` | router → vault1:8200 (expose=) | OpenBao API/UI (puppet CA) | live |
+| `127.0.0.1:8443` | router → vault1:443 (expose=) | **vault website** (nginx + LE) | live |
+| `127.0.0.1:8444` | router → directory1:443 (expose=) | Directory UI (LAM) | live |
+| `127.0.0.1:8445` | router → doc1:443 (expose=) | Trac + SVN (doc) | live |
+| `127.0.0.1:8447` | router → puppet1:443 (expose=) | **puppetboard** (nginx + LE, tech group) | live |
+| `127.0.0.1:2222` | router → jumpgate1:22 (expose=) | **user ssh entry** (directory logins) | live |
+
+The DNAT table is DATA: `expose=EXT:INT` on the host's ipplan line;
+the router's ruleset (masquerade, DNAT, forward) is derived from
+ipplan by the ENC (router.py) - nothing is hand-kept anymore.
 
 Live URLs:
 
@@ -81,7 +86,8 @@ the real ipplan file). Current inventory:
 
 | Host | IP | pkgs | Role | Appdisk LVs (vgapp) | Status |
 |---|---|---|---|---|---|
-| `deploy.colo.notproduction.net` | 10.200.0.2 | — | provision + deploy server, router/DNS/DHCP for the lab VLANs | — | live (hand-built dev box) |
+| `router.colo.notproduction.net` | 10.200.0.1 (+.100.1/.10.254/10.0.2.17) | `router`, `resolver`, `ntp` | THE site router: NAT/DNAT/forward (ipplan-derived), trunk NIC | — | live (pipeline) |
+| `deploy.colo.notproduction.net` | 10.200.0.2 | `jumpgate`, `deploy` | deploy server: PXE/DHCP/DNS(interim)/backend/deployd/apt-cache - ordinary dhfirewall host | — | live |
 | `web1.colo.notproduction.net` | 10.200.0.60 | `base`, `web(port=80)` | reference/test machine | `/srv/www` 10G | live |
 | `vault1.colo.notproduction.net` | 10.200.0.61 | `vault` | OpenBao + vault website (nginx/LE) | `/var/lib/openbao` 20G (future redeploys) | live (pre-appdisk build) |
 | `puppet1.colo.notproduction.net` | 10.200.0.62 | `puppetserver` | puppetserver, ENC client, ACME issuer | — | live |
@@ -90,7 +96,7 @@ the real ipplan file). Current inventory:
 | `ldap1-master.colo.notproduction.net` | 10.200.0.65 | `ldap` | directory master A (writable, mirror mode, seeds DIT) | `/var/lib/ldap` 10G | live |
 | `ldap2-master.colo.notproduction.net` | 10.200.0.66 | `ldap` | directory master B (writable, mirror mode) | `/var/lib/ldap` 10G | live |
 | `ldap1.colo.notproduction.net` | 10.200.0.67 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | live |
-| `ldap2.colo.notproduction.net` | 10.200.0.68 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | planned |
+| `ldap2.colo.notproduction.net` | 10.200.0.68 | `ldap` | site slave (read-only consumer) | `/var/lib/ldap` 10G | live |
 
 Directory topology: two mirror-mode **masters** in colo take all writes
 and directory administration (LAM); **applications read and
@@ -125,11 +131,15 @@ Using the reserved FusionDirectory slot as the example:
      [443, 636]`, `dhacme::cert::cert_name: 'directory.dh.notproduction.net'`.
    - a `dhnginx::<service>` class (copy `dhnginx/manifests/vault.pp`).
    - `git push puppet1 main` (push-to-deploy).
-4. **Network** (deploy side, seed.sh + live):
-   - dnsmasq `host-record=directory.dh.notproduction.net,10.200.0.63`
-   - DNAT: `iifname "ens18" tcp dport 444 dnat to 10.200.0.63:443`
-     (+ matching `oifname "ens21" ... masquerade` rule)
-   - Route 53 A record `directory.dh.notproduction.net → 127.0.0.1`
+4. **Network** (ALL data now):
+   - `webname=<name>` on the host's ipplan line → dnsmasq host-record
+     is generated (dh-dns-gen)
+   - `expose=EXT:443` on the host's ipplan line → the router's DNAT
+     is generated (router.py); pick a free EXT port (the gate rejects
+     collisions)
+   - workstation hostfwd for the new EXT port in
+     `~/vms/proxmox-ve/start.sh` → router (`10.0.2.17`)
+   - Route 53 A record `<name>.dh.notproduction.net → 127.0.0.1`
 5. Browse `https://directory.dh.notproduction.net:8444/`.
 
 ## Operational notes
