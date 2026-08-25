@@ -67,8 +67,10 @@ def test_heatmap(ipplan):
     assert '100% filled' in page
     assert page.index('supernet 10.200.0.0/24') < page.index(
         '<h3>COLO@COLO</h3>')
-    assert page.index('outside supernets') < page.index(
+    # MGMT (othernet 10.10.10.0/24) gets a DERIVED RFC1918 supernet
+    assert page.index('RFC1918 10.10.10.0/24') < page.index(
         '<h3>COLO@MGMT</h3>')
+    assert 'outside supernets' not in page   # no public strays in lab
 
 
 def test_heatmap_aggregates_large_blocks():
@@ -81,6 +83,27 @@ def test_heatmap_aggregates_large_blocks():
         32768, 0, set(range(0, 4000)), {})
     assert cells.count('<i') == 256
     assert 'h4' in cells and '128/128 used' in cells
+
+
+def test_rfc1918_derived_supernet_covers_corpus():
+    """dhb26's 10.x othernet networks get a derived RFC1918 supernet
+    strip; its public /32 strays stay outside. Skipped w/o corpus."""
+    import os
+    import sqlite3
+    import pytest
+    from conftest import load_ipplan2db
+    path = os.path.expanduser('~/repos/dh/svn/dhb26/core/ipplan')
+    if not os.path.exists(path):
+        pytest.skip('prod corpus not present')
+    tool = load_ipplan2db()
+    model = tool.parse_all([path])
+    conn = sqlite3.connect(':memory:')
+    c = conn.cursor()
+    tool.create_schema(c)
+    tool.emit_topology(model, c)
+    blocks = load_stats().heatmap_blocks(c)
+    assert '<h3>RFC1918 10.' in blocks
+    assert '% filled' in blocks
 
 
 def test_supernet_holes_match_prod_free_markers():

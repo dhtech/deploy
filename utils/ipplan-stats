@@ -489,15 +489,47 @@ def heatmap_blocks(c):
                 claimed.add(row[0])
                 blocks.append(_network_block(c, *row))
         blocks.append('\n</div>')
-    othernets = [row for row, _ in parsed if row[0] not in claimed]
-    if othernets:
+    # othernet space: no #@ master, so DERIVE one per RFC1918 block -
+    # the smallest common supernet of its member networks - and give
+    # it the same strip + fill treatment; public strays go last
+    rfc1918 = [ipaddress.ip_network(b) for b in
+               ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')]
+    leftover = [(row, net) for row, net in parsed
+                if row[0] not in claimed]
+    for base in rfc1918:
+        members = [(row, net) for row, net in leftover
+                   if net.subnet_of(base)]
+        if not members:
+            continue
+        derived = members[0][1]
+        while not all(net.subnet_of(derived) for _, net in members):
+            derived = derived.supernet()
+        children = [(row[1], net) for row, net in members]
+        covered = sum(net.num_addresses for _, net in children)
+        pct = 100 * covered / derived.num_addresses
         blocks.append(
             '\n<div class="heatgroup"><div class="heatblock">'
-            '<h3>outside supernets</h3>'
-            '<p>othernet space (no #@ master)</p></div>')
-        for row in othernets:
+            '<h3>RFC1918 %s</h3>'
+            '<p><b>%.0f%% filled</b> by %d networks '
+            '(%d of %d addresses) &middot; derived supernet, no #@ '
+            'master &middot; hover names them</p>'
+            '<div class="heat">%s</div></div>'
+            % (esc(derived), pct, len(children), covered,
+               derived.num_addresses,
+               _supernet_strip(derived, children)))
+        for row, net in members:
+            claimed.add(row[0])
             blocks.append(_network_block(c, *row))
         blocks.append('\n</div>')
+    strays = [row for row, _ in parsed if row[0] not in claimed]
+    if strays:
+        stray_blocks = [_network_block(c, *row) for row in strays]
+        if any(stray_blocks):
+            blocks.append(
+                '\n<div class="heatgroup"><div class="heatblock">'
+                '<h3>outside supernets</h3>'
+                '<p>public space with no #@ master</p></div>'
+                + ''.join(stray_blocks) + '\n</div>')
     legend = ('\n<p class="heatlegend">each cell is one address '
               '(aggregated on large blocks); hover for details.'
               '<i></i>free <i class="h4"></i>allocated '
