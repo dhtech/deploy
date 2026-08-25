@@ -14,6 +14,12 @@ apps:
     packages:
       - puppetboard
       - gunicorn
+  # metrics server: the official release tarball, unpacked by
+  # dhprometheus on prometheus1
+  prometheus:
+    kind: github
+    repo: prometheus/prometheus
+    asset: 'prometheus-*.linux-amd64.tar.gz'
   # mirror-only for now: the MFA portal evaluation (Authelia plan).
   # Upstream ships official .deb release assets; nothing installs
   # this yet - it just exists in the appstore/fileserver.
