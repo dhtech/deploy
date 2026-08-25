@@ -90,6 +90,25 @@ PAGE = '''<!doctype html>
   pre { overflow-x: auto; font: .8rem/1.45 ui-monospace, monospace;
         color: var(--muted); margin: .6rem 0 .3rem; }
   td.ranges { white-space: normal; font-variant-numeric: tabular-nums; }
+  .heatblock { background: var(--card); border: 1px solid var(--line);
+               border-radius: 8px; padding: .8rem 1rem; margin: .6rem 0; }
+  .heatblock h3 { margin: 0 0 .1rem; font-size: .92rem; }
+  .heatblock p { margin: 0 0 .6rem; color: var(--muted);
+                 font-size: .78rem; }
+  .heat { display: grid; grid-template-columns: repeat(32, 1fr);
+          gap: 2px; max-width: 34rem; }
+  .heat i { display: block; aspect-ratio: 1; border-radius: 2px;
+            background: var(--bar); }
+  .heat .h1 { background: color-mix(in srgb, var(--accent) 30%%, var(--bar)); }
+  .heat .h2 { background: color-mix(in srgb, var(--accent) 55%%, var(--bar)); }
+  .heat .h3 { background: color-mix(in srgb, var(--accent) 80%%, var(--bar)); }
+  .heat .h4 { background: var(--accent); }
+  .heat .infra { background: var(--muted); opacity: .55; }
+  .heatlegend { color: var(--muted); font-size: .74rem;
+                margin-top: .5rem; }
+  .heatlegend i { display: inline-block; width: .7rem; height: .7rem;
+                  border-radius: 2px; vertical-align: -.08rem;
+                  margin: 0 .25rem 0 .7rem; }
   .full { color: var(--muted); font-style: italic; }
   footer { color: var(--muted); font-size: .78rem; margin-top: 3rem; }
 </style>
@@ -124,6 +143,8 @@ tool %(tool)s</p>
 </tbody>
 </table>
 </div>
+
+<h2>Heatmap</h2>%(heatmap)s
 
 <h2>Free space &mdash; supernet holes</h2>
 <div class="tablewrap">
@@ -332,6 +353,103 @@ def network_hole_rows(c, limit=6):
     return ''.join(rows)
 
 
+def _heat_cells(total_addrs, base_int, used, names, max_cells=256):
+    """Grid cells for one address block: per-address when it fits,
+    density-aggregated slices otherwise. Returns HTML <i> cells with
+    tooltips (hostname on used addresses)."""
+    n = min(total_addrs, max_cells)
+    per = total_addrs // n
+    used_sorted = sorted(used)
+    import bisect
+    cells = []
+    for i in range(n):
+        lo = base_int + i * per
+        hi = lo + per - 1
+        count = (bisect.bisect_right(used_sorted, hi)
+                 - bisect.bisect_left(used_sorted, lo))
+        if per == 1:
+            addr = ipaddress.ip_address(lo)
+            if count:
+                label = names.get(lo)
+                cells.append('<i class="h4" title="%s%s"></i>' % (
+                    esc(addr), esc(' - ' + label if label else '')))
+            elif lo in names:   # infra: network/broadcast/gateway
+                cells.append('<i class="infra" title="%s - %s"></i>'
+                             % (esc(addr), esc(names[lo])))
+            else:
+                cells.append('<i title="%s free"></i>' % esc(addr))
+        else:
+            level = 0 if not count else max(
+                1, round(4 * count / per))
+            cells.append('<i class="h%d" title="%s &ndash; %s: %d/%d used"></i>'
+                         % (min(level, 4), ipaddress.ip_address(lo),
+                            ipaddress.ip_address(hi), count, per))
+    return ''.join(cells)
+
+
+def heatmap_blocks(c):
+    """One heat grid per supernet (density = space covered by its
+    networks) and per network (cell = address; hostname tooltips)."""
+    masters, networks = _masters_and_networks(c)
+    blocks = []
+    for _, name, cidr, _ in masters:
+        try:
+            supernet = ipaddress.ip_network(cidr)
+        except ValueError:
+            continue
+        domain = name.split('@', 1)[0]
+        used = set()
+        for _, nname, ncidr, _ in networks:
+            if nname.split('@', 1)[0] != domain or not ncidr:
+                continue
+            try:
+                child = ipaddress.ip_network(ncidr)
+            except ValueError:
+                continue
+            if child.subnet_of(supernet):
+                used.update(range(int(child.network_address),
+                                  int(child.broadcast_address) + 1))
+        blocks.append(
+            '\n<div class="heatblock"><h3>%s supernet %s</h3>'
+            '<p>allocation of the master block by its networks</p>'
+            '<div class="heat">%s</div></div>'
+            % (esc(domain), esc(cidr),
+               _heat_cells(supernet.num_addresses,
+                           int(supernet.network_address), used, {})))
+    for node_id, name, cidr, gateway in networks:
+        if not cidr:
+            continue
+        try:
+            net = ipaddress.ip_network(cidr)
+        except ValueError:
+            continue
+        if net.num_addresses <= 2:
+            continue
+        used, names = set(), {}
+        for addr, host in c.execute(
+                'SELECT ipv4_addr, name FROM host WHERE network_id = ? '
+                'AND ipv4_addr IS NOT NULL', (node_id,)):
+            used.add(addr)
+            names[addr] = host
+        names.setdefault(int(net.network_address), 'network')
+        names.setdefault(int(net.broadcast_address), 'broadcast')
+        if gateway:
+            gw = int(ipaddress.ip_address(gateway))
+            if gw not in used:
+                names.setdefault(gw, 'gateway')
+        blocks.append(
+            '\n<div class="heatblock"><h3>%s</h3><p>%s &middot; '
+            '%d hosts</p><div class="heat">%s</div></div>'
+            % (esc(name), esc(cidr), len(used),
+               _heat_cells(net.num_addresses,
+                           int(net.network_address), used, names)))
+    legend = ('\n<p class="heatlegend">each cell is one address '
+              '(aggregated on large blocks); hover for details.'
+              '<i></i>free <i class="h4" ></i>allocated '
+              '<i class="infra"></i>network/broadcast/gateway</p>')
+    return ''.join(blocks) + legend
+
+
 def recent_changes(diff_dir, limit=5):
     if not diff_dir or not os.path.isdir(diff_dir):
         return ''
@@ -371,6 +489,7 @@ def render(db_path, diff_dir=None):
         'cards': cards(c),
         'networks': network_rows(c),
         'packages': package_rows(c),
+        'heatmap': heatmap_blocks(c),
         'supernet_holes': supernet_hole_rows(c),
         'network_holes': network_hole_rows(c),
         'changes': recent_changes(diff_dir),

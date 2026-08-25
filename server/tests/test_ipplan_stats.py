@@ -53,6 +53,29 @@ def test_network_holes(ipplan):
     assert '10.200.0.3 &ndash; 10.200.0.59' in page
 
 
+def test_heatmap(ipplan):
+    """One grid per supernet and per network; used cells carry the
+    hostname tooltip, free cells the address, infra cells labeled."""
+    page = load_stats().render(str(ipplan))
+    assert '<h2>Heatmap</h2>' in page
+    assert 'title="10.200.0.62 - puppet1.test"' in page
+    assert 'title="10.200.0.3 free"' in page
+    assert 'broadcast' in page
+    assert 'supernet 10.200.0.0/24' in page
+
+
+def test_heatmap_aggregates_large_blocks():
+    """A block bigger than the cell budget gets density slices, not
+    one cell per address (the dhb26 /17 must not emit 32k cells)."""
+    import sqlite3
+    stats = load_stats()
+    conn = sqlite3.connect(':memory:')
+    cells = stats._heat_cells(
+        32768, 0, set(range(0, 4000)), {})
+    assert cells.count('<i') == 256
+    assert 'h4' in cells and '128/128 used' in cells
+
+
 def test_supernet_holes_match_prod_free_markers():
     """The computed supernet holes reproduce the last event's
     hand-kept #-FREE- markers (dhb26): every annotated public free
