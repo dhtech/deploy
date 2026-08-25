@@ -62,6 +62,13 @@ def test_heatmap(ipplan):
     assert 'title="10.200.0.3 free"' in page
     assert 'broadcast' in page
     assert 'supernet 10.200.0.0/24' in page
+    # hierarchical: supernet strip first, its networks nested after,
+    # othernets (MGMT) in their own trailing group; fill %% stated
+    assert '100% filled' in page
+    assert page.index('supernet 10.200.0.0/24') < page.index(
+        '<h3>COLO@COLO</h3>')
+    assert page.index('outside supernets') < page.index(
+        '<h3>COLO@MGMT</h3>')
 
 
 def test_heatmap_aggregates_large_blocks():
