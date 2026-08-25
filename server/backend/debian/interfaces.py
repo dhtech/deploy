@@ -2,6 +2,7 @@
 # Generate /etc/network/interfaces
 
 import os
+import sys
 import urllib.parse
 
 from lib import metadata
@@ -13,13 +14,17 @@ if 'ifs' in query_string:
     ifs = query_string['ifs'][0].split(',')
     first_if = ifs[0]
 
-ip = os.environ['REMOTE_ADDR']
-# The install runs on the deployment VLAN; hack_ip carries the host's
-# production (ipplan) address, which is its identity here.
-if 'hack_ip' in query_string:
-    ip = query_string['hack_ip'][0]
+try:
+    # identity: fqdn only (beta) - must name a host row in ipplan;
+    # anomalies answer 403 and are SEEN in the logs
+    hostname = metadata.request_host(query_string)
+except metadata.IdentityError as error:
+    print('Status: 403')
+    print('')
+    print(error)
+    sys.exit(0)
 
-client, cm = metadata.find(ip, first_if)
+client, cm = metadata.find(hostname, first_if)
 network = metadata.network(client, cm)
 if not network:
     exit(1)

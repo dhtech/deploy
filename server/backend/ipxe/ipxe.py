@@ -7,18 +7,23 @@
 # finishes. Legacy ESXi/OpenBSD/CoreOS/Tectonic menu entries are gone.
 
 import os
+import sys
 import urllib.parse
 
 from lib import metadata
 
 query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
-ip = os.environ['REMOTE_ADDR']
-# The install runs on the deployment VLAN; hack_ip carries the host's
-# production (ipplan) address, which is its identity here.
-if 'hack_ip' in query_string:
-    ip = query_string['hack_ip'][0]
+try:
+    # identity: fqdn only (beta) - must name a host row in ipplan;
+    # anomalies answer 403 and are SEEN in the logs
+    hostname = metadata.request_host(query_string)
+except metadata.IdentityError as error:
+    print('Status: 403')
+    print('')
+    print(error)
+    sys.exit(0)
 
-client, cm = metadata.find(ip)
+client, cm = metadata.find(hostname)
 BASE = metadata.base_url()
 
 mac = query_string.get('mac', [''])[0]
@@ -42,9 +47,9 @@ def debian(label, vga=False, debug=False, serial='ttyS0', variant='debian'):
 
     args.append('preseed/url={base}/preseed'.format(base=BASE))
     # Identity for early/late script callbacks: the install runs on the
-    # deployment VLAN, so the production address and the deploy base URL
+    # deployment VLAN, so the identity (fqdn) and the deploy base URL
     # ride along on the kernel command line.
-    args.append('dh_v4=${v4_address}')
+    args.append('dh_fqdn=${hostname}')
     args.append('dh_base=%s' % BASE)
     args.append('netcfg/choose_interface=auto')
     args.append('netcfg/get_hostname=${shortname}')

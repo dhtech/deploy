@@ -17,11 +17,11 @@ chain ${base}/ipxe-inventory.py?uuid=${uuid}&serial=${serial}&manufacturer=${man
 # the install runs on the deployment VLAN; provisiond moves us afterwards)
 chain ${base}/ipxe-network.py?hostname=${hostname} || goto retry
 
-# Step 3. Register metadata; identity is the production address
-chain ${base}/ipxe-register.py?uuid=${uuid}&serial=${serial}&manufacturer=${manufacturer}&product=${product}&hack_ip=${v4_address} || goto fail
+# Step 3. Register metadata; identity is the fqdn (uuid-verified for VMs)
+chain ${base}/ipxe-register.py?uuid=${uuid}&serial=${serial}&manufacturer=${manufacturer}&product=${product}&fqdn=${hostname} || goto fail
 
 # Step 4. Boot the installer
-chain ${base}/ipxe.py?mac=${net0/mac}&hack_ip=${v4_address} || goto fail
+chain ${base}/ipxe.py?mac=${net0/mac}&fqdn=${hostname} || goto fail
 
 :fail
 echo "Partial failure while loading deploy system!"

@@ -2,9 +2,10 @@
 # Dynamic early script for preseed/early_command (gen-3).
 # Generates the per-host root password, stores it in the secret store
 # (OpenBao/Vault KV v1, gen-2 path contract), and preseeds partitioning.
-# Identity comes from hack_ip (the host's production address).
+# Identity comes from fqdn= (validated against ipplan).
 
 import os
+import sys
 import secrets
 import string
 import urllib.parse
@@ -13,11 +14,17 @@ from lib import metadata
 
 query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
-ip = os.environ['REMOTE_ADDR']
-if 'hack_ip' in query_string:
-    ip = query_string['hack_ip'][0]
+try:
+    # identity: fqdn only (beta) - must name a host row in ipplan;
+    # anomalies answer 403 and are SEEN in the logs
+    hostname = metadata.request_host(query_string)
+except metadata.IdentityError as error:
+    print('Status: 403')
+    print('')
+    print(error)
+    sys.exit(0)
 
-client, cm = metadata.find(ip)
+client, cm = metadata.find(hostname)
 config = metadata.config()
 
 # The installer runs on the deployment VLAN with a DHCP address; record

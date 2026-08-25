@@ -28,9 +28,9 @@ d-i mirror/suite string trixie
 # Root password is generated per host by early.py and stored in the
 # secret store (OpenBao); no user account.
 d-i preseed/early_command string \
-    dh_v4=$(sed -n 's/.*dh_v4=\([^ ]*\).*/\1/p' /proc/cmdline); \
+    dh_fqdn=$(sed -n 's/.*dh_fqdn=\([^ ]*\).*/\1/p' /proc/cmdline); \
     dh_base=$(sed -n 's/.*dh_base=\([^ ]*\).*/\1/p' /proc/cmdline); \
-    wget -q -O /tmp/dh-early "$dh_base/early.py?hack_ip=$dh_v4" && sh /tmp/dh-early
+    wget -q -O /tmp/dh-early "$dh_base/early.py?fqdn=$dh_fqdn" && sh /tmp/dh-early
 d-i passwd/root-login boolean true
 d-i passwd/make-user boolean false
 
@@ -168,8 +168,8 @@ d-i grub-installer/bootdev string default
 
 # All per-host target configuration lives in the dynamic late script.
 d-i preseed/late_command string \
-    dh_v4=$(sed -n 's/.*dh_v4=\([^ ]*\).*/\1/p' /proc/cmdline); \
+    dh_fqdn=$(sed -n 's/.*dh_fqdn=\([^ ]*\).*/\1/p' /proc/cmdline); \
     dh_base=$(sed -n 's/.*dh_base=\([^ ]*\).*/\1/p' /proc/cmdline); \
-    wget -q -O /tmp/dh-late "$dh_base/late.py?hack_ip=$dh_v4" && sh /tmp/dh-late
+    wget -q -O /tmp/dh-late "$dh_base/late.py?fqdn=$dh_fqdn" && sh /tmp/dh-late
 
 d-i finish-install/reboot_in_progress note

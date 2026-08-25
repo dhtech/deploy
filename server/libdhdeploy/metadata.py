@@ -70,13 +70,28 @@ def lookup_ip(ip):
     return res[0] if res else None
 
 
-def find(ip, first_if=None):
+class IdentityError(Exception):
+    """The install-time caller could not prove a valid identity."""
+
+
+def request_host(query_string):
+    """Install-time caller identity: the fqdn= parameter, which MUST
+    name a host row in ipplan. fqdn-only (beta - no hack_ip fallback,
+    no address guessing): missing or unknown raises IdentityError and
+    the CGI answers 403 - anomalies must be SEEN."""
+    fqdn = query_string.get('fqdn', [''])[0].strip().lower()
+    if not fqdn:
+        raise IdentityError('no fqdn= parameter: identity required')
+    if get_vlan(fqdn)[0] is None:
+        raise IdentityError('%s: not in ipplan' % fqdn)
+    return fqdn
+
+
+def find(hostname, first_if=None):
+    """Install-state record for a host, by its fqdn (the identity the
+    whole system keys on - gen-3 dropped the ip detour)."""
     if first_if is None:
         first_if = 'eth0'
-
-    hostname = lookup_ip(ip)
-    if not hostname:
-        return None, None
 
     r = connection()
     raw = r.get('host-' + hostname)
@@ -96,7 +111,8 @@ def find(ip, first_if=None):
 
     my_net, _ = get_vlan(hostname)
     my_domain, _ = my_net.split('@', 1)
-    client = Client(hostname=hostname, ip=ip, virtual=virtual, managed=True,
+    client = Client(hostname=hostname, ip=host_ip(hostname),
+                    virtual=virtual, managed=True,
                     os=os, os_human=os_human, interface=interface,
                     domain=my_domain)
     return client, metadata

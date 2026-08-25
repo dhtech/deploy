@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # Dynamic late script for preseed/late_command (gen-3, replaces the
 # static gen-2 post-install). Emits a per-host shell script that runs in
-# the d-i environment with /target mounted. Identity via hack_ip.
+# the d-i environment with /target mounted. Identity via fqdn=.
 
 import os
+import sys
 import secrets
 import urllib.parse
 
@@ -11,11 +12,17 @@ from lib import metadata
 
 query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
-ip = os.environ['REMOTE_ADDR']
-if 'hack_ip' in query_string:
-    ip = query_string['hack_ip'][0]
+try:
+    # identity: fqdn only (beta) - must name a host row in ipplan;
+    # anomalies answer 403 and are SEEN in the logs
+    hostname = metadata.request_host(query_string)
+except metadata.IdentityError as error:
+    print('Status: 403')
+    print('')
+    print(error)
+    sys.exit(0)
 
-client, cm = metadata.find(ip)
+client, cm = metadata.find(hostname)
 config = metadata.config()
 base = metadata.base_url()
 
@@ -39,7 +46,7 @@ print('exec > /target/var/tmp/late.log 2>&1')
 # --- production network config (immutable, from ipplan) ---
 print('ifs=$(ls /sys/class/net/ | grep -v lo | sort | tr "\\n" "," )')
 print('wget -q -O /target/etc/network/interfaces '
-      '"%s/interfaces.py?ifs=${ifs}&hack_ip=%s"' % (base, ip))
+      '"%s/interfaces.py?ifs=${ifs}&fqdn=%s"' % (base, client.hostname))
 print('in-target chattr +i /etc/network/interfaces || true')
 print('printf "%s\\n" > /target/etc/resolv.conf' % resolv_lines)
 
@@ -187,5 +194,8 @@ if appdisks:
         print('echo "/dev/vgapp/%s %s ext4 %s 0 2" >> /target/etc/fstab'
               % (disk['lv'], disk['mountpoint'], disk['options']))
 
-# --- signal finish: provisiond moves us to the production VLAN ---
-print('wget -q -O /dev/null "%s/provision.py?hack_ip=%s" || true' % (base, ip))
+# --- signal finish: provisiond moves us to the production VLAN.
+# (gen-2's provision.py is gone; finish.py flips the installed flag
+# provisiond watches)
+print('wget -q -O /dev/null "%s/finish.py?fqdn=%s" || true'
+      % (base, client.hostname))

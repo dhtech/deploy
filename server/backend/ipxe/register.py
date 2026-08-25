@@ -10,8 +10,38 @@ import urllib.parse
 from lib import metadata
 
 
-def handle(ip, contents):
+def verify_vm_identity(r, hostname, uuid):
+    """The fqdn claim is VERIFIABLE for virtual machines: provisiond
+    publishes vm-<manager>-<smbios-uuid> records at create time, so a
+    claimed name must agree with the presented SMBIOS uuid - in both
+    directions. No record (physical hosts, expired window): first-seen,
+    as always."""
+    claimed = None
+    if uuid:
+        for key in r.keys('vm-*-' + uuid.lower()):
+            claimed = json.loads(r.get(key))['name']
+    if claimed is not None and claimed != hostname:
+        return 'uuid %s belongs to %s, not %s' % (uuid, claimed, hostname)
+    for key in r.keys('vm-*'):
+        record = json.loads(r.get(key))
+        if (record.get('name') == hostname
+                and (not uuid
+                     or not key.decode().endswith(uuid.lower()))):
+            return '%s is a VM being created under another uuid' % hostname
+    return None
+
+
+def handle(hostname, contents):
     r = metadata.connection()
+
+    denial = verify_vm_identity(r, hostname,
+                                contents.get('uuid', [''])[0])
+    if denial:
+        syslog.syslog(syslog.LOG_ERR, 'registration DENIED: ' + denial)
+        print('Status: 403')
+        print('')
+        print(denial)
+        sys.exit(0)
 
     # Initialize state fields.
     # These will be updated by the provisiond daemons.
@@ -32,7 +62,6 @@ def handle(ip, contents):
         'started': int(time.time())
     }
 
-    hostname = metadata.lookup_ip(ip)
     data_str = json.dumps(data)
     syslog.syslog(syslog.LOG_INFO,
                   'Registered metadata for %s: %s' % (hostname, data_str))
@@ -41,16 +70,19 @@ def handle(ip, contents):
     return hostname
 
 
-ip = os.environ['REMOTE_ADDR']
 # keep_blank_values: QEMU VMs have an empty SMBIOS serial
 query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
-# The install runs on the deployment VLAN; hack_ip carries the host's
-# production (ipplan) address, which is its identity here.
-if 'hack_ip' in query_string:
-    ip = query_string['hack_ip'][0]
+try:
+    # identity: fqdn only (beta) - must name a host row in ipplan
+    hostname = metadata.request_host(query_string)
+except metadata.IdentityError as error:
+    print('Status: 403')
+    print('')
+    print(error)
+    sys.exit(0)
 
-handle(ip, query_string)
+handle(hostname, query_string)
 
 # We need to present a dummy iPXE script to continue the boot process
 print('')
