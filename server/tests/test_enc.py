@@ -147,3 +147,5 @@ def test_known_but_pkgless_host_gets_safe_floor(ipplan, manifest):
     assert result['dhguest'] == {}
     # no host carries pkg deploy in this fixture -> no cache proxy
     assert 'dhaptcache' not in result
+    # no prometheus host in this fixture -> no exporter baseline
+    assert 'dhnodeexporter' not in result
