@@ -675,8 +675,12 @@ def emit_firewall(manifest, model, c, service_ids, flow_ids, db_path):
     metadata.DB_FILE = db_path
     node_of = {h.name: h.node_id for h in model.hosts}
     has_v6 = {h.name: bool(h.ipv6) for h in model.hosts}
+    # networks can be flow CLIENTS (client= on the network line)
+    for n in model.networks:
+        node_of.setdefault(n.name, n.node_id)
+        has_v6.setdefault(n.name, bool(n.ipv6))
     rules = 0
-    for host in sorted(node_of):
+    for host in sorted(h.name for h in model.hosts):
         for client, flow, service in flows.firewall_pairs(host, manifest):
             c.execute(
                 'INSERT INTO firewall_rule VALUES (NULL, ?, ?, ?, ?, ?, ?)',

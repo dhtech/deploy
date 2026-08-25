@@ -316,6 +316,33 @@ def all_hosts_pkgs():
     return dict(result)
 
 
+def network_clients():
+    """{network_name: (site, [client specs])} for networks carrying
+    client= options - flow clients whose members are not ipplan hosts
+    (the deployment VLAN's installers)."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    result = {}
+    for name, value in c.execute(
+            'SELECT network.name, option.value FROM network, option '
+            'WHERE network.node_id = option.node_id '
+            'AND option.name = "client" ORDER BY network.name'):
+        site = name.split('@', 1)[0].lower()
+        result.setdefault(name, (site, []))[1].append(value)
+    conn.close()
+    return result
+
+
+def node_ipv4(name):
+    """A node's IPv4 source form: host address or network CIDR."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT ipv4_txt FROM node_any WHERE name = ?', (name,))
+    res = c.fetchone()
+    conn.close()
+    return res[0] if res else None
+
+
 def host_site(hostname):
     """The host's site: the network name before the @, lowercased (the
     same thing the deploy code calls the domain)."""
@@ -358,37 +385,48 @@ def get_manifest():
     return manifest
 
 
-def tcp_ports(entries):
-    """destport entries like '636/tcp' or '5900-5910/tcp' to a port
-    list. Only tcp: dhfirewall has no scoped udp support yet."""
-    ports = []
+def ports_by_proto(entries):
+    """destport entries like '636/tcp', '123/udp' or '5900-5910/tcp'
+    to {proto: [ports]}."""
+    ports = collections.defaultdict(list)
     for entry in entries:
         port, _, proto = entry.partition('/')
-        if proto != 'tcp':
+        if proto not in ('tcp', 'udp'):
             continue
         lo, _, hi = port.partition('-')
-        ports.extend(range(int(lo), int(hi or lo) + 1))
-    return ports
+        ports[proto].extend(range(int(lo), int(hi or lo) + 1))
+    return dict(ports)
+
+
+def tcp_ports(entries):
+    """Compat wrapper: just the tcp ports."""
+    return ports_by_proto(entries).get('tcp', [])
 
 
 def firewall_rules_to(hostname):
-    """Precomputed firewall openings for a host: {port: [source ips]}.
-    ipplan2db writes prod's node-id firewall_rule rows at db build;
-    this reads them back through the ip-level view, expanding each
-    service's tcp destports."""
+    """Precomputed firewall openings for a host, per protocol:
+    {'tcp': {port: [sources]}, 'udp': {...}}. ipplan2db writes prod's
+    node-id firewall_rule rows at db build; this reads them back
+    through the ip-level view. A source is a host IP - or a network
+    CIDR, when the client side of the flow is a network (client= on
+    the network line: the deployment VLAN's installers)."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    rules = collections.defaultdict(set)
+    rules = {'tcp': collections.defaultdict(set),
+             'udp': collections.defaultdict(set)}
     for ip, ports in c.execute(
             'SELECT from_ipv4, service_dst_ports '
             'FROM firewall_rule_ip_level '
             'WHERE to_node_name = ? AND is_ipv4 = 1', (hostname,)):
         if not ip:
             continue
-        for port in tcp_ports(ports.split(',') if ports else []):
-            rules[port].add(ip)
+        for proto, plist in ports_by_proto(
+                ports.split(',') if ports else []).items():
+            for port in plist:
+                rules[proto][port].add(ip)
     conn.close()
-    return {port: sorted(ips) for port, ips in rules.items()}
+    return {proto: {port: sorted(ips) for port, ips in m.items()}
+            for proto, m in rules.items() if m}
 
 
 def get_appdisks(hostname):

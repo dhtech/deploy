@@ -53,8 +53,12 @@ def classify(hostname, manifest):
     # Firewall flows: precomputed by ipplan2db at db build (the
     # ruleset is data - query firewall_rule to audit or diff it).
     scoped = metadata.firewall_rules_to(hostname)
-    if scoped:
-        merge_params(classes, {'dhfirewall': {'open_tcp_scoped': scoped}})
+    if scoped.get('tcp'):
+        merge_params(classes, {'dhfirewall': {
+            'open_tcp_scoped': scoped['tcp']}})
+    if scoped.get('udp'):
+        merge_params(classes, {'dhfirewall': {
+            'open_udp_scoped': scoped['udp']}})
 
     # apt auto-updates: colo machines only, and the event change
     # freeze (meta_data) switches them off fleet-wide

@@ -9,6 +9,12 @@
 # A manifest entry may be parameterized like the ipplan pkg syntax:
 # an 'ldap(role=master)' entry overrides, per key, the base 'ldap'
 # entry for hosts whose pkg params match.
+#
+# Clients are hosts (pkg client specs) OR NETWORKS (client= on the
+# network line): a network client pairs like a host, and its CIDR
+# becomes the rule source - how the deployment VLAN's installers get
+# their flows without being ipplan hosts. tcp and udp destports both
+# emit (open_tcp_scoped / open_udp_scoped).
 
 import collections
 
@@ -25,10 +31,9 @@ def _parse_spec(spec, default_flow):
     return default_flow, spec
 
 
-def _tcp_ports(service_def):
-    """destport entries like '636/tcp' or '5900-5910/tcp' to a port list.
-    Only tcp: dhfirewall has no scoped udp support yet."""
-    return metadata.tcp_ports(service_def.get('destport', []))
+def _ports(service_def):
+    """destport entries to {proto: [ports]} (tcp + udp)."""
+    return metadata.ports_by_proto(service_def.get('destport', []))
 
 
 def _specs(packages, pkg, params, access):
@@ -71,6 +76,13 @@ def firewall_pairs(hostname, manifest):
             for spec in _specs(packages, pkg, params, 'client'):
                 clients[_parse_spec(spec, site)].add(other)
 
+    # network client= specs: flow clients whose members are not
+    # ipplan hosts (the deployment VLAN's installers) - the network
+    # itself is the client, its CIDR becomes the rule source
+    for net, (site, specs) in metadata.network_clients().items():
+        for spec in specs:
+            clients[_parse_spec(spec, site)].add(net)
+
     my_site = metadata.host_site(hostname)
     pairs = set()
     for spec in server_specs:
@@ -86,12 +98,16 @@ def firewall_params(hostname, manifest):
     its tcp destports opened to the hosts whose client spec matches on
     (flow, service). Empty dict when the host serves nothing."""
     services = manifest.get('services', {})
-    scoped = collections.defaultdict(set)
+    scoped = {'tcp': collections.defaultdict(set),
+              'udp': collections.defaultdict(set)}
     for client, _flow, service in firewall_pairs(hostname, manifest):
-        ip = metadata.host_ip(client)
-        for port in _tcp_ports(services.get(service) or {}):
-            scoped[port].add(ip)
-    if not scoped:
-        return {}
-    return {'open_tcp_scoped': {port: sorted(ips)
-                                for port, ips in scoped.items()}}
+        source = metadata.node_ipv4(client)
+        for proto, ports in _ports(services.get(service) or {}).items():
+            for port in ports:
+                scoped[proto][port].add(source)
+    out = {}
+    for proto, entries in scoped.items():
+        if entries:
+            out['open_%s_scoped' % proto] = {
+                port: sorted(ips) for port, ips in entries.items()}
+    return out
