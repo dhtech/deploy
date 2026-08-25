@@ -11,6 +11,10 @@ import yaml
 
 from conftest import load_ipplan2db
 
+# one shared load: each load_ipplan2db() call creates a fresh module
+# with its OWN BuildError class - pytest.raises must see the same one
+TOOL = load_ipplan2db()
+
 DHCP_IPPLAN = '''\
 #@ IPV4-CLIENT-NET\t10.77.0.0/16
 #@ IPV6-CLIENT-NET\t2001:db8:77::/48
@@ -32,7 +36,7 @@ def build(tmp_path, text, name='ipplan.db'):
     mpath.write_text(yaml.safe_dump({
         'packages': {'base': {'puppet': {'classes': ['dhfirewall']}}}}))
     db = tmp_path / name
-    load_ipplan2db().build(str(root), [str(mpath)], str(db))
+    TOOL.build(str(root), [str(mpath)], str(db))
     return db
 
 
@@ -113,8 +117,89 @@ def test_identical_rebuild_diff_is_silent(tmp_path, capsys):
 
 def test_format_diff_handles_null_columns():
     """Rows with NULLs must not crash the sort (None vs str)."""
-    tool = load_ipplan2db()
+    tool = TOOL
     lines = tool.format_diff(
         {'host': {('a', None), ('b', '1')}},
         {'host': {('a', None), ('c', None)}})
     assert lines[0] == 'host: +1 -1'
+
+
+ROUTER_IPPLAN = """\
+#@ IPV4-COLO-NET\t10.200.0.0/24
+COLO\t10.200.0.0/24\tR1\t200\tnat
+#$ router.colo.test\t10.200.0.1\tos=debian;pkg=router,resolver,ntp
+#$ vault1.colo.test\t10.200.0.61\tos=debian;pkg=base;expose=443:443
+#$ doc1.colo.test\t10.200.0.64\tos=debian;pkg=base;expose=445:443
+DEPLOY\t10.100.0.0/24\tR1\t100\tnat;gw=10.100.0.2
+"""
+
+
+def test_router_grammar_compiles(tmp_path):
+    """P1 grammar: nat network flag, expose= host pairs, the router
+    host line and the DEPLOY network all land in the db."""
+    db = build(tmp_path, ROUTER_IPPLAN)
+    assert options_of(db, 'COLO@COLO', 'network')['nat'] == '1'
+    assert options_of(db, 'COLO@DEPLOY', 'network')['nat'] == '1'
+    assert options_of(db, 'vault1.colo.test', 'host')['expose'] == \
+        '443:443'
+    pkgs = options_of(db, 'router.colo.test', 'host')
+    import sqlite3
+    conn = sqlite3.connect(db)
+    rows = [r[0] for r in conn.execute(
+        'SELECT o.value FROM option o, host h WHERE o.node_id = '
+        'h.node_id AND h.name = ? AND o.name = ?',
+        ('router.colo.test', 'pkg'))]
+    conn.close()
+    assert {'router', 'resolver', 'ntp'} <= set(rows)
+
+
+def test_gateway_computed_dot1_without_override(tmp_path):
+    """With no gw= override the computed gateway is .1 - the router.
+    (COLO keeps its gw=.2 override in the LIVE plan until the P5
+    cutover; this locks what removing it will do.)"""
+    import sqlite3
+    db = build(tmp_path, ROUTER_IPPLAN)
+    conn = sqlite3.connect(db)
+    gw = dict(conn.execute(
+        'SELECT name, ipv4_gateway_txt FROM network'))
+    conn.close()
+    assert gw['COLO@COLO'] == '10.200.0.1'
+    assert gw['COLO@DEPLOY'] == '10.100.0.2'   # override honored
+
+
+def build_expect_error(tmp_path, text):
+    import pytest
+    with pytest.raises(TOOL.BuildError) as err:
+        build(tmp_path, text)
+    return '\n'.join(err.value.errors)
+
+
+def test_expose_malformed_rejected(tmp_path):
+    errors = build_expect_error(tmp_path, ROUTER_IPPLAN.replace(
+        'expose=443:443', 'expose=443'))
+    assert 'bad expose' in errors and 'EXTPORT:INTPORT' in errors
+
+
+def test_expose_port_out_of_range_rejected(tmp_path):
+    errors = build_expect_error(tmp_path, ROUTER_IPPLAN.replace(
+        'expose=443:443', 'expose=70000:443'))
+    assert 'bad expose' in errors
+
+
+def test_expose_duplicate_external_port_rejected(tmp_path):
+    errors = build_expect_error(tmp_path, ROUTER_IPPLAN.replace(
+        'expose=445:443', 'expose=443:8443'))
+    assert 'expose port 443 already used in site COLO' in errors
+
+
+def test_expose_multi_pair_and_cross_checks(tmp_path):
+    db = build(tmp_path, ROUTER_IPPLAN.replace(
+        'expose=443:443', 'expose=443:443,8200:8200'))
+    import sqlite3
+    conn = sqlite3.connect(db)
+    rows = sorted(r[0] for r in conn.execute(
+        'SELECT o.value FROM option o, host h WHERE o.node_id = '
+        'h.node_id AND h.name = ? AND o.name = ?',
+        ('vault1.colo.test', 'expose')))
+    conn.close()
+    assert rows == ['443:443', '8200:8200']

@@ -408,6 +408,35 @@ def validate(model):
                 % (network.line, network.name, names[network.name]))
         else:
             names[network.name] = network.line
+
+    # expose=EXT:INT (router DNAT data): malformed pairs and duplicate
+    # external ports within a site are build failures - the gate is
+    # where a colliding forward should die, not the router
+    nets = {n.node_id: n for n in model.networks}
+    hosts = {h.node_id: h for h in model.hosts}
+    seen_expose = {}
+    for nid, name, value in model.options:
+        if name != 'expose':
+            continue
+        host = hosts.get(nid)
+        line = host.line if host else 0
+        match = re.fullmatch(r'(\d{1,5}):(\d{1,5})', value)
+        if not match or not all(
+                1 <= int(g) <= 65535 for g in match.groups()):
+            model.errors.append(
+                'line %d: bad expose %r (want EXTPORT:INTPORT, '
+                '1-65535)' % (line, value))
+            continue
+        net = nets.get(host.network_id) if host else None
+        domain = net.name.split('@', 1)[0] if net else ''
+        key = (domain, int(match.group(1)))
+        if key in seen_expose:
+            model.errors.append(
+                'line %d: expose port %s already used in site %s '
+                '(first at line %d)' % (line, match.group(1),
+                                        domain or '?', seen_expose[key]))
+        else:
+            seen_expose[key] = line
     if model.errors:
         raise BuildError(model.errors)
 
