@@ -10,7 +10,7 @@ redis:
   password: {env: REDIS_PASSWORD}
 
 vault:
-  url: https://vault.tech.dreamhack.se
+  url: https://vault.tech.dreamhack.se   # https only - cert verified via REQUESTS_CA_BUNDLE
   mount_env: VAULT_MOUNT   # mount point comes from this env var
 
 managers:
@@ -19,8 +19,12 @@ managers:
     type: proxmox
     api_url: https://10.10.10.1:8006
     token_id: provisioner@pve!dev
-    token_secret: {env: PVE_TOKEN_SECRET}   # or {vault: proxmox/coloc}
-    verify_tls: /etc/ssl/certs/dhtech-ca.crt   # path | true (system CAs) | false (lab only)
+    token_secret: {vault: "pve:provisioner"}   # or {env: PVE_TOKEN_SECRET}
+    # path | true (system CAs) | false (lab only). NB: when the service
+    # environment sets REQUESTS_CA_BUNDLE (for the vault client's private
+    # CA), "true" inherits THAT bundle - pass the system bundle path
+    # explicitly for a public-CA pve cert.
+    verify_tls: /etc/ssl/certs/ca-certificates.crt
     bridge: vmbr0
     deploy_vlan: 100
     node: null          # null = pick node with most free memory
