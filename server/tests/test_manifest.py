@@ -1,7 +1,7 @@
 # The manifest files themselves (testvm/deploy-stack/manifest.yaml +
 # appstore.yaml - the files that will live in svn): they must be valid
 # yaml and structurally sound, so a bad edit fails here instead of on
-# provision1. Parts merge at the top level; ipplan2db rejects
+# the deploy server. Parts merge at the top level; ipplan2db rejects
 # duplicate keys, and so does the merge here.
 
 import os

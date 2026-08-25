@@ -3,7 +3,7 @@
 # it with utils/ipplan2db. Same grammar as prod (allevents/colo/sto2).
 #
 # gen-3 extension: gw= on a network line overrides the computed
-# gateway - the lab default route is provision1's NAT at .2, not .1.
+# gateway - the lab default route is the deploy server's NAT at .2.
 
 #@ IPV4-COLO-NET	10.200.0.0/24
 

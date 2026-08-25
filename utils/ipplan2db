@@ -31,7 +31,7 @@ svn_revision, build_time, current_event, apt_freeze, change_freeze).
 
 Gen-3 grammar extensions (prod files are unaffected):
     gw=<ip> network option   overrides the computed gateway (the lab's
-                             gateway is provision1 at .2, not .1)
+                             gateway is the deploy server at .2, not .1)
     IPv6 master optional     a site with no IPV6-*-NET line gets NULL
                              ipv6 columns instead of derived garbage
 

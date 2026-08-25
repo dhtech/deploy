@@ -26,7 +26,7 @@ sys.modules['lib.flows'] = _lib.flows
 IPPLAN_COLO = '''\
 #@ IPV4-COLO-NET\t10.200.0.0/24
 COLO\t10.200.0.0/24\tR1\t200\tgw=10.200.0.2
-#$ provision1.test\t10.200.0.2\tpkg=jumpgate
+#$ deploy.test\t10.200.0.2\tpkg=jumpgate
 #$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)
 #$ vault1.test\t10.200.0.61\tos=debian;pkg=vault,-login;webname=vault.dh.example
 #$ puppet1.test\t10.200.0.62\tos=debian;pkg=puppetserver
