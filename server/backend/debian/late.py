@@ -3,6 +3,7 @@
 # static gen-2 post-install). Emits a per-host shell script that runs in
 # the d-i environment with /target mounted. Identity via fqdn=.
 
+import io
 import os
 import sys
 import secrets
@@ -36,6 +37,14 @@ ssh_port = int(config.get('ssh_port', 22))
 
 jump_set = ', '.join(jumpgates) if jumpgates else '127.0.0.1'
 resolv_lines = '\\n'.join('nameserver %s' % r for r in resolvers)
+
+# Build the whole script in memory before sending a single byte: the
+# secret store or redis failing mid-generation must yield a hard CGI
+# error (no output -> apache 500 -> the installer's wget fails), never
+# a truncated-but-valid script that d-i would happily execute.
+_real_stdout = sys.stdout
+_response = io.StringIO()
+sys.stdout = _response
 
 print('')
 print('#!/bin/sh')
@@ -199,3 +208,7 @@ if appdisks:
 # provisiond watches)
 print('wget -q -O /dev/null "%s/finish.py?fqdn=%s" || true'
       % (base, client.hostname))
+
+# generation complete - emit the buffered response in one piece
+sys.stdout = _real_stdout
+sys.stdout.write(_response.getvalue())
