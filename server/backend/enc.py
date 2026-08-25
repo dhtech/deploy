@@ -16,6 +16,7 @@
 # the hosts carrying pkg "jumpgate".
 
 import importlib
+import sys
 import os
 import urllib.parse
 
@@ -79,9 +80,16 @@ def classify(hostname, manifest):
 
 
 def main():
-    query_string = urllib.parse.parse_qs(
-        os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
-    hostname = query_string['hostname'][0]
+    # exec node terminus on the puppetserver (dhenc): hostname as
+    # argv; CGI mode (QUERY_STRING + blank body separator) kept for
+    # the deploy server's http endpoint
+    if len(sys.argv) > 1:
+        hostname = sys.argv[1]
+    else:
+        query_string = urllib.parse.parse_qs(
+            os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
+        hostname = query_string['hostname'][0]
+        print('')
 
     manifest = metadata.get_manifest()
 
@@ -90,7 +98,6 @@ def main():
     if env:
         output['environment'] = env
 
-    print('')
     print(yaml.safe_dump(output, default_flow_style=False))
 
 
