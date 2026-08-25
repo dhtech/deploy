@@ -30,7 +30,7 @@ config = metadata.config()
 # The installer runs on the deployment VLAN with a DHCP address; record
 # the mapping so the syslog receiver can identify it by source IP.
 remote = os.environ.get('REMOTE_ADDR', '')
-if remote and remote != ip:
+if remote and remote != client.ip:
     metadata.connection().setex('install-ip-' + remote, 3600, client.hostname)
 
 # No look-alike characters (gen-2 parity)
