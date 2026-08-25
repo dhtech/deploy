@@ -188,7 +188,7 @@ set -eu
 name=deploy.colo.notproduction.net
 D=/etc/deploy-ssl
 TOKEN=$(curl -sf --cacert "$D/puppet-ca.pem" --cert "$D/node.pem" --key "$D/node.key" \
-  -XPOST "https://vault1.colo.notproduction.net:8200/v1/auth/cert/login" | \
+  -XPOST -d '"'"'{"name": "host"}'"'"' "https://vault1.colo.notproduction.net:8200/v1/auth/cert/login" | \
   python3 -c "import json,sys; print(json.load(sys.stdin)['auth']['client_token'])")
 mkdir -p /etc/dh-certs
 umask 077
