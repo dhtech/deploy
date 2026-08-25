@@ -13,7 +13,7 @@ def generate(host, params, manifest):
             'ignore_ips': sorted(metadata.host_ip(h) for h, _ in
                                  metadata.hosts_with_pkg('jumpgate')),
             'jails': {'sshd': {'backend': 'systemd',
-                               'port': '22,2022'}},
+                               'port': 'ssh,2022'}},
         },
     }
     # PROD MODEL: the entry service is dhssh (2022/tcp) - declared
