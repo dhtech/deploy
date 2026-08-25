@@ -105,12 +105,10 @@ PAGE = '''<!doctype html>
   .heat .h2 { background: color-mix(in srgb, var(--accent) 55%%, var(--bar)); }
   .heat .h3 { background: color-mix(in srgb, var(--accent) 80%%, var(--bar)); }
   .heat .h4 { background: var(--accent); }
-  .heat .infra { background: var(--muted); opacity: .55; }
-  .heatgroup { border-left: 3px solid var(--line);
-              padding-left: .9rem; margin: 1rem 0; }
-  .heatgroup .heatblock:first-child { margin-left: -.9rem;
-              border-left: 3px solid var(--accent); padding-left: .9rem;
-              border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  h3.site { font-size: .78rem; letter-spacing: .1em;
+            text-transform: uppercase; color: var(--accent);
+            border-bottom: 1px solid var(--line);
+            padding-bottom: .3rem; margin: 1.75rem 0 .4rem; }
   .heatlegend { color: var(--muted); font-size: .74rem;
                 margin-top: .5rem; }
   .heatlegend i { display: inline-block; width: .7rem; height: .7rem;
@@ -415,40 +413,6 @@ def network_hole_rows(c, limit=6):
     return ''.join(rows)
 
 
-def _heat_cells(total_addrs, base_int, used, names, max_cells=256):
-    """Grid cells for one address block: per-address when it fits,
-    density-aggregated slices otherwise. Returns HTML <i> cells with
-    tooltips (hostname on used addresses)."""
-    n = min(total_addrs, max_cells)
-    per = total_addrs // n
-    used_sorted = sorted(used)
-    import bisect
-    cells = []
-    for i in range(n):
-        lo = base_int + i * per
-        hi = lo + per - 1
-        count = (bisect.bisect_right(used_sorted, hi)
-                 - bisect.bisect_left(used_sorted, lo))
-        if per == 1:
-            addr = ipaddress.ip_address(lo)
-            if count:
-                label = names.get(lo)
-                cells.append('<i class="h4" title="%s%s"></i>' % (
-                    esc(addr), esc(' - ' + label if label else '')))
-            elif lo in names:   # infra: network/broadcast/gateway
-                cells.append('<i class="infra" title="%s - %s"></i>'
-                             % (esc(addr), esc(names[lo])))
-            else:
-                cells.append('<i title="%s free"></i>' % esc(addr))
-        else:
-            level = 0 if not count else max(
-                1, round(4 * count / per))
-            cells.append('<i class="h%d" title="%s &ndash; %s: %d/%d used"></i>'
-                         % (min(level, 4), ipaddress.ip_address(lo),
-                            ipaddress.ip_address(hi), count, per))
-    return ''.join(cells)
-
-
 def _supernet_strip(supernet, children, max_cells=256):
     """The supernet's strip: each slice's tooltip names the network(s)
     covering it; class by covered fraction."""
@@ -481,36 +445,12 @@ def _supernet_strip(supernet, children, max_cells=256):
     return ''.join(cells)
 
 
-def _network_block(c, node_id, name, cidr, gateway):
-    try:
-        net = ipaddress.ip_network(cidr)
-    except ValueError:
-        return ''
-    if net.num_addresses <= 2:
-        return ''
-    used, names = set(), {}
-    for addr, host in c.execute(
-            'SELECT ipv4_addr, name FROM host WHERE network_id = ? '
-            'AND ipv4_addr IS NOT NULL', (node_id,)):
-        used.add(addr)
-        names[addr] = host
-    names.setdefault(int(net.network_address), 'network')
-    names.setdefault(int(net.broadcast_address), 'broadcast')
-    if gateway:
-        gw = int(ipaddress.ip_address(gateway))
-        if gw not in used:
-            names.setdefault(gw, 'gateway')
-    return ('\n<div class="heatblock"><h3>%s</h3><p>%s &middot; '
-            '%d hosts</p><div class="heat">%s</div></div>'
-            % (esc(name), esc(cidr), len(used),
-               _heat_cells(net.num_addresses,
-                           int(net.network_address), used, names)))
-
-
 def heatmap_blocks(c):
-    """Hierarchical: each supernet's coverage strip (cells name the
-    covering networks) with its member networks' grids nested under
-    it; othernet networks grouped at the end."""
+    """One coverage strip per supernet, grouped BY SITE (the network
+    domain): each site's #@ masters first, then its RFC1918 space as
+    derived supernets. At fleet scale (hundreds of mostly-dhcp
+    networks) per-network host grids are noise - the strips are the
+    view that scales."""
     masters, networks = _masters_and_networks(c)
     parsed = []
     for row in networks:
@@ -518,79 +458,66 @@ def heatmap_blocks(c):
             parsed.append((row, ipaddress.ip_network(row[2])))
         except ValueError:
             continue
-    claimed = set()
-    blocks = []
-    for _, mname, mcidr, _ in masters:
-        try:
-            supernet = ipaddress.ip_network(mcidr)
-        except ValueError:
-            continue
-        domain = mname.split('@', 1)[0]
-        children = [(row[1], net) for row, net in parsed
-                    if row[1].split('@', 1)[0] == domain
-                    and net.subnet_of(supernet)]
-        covered = sum(net.num_addresses for _, net in children)
-        pct = 100 * covered / supernet.num_addresses
-        blocks.append(
-            '\n<div class="heatgroup"><div class="heatblock">'
-            '<h3>%s supernet %s</h3>'
-            '<p><b>%.0f%% filled</b> by %d networks '
-            '(%d of %d addresses) &middot; hover names them</p>'
-            '<div class="heat">%s</div></div>'
-            % (esc(domain), esc(mcidr), pct, len(children),
-               covered, supernet.num_addresses,
-               _supernet_strip(supernet, children)))
-        for row, net in parsed:
-            if (row[1].split('@', 1)[0] == domain
-                    and net.subnet_of(supernet)):
-                claimed.add(row[0])
-                blocks.append(_network_block(c, *row))
-        blocks.append('\n</div>')
-    # othernet space: no #@ master, so DERIVE one per RFC1918 block -
-    # the smallest common supernet of its member networks - and give
-    # it the same strip + fill treatment; public strays go last
     rfc1918 = [ipaddress.ip_network(b) for b in
                ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')]
-    leftover = [(row, net) for row, net in parsed
-                if row[0] not in claimed]
-    for base in rfc1918:
-        members = [(row, net) for row, net in leftover
-                   if net.subnet_of(base)]
-        if not members:
-            continue
-        derived = members[0][1]
-        while not all(net.subnet_of(derived) for _, net in members):
-            derived = derived.supernet()
-        children = [(row[1], net) for row, net in members]
-        covered = sum(net.num_addresses for _, net in children)
-        pct = 100 * covered / derived.num_addresses
-        blocks.append(
-            '\n<div class="heatgroup"><div class="heatblock">'
-            '<h3>RFC1918 %s</h3>'
-            '<p><b>%.0f%% filled</b> by %d networks '
-            '(%d of %d addresses) &middot; derived supernet, no #@ '
-            'master &middot; hover names them</p>'
-            '<div class="heat">%s</div></div>'
-            % (esc(derived), pct, len(children), covered,
-               derived.num_addresses,
-               _supernet_strip(derived, children)))
-        for row, net in members:
-            claimed.add(row[0])
-            blocks.append(_network_block(c, *row))
-        blocks.append('\n</div>')
-    strays = [row for row, _ in parsed if row[0] not in claimed]
-    if strays:
-        stray_blocks = [_network_block(c, *row) for row in strays]
-        if any(stray_blocks):
+    domains = sorted(
+        {m[1].split('@', 1)[0] for m in masters}
+        | {row[1].split('@', 1)[0] for row, _ in parsed})
+    blocks = []
+    for domain in domains:
+        blocks.append('\n<h3 class="site">%s</h3>' % esc(domain))
+        claimed = set()
+        for _, mname, mcidr, _ in masters:
+            if mname.split('@', 1)[0] != domain:
+                continue
+            try:
+                supernet = ipaddress.ip_network(mcidr)
+            except ValueError:
+                continue
+            children = []
+            for row, net in parsed:
+                if (row[1].split('@', 1)[0] == domain
+                        and net.subnet_of(supernet)):
+                    children.append((row[1], net))
+                    claimed.add(row[0])
+            covered = sum(net.num_addresses for _, net in children)
+            pct = 100 * covered / supernet.num_addresses
             blocks.append(
-                '\n<div class="heatgroup"><div class="heatblock">'
-                '<h3>outside supernets</h3>'
-                '<p>public space with no #@ master</p></div>'
-                + ''.join(stray_blocks) + '\n</div>')
-    legend = ('\n<p class="heatlegend">each cell is one address '
-              '(aggregated on large blocks); hover for details.'
-              '<i></i>free <i class="h4"></i>allocated '
-              '<i class="infra"></i>network/broadcast/gateway</p>')
+                '\n<div class="heatblock">'
+                '<h3>supernet %s</h3>'
+                '<p><b>%.0f%% filled</b> by %d networks '
+                '(%d of %d addresses) &middot; hover names them</p>'
+                '<div class="heat">%s</div></div>'
+                % (esc(mcidr), pct, len(children),
+                   covered, supernet.num_addresses,
+                   _supernet_strip(supernet, children)))
+        leftover = [(row, net) for row, net in parsed
+                    if row[1].split('@', 1)[0] == domain
+                    and row[0] not in claimed]
+        for base in rfc1918:
+            members = [(row, net) for row, net in leftover
+                       if net.subnet_of(base)]
+            if not members:
+                continue
+            derived = members[0][1]
+            while not all(net.subnet_of(derived) for _, net in members):
+                derived = derived.supernet()
+            children = [(row[1], net) for row, net in members]
+            covered = sum(net.num_addresses for _, net in children)
+            pct = 100 * covered / derived.num_addresses
+            blocks.append(
+                '\n<div class="heatblock">'
+                '<h3>RFC1918 %s</h3>'
+                '<p><b>%.0f%% filled</b> by %d networks '
+                '(%d of %d addresses) &middot; derived supernet, no '
+                '#@ master &middot; hover names them</p>'
+                '<div class="heat">%s</div></div>'
+                % (esc(derived), pct, len(children), covered,
+                   derived.num_addresses,
+                   _supernet_strip(derived, children)))
+    legend = ('\n<p class="heatlegend">each cell is a slice of the '
+              'supernet; hover names the covering networks.'
+              '<i></i>free <i class="h4"></i>allocated</p>')
     return ''.join(blocks) + legend
 
 

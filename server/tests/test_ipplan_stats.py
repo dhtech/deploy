@@ -70,35 +70,38 @@ def test_network_holes(ipplan):
 
 
 def test_heatmap(ipplan):
-    """One grid per supernet and per network; used cells carry the
-    hostname tooltip, free cells the address, infra cells labeled."""
+    """Supernet strips ONLY (per-network host grids removed - at
+    fleet scale they are noise): masters + derived RFC1918, cells
+    name the covering network, fill %% stated."""
     page = load_stats().render(str(ipplan))
     assert '<h2>Heatmap</h2>' in page
-    assert 'title="10.200.0.62 - puppet1.test"' in page
-    assert 'title="10.200.0.3 free"' in page
-    assert 'broadcast' in page
     assert 'supernet 10.200.0.0/24' in page
-    # hierarchical: supernet strip first, its networks nested after,
-    # othernets (MGMT) in their own trailing group; fill %% stated
     assert '100% filled' in page
-    assert page.index('supernet 10.200.0.0/24') < page.index(
-        '<h3>COLO@COLO</h3>')
-    # MGMT (othernet 10.10.10.0/24) gets a DERIVED RFC1918 supernet
-    assert page.index('RFC1918 10.10.10.0/24') < page.index(
-        '<h3>COLO@MGMT</h3>')
-    assert 'outside supernets' not in page   # no public strays in lab
+    assert 'title="10.200.0.5: COLO@COLO"' in page
+    # separated by site: COLO header, its supernet + its RFC1918
+    # (MGMT), then the EVENT header with its supernet
+    colo = page.index('<h3 class="site">COLO</h3>')
+    event = page.index('<h3 class="site">EVENT</h3>')
+    assert colo < page.index('RFC1918 10.10.10.0/24') < event
+    assert colo < page.index('supernet 10.200.0.0/24') < event
+    assert event < page.index('supernet 10.201.0.0/24')
+    # no per-network grids, no host tooltips
+    assert '<h3>COLO@COLO</h3>' not in page
+    assert 'puppet1.test' not in page.split('<h2>Heatmap</h2>')[1] \
+        .split('</section>')[0]
+    assert 'outside supernets' not in page
 
 
 def test_heatmap_aggregates_large_blocks():
-    """A block bigger than the cell budget gets density slices, not
-    one cell per address (the dhb26 /17 must not emit 32k cells)."""
-    import sqlite3
+    """A supernet bigger than the cell budget gets density slices,
+    not one cell per address (a /17 must not emit 32k cells)."""
+    import ipaddress
     stats = load_stats()
-    conn = sqlite3.connect(':memory:')
-    cells = stats._heat_cells(
-        32768, 0, set(range(0, 4000)), {})
+    cells = stats._supernet_strip(
+        ipaddress.ip_network('10.0.0.0/17'),
+        [('NET-A', ipaddress.ip_network('10.0.0.0/24'))])
     assert cells.count('<i') == 256
-    assert 'h4' in cells and '128/128 used' in cells
+    assert 'NET-A' in cells
 
 
 def test_rfc1918_derived_supernet_covers_corpus():
