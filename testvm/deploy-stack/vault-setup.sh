@@ -73,11 +73,35 @@ bao secrets list | grep -q "^services/" \
 bao secrets list | grep -q "^services-test/" \
   || bao secrets enable -path=services-test -version=1 kv >/dev/null
 
-# Machine auth: puppet node certs (short-TTL tokens; gen-2 used ttl=0)
+# Machine auth: puppet node certs (short-TTL tokens). SCOPED roles -
+# a cert names the role it wants at login (name=...):
+#   host   - every fleet host: read published cert bundles only
+#   issuer - puppet1: mint certs + read the route53 acme creds
+#   deploy - the deploy server ONLY: services/* (root passwords, the
+#            password pipe). NEVER a fleet-wide role (that was the old
+#            'puppet' role's bug - any cert could read every secret).
 bao auth list | grep -q "^cert/" || bao auth enable cert >/dev/null
-bao write auth/cert/certs/puppet \
-  display_name="Puppet machines" \
-  policies=deploy \
+
+bao policy write host - >/dev/null <<POL
+path "services/certs:*" { capabilities = ["read"] }
+POL
+bao policy write acme-issuer - >/dev/null <<POL
+path "services/acme:route53" { capabilities = ["read"] }
+path "services/certs:*" { capabilities = ["create", "read", "update"] }
+POL
+
+bao write auth/cert/certs/host \
+  display_name="Fleet hosts" policies=host \
+  certificate=@/etc/openbao/tls/puppet-ca.pem \
+  token_ttl=1h token_max_ttl=4h >/dev/null
+bao write auth/cert/certs/issuer \
+  display_name="ACME issuer" policies=host,acme-issuer \
+  allowed_common_names=puppet1.colo.notproduction.net \
+  certificate=@/etc/openbao/tls/puppet-ca.pem \
+  token_ttl=1h token_max_ttl=4h >/dev/null
+bao write auth/cert/certs/deploy \
+  display_name="Deploy server" policies=deploy \
+  allowed_common_names=deploy.colo.notproduction.net \
   certificate=@/etc/openbao/tls/puppet-ca.pem \
   token_ttl=1h token_max_ttl=4h >/dev/null
 

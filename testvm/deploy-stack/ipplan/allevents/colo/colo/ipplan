@@ -9,7 +9,7 @@
 
 #Name		#Net		#Terminator	#VLAN	#Options
 COLO		10.200.0.0/24	R1		200	gw=10.200.0.2
-#$ provision1.colo.notproduction.net	10.200.0.2	os=debian;pkg=jumpgate,deploy;webname=deploy.dh.notproduction.net
+#$ deploy.colo.notproduction.net	10.200.0.2	os=debian;pkg=jumpgate,deploy;webname=deploy.colo.notproduction.net
 #$ web1.colo.notproduction.net		10.200.0.60	os=debian;pkg=base,web(port=80)
 #$ vault1.colo.notproduction.net	10.200.0.61	os=debian;pkg=vault;webname=vault.dh.notproduction.net
 #$ puppet1.colo.notproduction.net	10.200.0.62	os=debian;pkg=puppetserver;webname=puppet.dh.notproduction.net
