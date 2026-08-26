@@ -42,7 +42,7 @@ MGMT						10.10.10.0/24		R1		10	othernet
 # terminates it as wg0 at the computed .1; wg=<port> is the
 # published listener port (data). Peers are other sites' routers
 # with uplink=colo; their tunnel address is an addr= leg here.
-COLOVPN						172.29.16.0/24		R1		-	othernet;wg=51820
+COLOVPN						172.29.16.0/24		R1		-	othernet;wg=51820;wgsrc=10.0.2.0/24
 
 # The slirp/user-net side of the bench: the router's outside leg and
 # the workstation hostfwd targets live here (qemu's gateway at .2).

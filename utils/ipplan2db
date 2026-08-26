@@ -79,7 +79,7 @@ NETWORK_FLAGS = frozenset((
     'dhcp-domain-name-servers', 'dhcp-tftp', 'acloutv4', 'aclinv4',
     'acloutv6', 'aclinv6', 'int', 'techl', 'techw', 'sw', 'shnet',
     'pkg', 'vdom', 'flow', 'k8s', 'none', 'no-acl', 'no-akv',
-    'gw', 'native', 'client', 'wg') + _FIREWALL_FLAGS)
+    'gw', 'native', 'client', 'wg', 'wgsrc') + _FIREWALL_FLAGS)
 VALID_OSES = frozenset((
     'esxi', 'junos', 'ios', 'iosxr', 'nxos', 'prime', 'wlc',
     'windows', 'vcenter', 'debian', 'c7000', 'ubuntu', 'atomic',

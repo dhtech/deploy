@@ -197,6 +197,33 @@ def test_colovpn_from_wg_net_and_uplink_peer(tmp_path):
     assert params['dhbird']['default_export'] is False
 
 
+def test_wgsrc_locks_the_listener(tmp_path):
+    """wgsrc= on the link net scopes the wg udp opening to the
+    declared sources (/32 or wider, repeatable, v4+v6); without it
+    the port is world-open for roaming."""
+    root = tmp_path / 'svn'
+    site = root / 'allevents' / 'colo' / 'colo'
+    site.mkdir(parents=True)
+    (site / 'ipplan').write_text(TOOL.reformat(
+        IPPLAN + 'COLOVPN\t172.29.16.0/24\tR1\t-\tothernet;wg=51820;'
+        'wgsrc=203.0.113.7/32,198.51.100.0/24,2001:db8::/48\n'))
+    (root / 'currentevent').write_text(
+        'currentevent=none\napt_freeze=false\nchange_freeze=false\n')
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text(yaml.safe_dump(MANIFEST))
+    db = tmp_path / 'ipplan.db'
+    TOOL.build(str(root), [str(mpath)], str(db))
+    sys.modules['lib.metadata'].DB_FILE = str(db)
+    from modules import router
+    params = router.generate(
+        'router.colo.test', {'asn': '65200'}, MANIFEST)
+    fw = params['dhfirewall']
+    assert 'open_udp' not in fw
+    assert fw['open_udp_scoped'] == {
+        51820: ['198.51.100.0/24', '203.0.113.7/32']}
+    assert fw['open_udp_scoped6'] == {51820: ['2001:db8::/48']}
+
+
 def test_no_asn_no_bird(tmp_path):
     """Without the asn token the router stays daemonless: firewall
     ruleset only, no dhbird class."""

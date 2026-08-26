@@ -190,14 +190,19 @@ def _colovpn(host):
     peer means colo also exports a default and masquerades for it."""
     site = metadata.host_site(host)
     link = next((r for r in _query(
-        'SELECT n.name, n.ipv4_txt, n.ipv4_gateway_txt, o.value '
-        'FROM network n, option o WHERE o.node_id = n.node_id '
-        'AND o.name = "wg"')
-        if r[0].split('@', 1)[0].lower() == site), None)
+        'SELECT n.node_id, n.name, n.ipv4_txt, n.ipv4_gateway_txt, '
+        'o.value FROM network n, option o '
+        'WHERE o.node_id = n.node_id AND o.name = "wg"')
+        if r[1].split('@', 1)[0].lower() == site), None)
     if link is None:
         return None
-    _, cidr, gateway, port = link
+    link_id, _, cidr, gateway, port = link
     net = ipaddress.ip_network(cidr)
+    # wgsrc= (repeatable, /32 or wider, v4 or v6): LOCK the listener
+    # to these sources; absent = world-open (free roaming)
+    listen_sources = sorted(v for (v,) in _query(
+        'SELECT value FROM option WHERE node_id = ? '
+        'AND name = "wgsrc"', (link_id,)))
     peers = []
     for peer, pparams in metadata.hosts_with_pkg('router'):
         if peer == host or pparams.get('uplink') != 'colo':
@@ -231,6 +236,7 @@ def _colovpn(host):
         })
     return {'address': '%s/%d' % (gateway, net.prefixlen),
             'link_net': cidr, 'port': int(port),
+            'listen_sources': listen_sources,
             'peers': sorted(peers, key=lambda p: p['tunnel_ip'])}
 
 
@@ -267,9 +273,21 @@ def generate(host, params, manifest):
                        'networks': p['networks']}
                       for p in vpn['peers']],
         }
-        # the wg port is world-open (roaming peers, wg authenticates);
-        # BGP is admitted only on the link net
-        out['dhfirewall']['open_udp'] = [vpn['port']]
+        # the wg port: world-open by default (roaming peers, wg
+        # authenticates) - but wgsrc= on the link net LOCKS it to the
+        # declared sources (/32 or wider, v4 and/or v6). BGP is
+        # admitted only on the link net either way.
+        src4 = [s for s in vpn['listen_sources'] if ':' not in s]
+        src6 = [s for s in vpn['listen_sources'] if ':' in s]
+        if src4 or src6:
+            if src4:
+                out['dhfirewall']['open_udp_scoped'] = {
+                    vpn['port']: src4}
+            if src6:
+                out['dhfirewall']['open_udp_scoped6'] = {
+                    vpn['port']: src6}
+        else:
+            out['dhfirewall']['open_udp'] = [vpn['port']]
         out['dhfirewall']['open_tcp_scoped'] = {179: [vpn['link_net']]}
         # forward permits between this site and the vpn sites (native,
         # no NAT between sites); egress+masquerade only for peers that
