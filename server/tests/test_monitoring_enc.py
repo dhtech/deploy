@@ -48,15 +48,16 @@ def mon_ipplan(tmp_path, monkeypatch, mon_manifest):
     event = root / 'test' / 'core'
     site.mkdir(parents=True)
     event.mkdir(parents=True)
-    (site / 'ipplan').write_text(IPPLAN_COLO_MON)
-    (event / 'ipplan').write_text(IPPLAN_EVENT)
+    tool = load_ipplan2db()
+    (site / 'ipplan').write_text(tool.reformat(IPPLAN_COLO_MON))
+    (event / 'ipplan').write_text(tool.reformat(IPPLAN_EVENT))
     (root / 'currentevent').write_text(
         'currentevent=test\napt_freeze=false\nchange_freeze=false\n')
     mpath = tmp_path / 'manifest.yaml'
     mpath.write_text(yaml.safe_dump(mon_manifest))
     db = tmp_path / 'ipplan.db'
     monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE', str(db))
-    load_ipplan2db().build(str(root), [str(mpath)], str(db))
+    tool.build(str(root), [str(mpath)], str(db))
     return db
 
 

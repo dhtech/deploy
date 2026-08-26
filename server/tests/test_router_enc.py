@@ -43,7 +43,7 @@ def build(tmp_path):
     root = tmp_path / 'svn'
     site = root / 'allevents' / 'colo' / 'colo'
     site.mkdir(parents=True, exist_ok=True)
-    (site / 'ipplan').write_text(IPPLAN)
+    (site / 'ipplan').write_text(TOOL.reformat(IPPLAN))
     (root / 'currentevent').write_text(
         'currentevent=none\napt_freeze=false\nchange_freeze=false\n')
     mpath = tmp_path / 'manifest.yaml'

@@ -9,7 +9,7 @@ import os
 import pytest
 import yaml
 
-from conftest import IPPLAN_COLO, IPPLAN_EVENT, HERE
+from conftest import IPPLAN_COLO, IPPLAN_EVENT, HERE, load_ipplan2db
 
 
 def load_gate():
@@ -23,9 +23,10 @@ def load_gate():
 
 
 def base_inputs(manifest):
+    reformat = load_ipplan2db().reformat
     return {
-        'allevents/colo/colo/ipplan': IPPLAN_COLO,
-        'test/core/ipplan': IPPLAN_EVENT,
+        'allevents/colo/colo/ipplan': reformat(IPPLAN_COLO),
+        'test/core/ipplan': reformat(IPPLAN_EVENT),
         'currentevent':
             'currentevent=test\napt_freeze=false\nchange_freeze=false\n',
         'services/manifest.yaml': yaml.safe_dump(manifest),
@@ -45,12 +46,12 @@ def test_bad_input_rejected_with_all_errors(tmp_path, manifest):
     # a duplicate host name AND a duplicate ip: BOTH must be reported
     # inserted INSIDE the COLO section (appending at the end would
     # land them under MGMT and trip the out-of-section gate instead)
-    inputs['allevents/colo/colo/ipplan'] = inputs[
-        'allevents/colo/colo/ipplan'].replace(
-        '#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)\n',
-        '#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)\n'
-        '#$ web1.test\t10.200.0.90\tpkg=base\n'
-        '#$ other.test\t10.200.0.60\tpkg=base\n')
+    inputs['allevents/colo/colo/ipplan'] = load_ipplan2db().reformat(
+        IPPLAN_COLO.replace(
+            '#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)\n',
+            '#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)\n'
+            '#$ web1.test\t10.200.0.90\tpkg=base\n'
+            '#$ other.test\t10.200.0.60\tpkg=base\n'))
     with pytest.raises(Exception) as excinfo:
         gate.compile_tree(inputs, str(tmp_path / 'out.db'))
     errors = excinfo.value.errors

@@ -61,8 +61,38 @@ for _candidate in (os.path.join(_here, '..', 'server'), _here):
 from libdhdeploy import flows      # noqa: E402
 from libdhdeploy import metadata   # noqa: E402
 
-TOOL_VERSION = '3.0.0'
+TOOL_VERSION = '3.1.0'
 SCHEMA_VERSION = '3'
+
+# Prod gate parity (verify.py): what a line may look like. The
+# firewall letters ride both lists; the gen-3 grammar adds
+# webname/expose/addr/client (hosts) and gw/native/client (networks).
+_FIREWALL_FLAGS = ('c', 's', 'l', 'p', 'w')
+HOST_FLAGS = frozenset((
+    'mac', 'ipv4f', 'ipv4r', 'ipv6f', 'ipv6r', 'swconf', 'env',
+    'rncd', 'layer', 'pkg', 'os', 'nodns', 'ci', 'deploy', 'nat',
+    'silence', 'none', 'master', 'no-snmp', 'no-ssh',
+    'webname', 'expose', 'addr', 'client') + _FIREWALL_FLAGS)
+NETWORK_FLAGS = frozenset((
+    'dhcp', 'deploy', 'vrf', 'reserved', 'resv', 'nat', 'othernet',
+    'dhcp-max-lease-time', 'dhcp-default-lease-time',
+    'dhcp-domain-name-servers', 'dhcp-tftp', 'acloutv4', 'aclinv4',
+    'acloutv6', 'aclinv6', 'int', 'techl', 'techw', 'sw', 'shnet',
+    'pkg', 'vdom', 'flow', 'k8s', 'none', 'no-acl', 'no-akv',
+    'gw', 'native', 'client') + _FIREWALL_FLAGS)
+VALID_OSES = frozenset((
+    'esxi', 'junos', 'ios', 'iosxr', 'nxos', 'prime', 'wlc',
+    'windows', 'vcenter', 'debian', 'c7000', 'ubuntu', 'atomic',
+    'ucs', 'mse', 'ds', 'vip', 'netscaler', 'zos', 'zvm', 'onl',
+    'custom', 'ilo', 'ubmc', 'ipmi', 'rasbian', 'fos', 'pve'))
+# prod's rule minus the three-label minimum (lab hosts are x.test)
+HOSTNAME_RE = re.compile(
+    r'^([a-z0-9-]+\.)+(se|ch|local|com|net|org|nu|test)$')
+VLAN_RESERVED = (1002, 1003, 1004, 1005)
+# canonical tab-8 column starts per line kind (prod's verify.py)
+ALIGN_MASTER = (24,)
+ALIGN_HOST = (48, 96)
+ALIGN_NETWORK = (48, 72, 88, 96)
 
 
 class BuildError(Exception):
@@ -127,6 +157,37 @@ class Parser:
     def fail(self, lineno, message):
         self.model.errors.append('%s:%d: %s' % (self.path, lineno, message))
 
+    def style(self, lineno, line, columns):
+        """Prod's column discipline: tabs only between fields, every
+        field flush on its tab-8 column. Non-fatal - the line still
+        parses so later checks get their say too."""
+        line = line.rstrip('\n')
+        if '  ' in line:
+            self.fail(lineno, 'more than one space in a row - '
+                      'use tabs (tabsize 8)')
+            return
+        if line.startswith(' ') or '\t ' in line:
+            self.fail(lineno, 'column starts with a space')
+            return
+        # a trailing space INSIDE a field (before its tab) is prod-
+        # tolerated noise; it does not move the next column's start
+        starts = []
+        col = 0
+        boundary = True
+        for char in line.rstrip('\t'):
+            if char == '\t':
+                col += 8 - col % 8
+                boundary = True
+            else:
+                if boundary:
+                    starts.append(col)
+                    boundary = False
+                col += 1
+        if starts != [0] + list(columns):
+            self.fail(lineno, 'alignment is off: columns start at %s, '
+                      'want %s (tabsize 8, make it look nice)'
+                      % (starts[1:], list(columns)))
+
     def options(self, node_id, raw):
         for option in raw.split(';'):
             name, sep, value = option.partition('=')
@@ -145,6 +206,10 @@ class Parser:
         return None
 
     def master(self, tokens, lineno):
+        if len(tokens) != 3:
+            self.fail(lineno, 'master line needs exactly '
+                      'IPV[4|6]-<DOMAIN>-NET and a network')
+            return
         if self.pending_master is None:
             if not re.match(r'IPV4-[A-Z0-9]+-NET$', tokens[1]):
                 self.fail(lineno, 'master pair must start with '
@@ -201,18 +266,37 @@ class Parser:
         if self.domain is None:
             self.fail(lineno, 'network line before any #@ master')
             return
-        if len(tokens) < 4:
-            self.fail(lineno, 'network line needs name, net, '
-                      'terminator, vlan')
+        if len(tokens) != 5:
+            self.fail(lineno, 'network line needs exactly name, net, '
+                      'terminator, vlan, options (use "none" for no '
+                      'options)')
             return
         short_name = tokens[0]
+        if short_name != short_name.upper():
+            self.fail(lineno, 'network name %s is not upper case'
+                      % short_name)
         try:
             net = ipaddress.ip_network(tokens[1])
         except ValueError as error:
             self.fail(lineno, str(error))
             return
         terminator = tokens[2]
-        vlan = None if tokens[3] == '-' else int(tokens[3])
+        if terminator != terminator.upper():
+            self.fail(lineno, 'terminator name %s is not upper case'
+                      % terminator)
+        if tokens[3] == '-':
+            vlan = None
+        elif not tokens[3].isdigit():
+            self.fail(lineno, 'non-numeric VLAN %r' % tokens[3])
+            return
+        else:
+            vlan = int(tokens[3])
+            if not 1 <= vlan <= 4094 or vlan in VLAN_RESERVED:
+                self.fail(lineno, 'VLAN %d out of range 1-4094 or '
+                          'reserved 1002-1005' % vlan)
+                return
+        if 'none' in tokens[4].split(';') and tokens[4] != 'none':
+            self.fail(lineno, "option 'none' is only valid alone")
         node_id = self.model.node()
         if vlan and self.v6_base:
             ipv6 = ('%s:%d::/64' % (self.v6_base, vlan), '64')
@@ -243,11 +327,19 @@ class Parser:
         if self.current_network is None:
             self.fail(lineno, 'host line before any network line')
             return
-        if len(tokens) < 3:
-            self.fail(lineno, 'host line needs name and address')
+        if len(tokens) != 4:
+            self.fail(lineno, 'host line needs exactly name, address, '
+                      'options (use "none" for no options)')
             return
         name = tokens[1]
         ip = tokens[2]
+        if name != name.lower():
+            self.fail(lineno, 'hostname %s is not lower case' % name)
+        elif not HOSTNAME_RE.match(name):
+            self.fail(lineno, 'hostname %s is not a valid fqdn in an '
+                      'allowed domain' % name)
+        if 'none' in tokens[3].split(';') and tokens[3] != 'none':
+            self.fail(lineno, "option 'none' is only valid alone")
         vlan = self.current_network.vlan
         if '.' in ip:
             ipv4 = ip
@@ -292,11 +384,17 @@ class Parser:
                 if not tokens:
                     continue
                 if tokens[0] == '#@':
+                    self.style(lineno, line, ALIGN_MASTER)
                     self.master(tokens, lineno)
                 elif tokens[0] == '#$':
+                    self.style(lineno, line, ALIGN_HOST)
                     self.host(tokens, lineno)
                 elif re.match(r'^[A-Z]', tokens[0]):
+                    self.style(lineno, line, ALIGN_NETWORK)
                     self.network(tokens, lineno)
+                elif not tokens[0].startswith('#'):
+                    self.fail(lineno, 'unrecognized line (network '
+                              'names are upper case)')
         self.flush_master()
 
 
@@ -404,10 +502,12 @@ def resolve(model, manifest):
     del network_ids  # networks keep their raw options untouched
 
 
-def validate(model):
+def validate(model, manifest=None):
     """Structural validation; every failure reported, none silently
     dropped. Duplicate hosts/networks are build failures (the UNIQUE
-    indexes would also catch them - this names the lines)."""
+    indexes would also catch them - this names the lines). With a
+    manifest, pkg names are checked against it (the gate path); the
+    manifest-less call skips only that."""
     seen = {}
     for host in model.hosts:
         for key in [('host', host.name)] + (
@@ -427,11 +527,54 @@ def validate(model):
         else:
             names[network.name] = network.line
 
+    nets = {n.node_id: n for n in model.networks}
+    hosts = {h.node_id: h for h in model.hosts}
+
+    # prod verify parity: only known flag keys, known OSes, and pkg
+    # names the manifest declares - a typo'd option must die here, not
+    # sit in the db as a silent no-op
+    known_pkgs = None
+    if manifest is not None:
+        known_pkgs = {key.split('(', 1)[0]
+                      for key in (manifest.get('packages') or {})}
+    for nid, name, value in model.options:
+        host = hosts.get(nid)
+        net = None if host else nets.get(nid)
+        line = host.line if host else (net.line if net else 0)
+        allowed = HOST_FLAGS if host else NETWORK_FLAGS
+        if name not in allowed:
+            model.errors.append('line %d: unknown flag %s'
+                                % (line, name))
+            continue
+        if name == 'os' and value not in VALID_OSES:
+            model.errors.append('line %d: unknown OS %s'
+                                % (line, value))
+        if name == 'pkg' and value and value != '-default':
+            pkg = value.split('(', 1)[0].lstrip('-')
+            if not pkg:
+                continue
+            if '-' in pkg:
+                model.errors.append(
+                    'line %d: package name may not contain dashes: %s'
+                    % (line, pkg))
+            elif known_pkgs is not None and pkg not in known_pkgs:
+                model.errors.append('line %d: no such package %s'
+                                    % (line, pkg))
+
+    # overlapping network lines (prod counts every covered IP; same
+    # effect). Site masters (vlan 0) deliberately span their networks.
+    real = [n for n in model.networks if n.vlan != 0]
+    for index, a in enumerate(real):
+        for b in real[index + 1:]:
+            if a.ipv4.overlaps(b.ipv4):
+                model.errors.append(
+                    'line %d: network %s (%s) overlaps %s (%s, line '
+                    '%d)' % (b.line, b.name, b.ipv4, a.name, a.ipv4,
+                             a.line))
+
     # expose=EXT:INT (router DNAT data): malformed pairs and duplicate
     # external ports within a site are build failures - the gate is
     # where a colliding forward should die, not the router
-    nets = {n.node_id: n for n in model.networks}
-    hosts = {h.node_id: h for h in model.hosts}
     seen_expose = {}
     for nid, name, value in model.options:
         if name != 'expose':
@@ -715,7 +858,7 @@ def build(ipplan_root, manifest_paths, db_path, svn_revision=None):
     files = ipplan_files(ipplan_root, current['currentevent'])
     model = parse_all(files)
     resolve(model, manifest)
-    validate(model)
+    validate(model, manifest)
 
     import sqlite3
     before = None
@@ -759,7 +902,49 @@ def build(ipplan_root, manifest_paths, db_path, svn_revision=None):
               current['currentevent']))
 
 
+def reformat(text):
+    """Re-tab data lines to the canonical columns (the exact layout
+    style() accepts): host 48/96, network 48/72/88/96, master 24.
+    Comments and blanks pass through; a field too long for its column
+    is left flush for the checker to flag."""
+    out = []
+    for line in text.split('\n'):
+        tokens = line.split()
+        fields = columns = None
+        if tokens:
+            if tokens[0] == '#@' and len(tokens) > 2:
+                fields = ['#@ ' + tokens[1]] + tokens[2:]
+                columns = ALIGN_MASTER
+            elif tokens[0] == '#$' and len(tokens) > 2:
+                fields = ['#$ ' + tokens[1]] + tokens[2:]
+                columns = ALIGN_HOST
+            elif re.match(r'^[A-Z]', line):
+                fields = tokens
+                columns = ALIGN_NETWORK
+        if fields is None:
+            out.append(line)
+            continue
+        built = fields[0]
+        col = len(built)
+        for field in fields[1:]:
+            target = columns[0] if columns else col + 1
+            columns = columns[1:]
+            built += '\t'
+            col += 8 - col % 8
+            while col < target:
+                built += '\t'
+                col += 8 - col % 8
+            built += field
+            col += len(field)
+        out.append(built)
+    return '\n'.join(out)
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == '--reformat':
+        with open(sys.argv[2]) as f:
+            sys.stdout.write(reformat(f.read()))
+        return
     parser = argparse.ArgumentParser(
         description='compile ipplan text files + the manifest into '
                     'ipplan.db')

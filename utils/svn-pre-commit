@@ -41,6 +41,29 @@ STASH_KEEP = 20
 # compile AND in the input hash. Any other path commits ungated.
 MANIFEST_PARTS = ('services/manifest.yaml', 'services/appstore.yaml')
 
+# Repo hygiene (prod's check_banned_files): svn admin dirs, editor and
+# OS droppings, and repo-internal names never belong in the tree.
+BANNED_ROOT = ('conf/', 'db/', 'lock/', 'hooks/', 'format', 'svn.ico',
+               'README.txt')
+BANNED_SUFFIX = ('.svn', 'Desktop.ini', 'Thumbs.db', '*')
+
+
+def is_forced(message):
+    """Prod's escape hatch: a log message starting with "force:"
+    bypasses the gate - the way out when the committed gate itself is
+    what needs fixing."""
+    return message.strip().lower().startswith('force:')
+
+
+def banned_paths(paths):
+    bad = []
+    for path in paths:
+        if any(path == b or path.startswith(b) for b in BANNED_ROOT):
+            bad.append(path)
+        elif any(path.rstrip('/').endswith(b) for b in BANNED_SUFFIX):
+            bad.append(path)
+    return bad
+
 
 def svnlook(cmd, repo, flag, txn, *args):
     return subprocess.run(
@@ -121,13 +144,24 @@ def main():
     repo, txn = sys.argv[1], sys.argv[2]
     flag = os.environ.get('DH_TXN_REV', '-t')
 
+    if is_forced(svnlook('log', repo, flag, txn)):
+        print('force: commit - gate bypassed', file=sys.stderr)
+        return 0
+
     changed = svnlook('changed', repo, flag, txn)
-    relevant = [parts[1] for parts in
-                (line.split(None, 1) for line in changed.splitlines())
-                if len(parts) == 2]
+    paths = [parts[1] for parts in
+             (line.split(None, 1) for line in changed.splitlines())
+             if len(parts) == 2]
+
+    bad = banned_paths(paths)
+    if bad:
+        for path in bad:
+            print('banned file: %s' % path, file=sys.stderr)
+        return 1
+
     if not any(p == 'currentevent' or p in MANIFEST_PARTS
                or (p.endswith('/ipplan') and 'svn-hooks' not in p)
-               for p in relevant):
+               for p in paths):
         return 0
 
     inputs = build_inputs(repo, flag, txn)

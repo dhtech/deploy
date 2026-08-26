@@ -29,12 +29,13 @@ def build(tmp_path, text, name='ipplan.db'):
     root = tmp_path / 'svn'
     site = root / 'allevents' / 'colo' / 'colo'
     site.mkdir(parents=True, exist_ok=True)
-    (site / 'ipplan').write_text(text)
+    (site / 'ipplan').write_text(TOOL.reformat(text))
     (root / 'currentevent').write_text(
         'currentevent=none\napt_freeze=false\nchange_freeze=false\n')
     mpath = tmp_path / 'manifest.yaml'
     mpath.write_text(yaml.safe_dump({
-        'packages': {'base': {'puppet': {'classes': ['dhfirewall']}}}}))
+        'packages': {'base': {'puppet': {'classes': ['dhfirewall']}},
+                     'router': {}, 'resolver': {}, 'ntp': {}}}))
     db = tmp_path / name
     TOOL.build(str(root), [str(mpath)], str(db))
     return db

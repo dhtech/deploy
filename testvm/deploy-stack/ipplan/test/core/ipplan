@@ -6,4 +6,4 @@
 #@ IPV4-EVENT-NET	10.201.0.0/24
 
 #Name		#Net		#Terminator	#VLAN	#Options
-EVENT		10.201.0.0/24	R1		300	gw=10.201.0.2
+EVENT						10.201.0.0/24		R1		300	gw=10.201.0.2
