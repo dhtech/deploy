@@ -1,3 +1,9 @@
 *.pyc
 .*.swp
 *.iso
+# PUBLIC repo: the lab worklog and the manifest never land here.
+# The manifest's authority is svn (services/manifest.yaml); the
+# on-disk copy exists only for seed.sh and the local test run. The
+# worklog lives in the private puppet repo (symlinked here).
+testvm/proxmox-ve/WORKLOG.md
+testvm/deploy-stack/manifest.yaml

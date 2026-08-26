@@ -65,8 +65,8 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
 | `utils/directory-import` | sanitized prod-directory LDIF import |
 | `deployd/` | the provisioning daemon (pve API, bao-backed tokens) |
 | `debian/`, `ipxe/`, `build-*` | installer assets and their builders; `server/backend/debian/post-install-hardening` is the CIS pass |
-| `testvm/deploy-stack/` | the lab seed: vendored ipplan snapshot, manifest, preseed, setup scripts (svn on doc1 owns the data once live) |
-| `testvm/proxmox-ve/` | the nested-Proxmox bench (start/provision scripts) and `WORKLOG.md` - the running log of every change, decision and incident |
+| `testvm/deploy-stack/` | the lab seed: vendored ipplan snapshot, preseed, setup scripts (svn on doc1 owns the data once live) |
+| `testvm/proxmox-ve/` | the nested-Proxmox bench (start/provision scripts) |
 
 ## Running the tests
 
@@ -95,6 +95,3 @@ else. Tests run before every commit - no exceptions.
   output; wg keypairs backed up under `services/colovpn`.
 - **Static everything**: no DHCPv6/SLAAC on our nets, no learned
   defaults; v6 policy is one installer-written sysctl file.
-- **Worklog discipline**: every action, decision and incident is
-  appended to `testvm/proxmox-ve/WORKLOG.md`. When in doubt about
-  why something is the way it is, read it there first.
