@@ -225,6 +225,9 @@
           <tr><td>Alertmanager (directory login, tech group)</td>
               <td><a href="https://prometheus.colo.notproduction.net:8448/alertmanager/">prometheus.colo.notproduction.net:8448/alertmanager/</a></td>
               <td>Let's Encrypt</td></tr>
+          <tr><td>Grafana (directory login: services-team admin)</td>
+              <td><a href="https://grafana.colo.notproduction.net:8449/">grafana.colo.notproduction.net:8449</a></td>
+              <td>Let's Encrypt (8449 after next bench restart)</td></tr>
           <tr><td>ipplan statistics (per-event allocation, heatmaps)</td>
               <td><a href="https://doc.dh.notproduction.net:8445/ipplan/">doc.dh.notproduction.net:8445/ipplan/</a></td>
               <td>Let's Encrypt</td></tr>
@@ -264,7 +267,8 @@ xz -d ipplan.db.xz   # then: sqlite3 ipplan.db</pre>
 127.0.0.1 doc.dh.notproduction.net
 127.0.0.1 puppet.dh.notproduction.net
 127.0.0.1 deploy.colo.notproduction.net
-127.0.0.1 prometheus.colo.notproduction.net</pre>
+127.0.0.1 prometheus.colo.notproduction.net
+127.0.0.1 grafana.colo.notproduction.net</pre>
 
       <h4>SSH access</h4>
       <p>Machines accept <b>directory logins</b>: your directory
