@@ -40,20 +40,20 @@ browser
 
 | Workstation | Backend | Service | Status |
 |---|---|---|---|
+| `127.0.0.1:2222` | router → jumpgate1:22 (expose=) | **user ssh entry** (directory logins) | live |
 | `127.0.0.1:4454` | pve:22 | pve-test SSH | live |
-| `127.0.0.1:8006` | pve:8006 | Proxmox web UI | live |
 | `127.0.0.1:4455` | the deploy server:22 (direct) | mgmt SSH - kept on deploy by design | live |
-| `127.0.0.1:8768` | the deploy server:8080 (direct) | deploy status page | live |
-| `127.0.0.1:8446` | the deploy server:446 (direct) | deploy website (nginx + LE) | live |
+| `127.0.0.1:8006` | pve:8006 | Proxmox web UI | live |
 | `127.0.0.1:8200` | router → vault1:8200 (expose=) | OpenBao API/UI (puppet CA) | live |
 | `127.0.0.1:8443` | router → vault1:443 (expose=) | **vault website** (nginx + LE) | live |
 | `127.0.0.1:8444` | router → directory1:443 (expose=) | Directory UI (LAM) | live |
 | `127.0.0.1:8445` | router → doc1:443 (expose=) | Trac + SVN (doc) | live |
+| `127.0.0.1:8446` | the deploy server:446 (direct) | deploy website (nginx + LE) | live |
 | `127.0.0.1:8447` | router → puppet1:443 (expose=) | **puppetboard** (nginx + LE, tech group) | live |
-| `127.0.0.1:2222` | router → jumpgate1:22 (expose=) | **user ssh entry** (directory logins) | live |
 | `127.0.0.1:8448` | router → prometheus:443 (expose=) | **prometheus** (+ /alertmanager/; nginx + LE, tech group) | live |
 | `127.0.0.1:8449` | router → grafana:443 (expose=) | **grafana** (nginx + LE; grafana's own directory login, services-team = Admin) | live (hostfwd at next lab restart) |
 | `127.0.0.1:8450`–`8459` | router → 10.0.2.17:450–459 | **reserved**: pre-wired for future websites - a new `expose=45x:443` in ipplan needs only the router's DNAT reconverge, no lab restart | at next lab restart |
+| `127.0.0.1:8768` | the deploy server:8080 (direct) | deploy status page | live |
 
 The DNAT table is DATA: `expose=EXT:INT` on the host's ipplan line;
 the router's ruleset (masquerade, DNAT, forward) is derived from
