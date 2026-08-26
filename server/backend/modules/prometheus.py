@@ -17,12 +17,24 @@ def generate(host, params, manifest):
         out['dhacme::cert'] = {'cert_name': webname,
                                'vault_addr': _ldap.vault_addr()}
         out['dhnginx::prometheus'] = {'server_name': webname}
+        site = metadata.host_site(host)
         out['dhprometheus'] = {
             'external_url': 'https://%s/' % webname,
             # scrape targets FROM ipplan: every SAME-SITE host is a
             # node target the moment it exists in the plan
-            'node_targets': _node_targets(metadata.host_site(host))}
+            'node_targets': _node_targets(site)}
+        grafana = _site_grafana(site)
+        if grafana:
+            # the site grafana's own metrics (it admits only us)
+            out['dhprometheus']['grafana_target'] = '%s:3000' % grafana
     return out
+
+
+def _site_grafana(site):
+    for h, _ in metadata.hosts_with_pkg('grafana'):
+        if metadata.host_site(h) == site:
+            return h
+    return None
 
 
 def site_prometheus(site):

@@ -56,6 +56,8 @@ def mon_ipplan(tmp_path, monkeypatch, mon_manifest):
 
 def test_prometheus_scrapes_own_site_only(mon_ipplan, mon_manifest):
     result = enc.classify('prometheus.test', mon_manifest)
+    # the site grafana's own metrics ride along
+    assert result['dhprometheus']['grafana_target'] == 'grafana.test:3000'
     targets = result['dhprometheus']['node_targets']
     assert 'web1.test:9100' in targets
     assert 'prometheus.test:9100' in targets
@@ -83,6 +85,8 @@ def test_grafana_single_site_datasource(mon_ipplan, mon_manifest):
     assert result['dhnginx::grafana'] == {
         'server_name': 'grafana.colo.example'}
     assert result['dhacme::cert']['cert_name'] == 'grafana.colo.example'
+    # 3000 admits only the site prometheus
+    assert result['dhfirewall']['open_tcp_scoped'][3000] == ['10.200.0.70']
 
 
 def test_prometheus_web_flow_is_site_local(mon_ipplan, mon_manifest):
