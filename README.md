@@ -38,6 +38,10 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
   `monitor:` idiom (one url line = a site-prometheus scrape job plus
   the scoped firewall opening). `appstore.yaml` pins the application
   artifacts the puppet master mirrors for the fleet.
+- **The compiler and the gate live in their own repo**,
+  [dhtech/ipplan2db](https://github.com/dhtech/ipplan2db) (successor
+  to ipplan2sqlite) - clone it as a sibling checkout; the tests and
+  seed script load it from there.
 - **ipplan.db**: the compiled single source of truth. doc1's
   post-commit publishes it per revision; the puppet master syncs and
   serves it; every consumer reads only the db.
@@ -56,11 +60,9 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
 | path | what |
 |---|---|
 | `server/backend/` | deploy web backend: PXE/preseed flow, finish/report, the ENC and its per-pkg modules |
-| `server/libdhdeploy/` | shared library: `metadata` (db accessors), `flows` (the firewall pair engine) |
+| `server/libdhdeploy/` | vendored copy of the shared library - its authoritative home is [dhtech/ipplan2db](https://github.com/dhtech/ipplan2db) (byte-parity-guarded) |
 | `server/frontend/` | the deploy status site (fleet panel, develop tab) |
 | `server/tests/` | pytest suite - includes the prod-ipplan corpus (byte-for-byte parity with the gen-2 engine) and gate-rule proofs |
-| `utils/ipplan2db` | the compiler: ipplan text + manifest -> ipplan.db; also the canonical `--reformat` |
-| `utils/svn-pre-commit` | the gate (lives IN the repo at `allevents/colo/svn-hooks`; doc1's shim runs the last-committed copy) |
 | `utils/deploy-vm`, `deploy-bay` | provisioning helpers (create VMs on pve, bay handling) |
 | `utils/directory-import` | sanitized prod-directory LDIF import |
 | `deployd/` | the provisioning daemon (pve API, bao-backed tokens) |
@@ -74,10 +76,10 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
 cd server && python3 -m pytest tests/
 ```
 
-The corpus tests compile the real production ipplans (sto2, bogal,
-last event) and must stay green: the new compiler reads everything
-the old one did, and fails on exactly the known warts and nothing
-else. Tests run before every commit - no exceptions.
+The compiler's own suite (prod-ipplan corpus, gate rules) lives with
+it in dhtech/ipplan2db; this repo's tests cover the ENC, flows and
+provisioning and load the compiler from the sibling checkout. Tests
+run before every commit - no exceptions.
 
 ## Conventions worth knowing
 

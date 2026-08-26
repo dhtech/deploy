@@ -50,7 +50,7 @@ fi
 # deploy.yaml): once the pipeline is alive, svn on doc1 is the source
 # and puppet (dhipplan) distributes the published build over this.
 if [ ! -f /etc/ipplan.db ]; then
-python3 "$repo/utils/ipplan2db" --ipplan-root "$stack/ipplan" \
+python3 "$repo/../ipplan2db/ipplan2db" --ipplan-root "$stack/ipplan" \
     --manifest "$stack/manifest.yaml" --manifest "$stack/appstore.yaml" \
     /etc/ipplan.db
 fi

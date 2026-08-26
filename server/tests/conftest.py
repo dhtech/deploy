@@ -46,7 +46,12 @@ EVENT\t10.201.0.0/24\tR1\t300\tgw=10.201.0.2
 
 
 def load_ipplan2db():
-    tool = os.path.join(HERE, '..', '..', 'utils', 'ipplan2db')
+    # the compiler is its own repo (dhtech/ipplan2db), cloned as a
+    # sibling checkout - same pattern as the prod-corpus checkouts
+    tool = os.path.expanduser('~/repos/dh/ipplan2db/ipplan2db')
+    if not os.path.exists(tool):
+        raise RuntimeError(
+            'clone dhtech/ipplan2db next to deploy: %s missing' % tool)
     spec = importlib.util.spec_from_loader(
         'ipplan2db', importlib.machinery.SourceFileLoader('ipplan2db',
                                                           tool))

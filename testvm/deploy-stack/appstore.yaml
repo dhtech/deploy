@@ -51,6 +51,14 @@ apps:
   # the operator tools (deploy-vm, ipplan2db); deployd = the
   # provisioner daemon. Path-scoped + tree-hash versioned: only
   # commits touching the path release a new artifact.
+  # the ipplan compiler + svn gate: its own public repo (the
+  # gen-3 ipplan2sqlite). Whole-repo artifact; the deploy server
+  # gets /opt/ipplan2db + a /usr/local/bin symlink.
+  ipplan2db:
+    kind: git
+    repo: https://github.com/dhtech/ipplan2db
+    ref: main
+    interval: fast
   deploy-backend:
     kind: git
     repo: https://github.com/dhtech/deploy
