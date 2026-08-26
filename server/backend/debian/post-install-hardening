@@ -296,9 +296,9 @@ echo "net.ipv4.conf.all.secure_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.11 Ensure net.ipv4.conf.default.secure_redirects is configured (Automated)
 echo "net.ipv4.conf.default.secure_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.2.3 Ensure net.ipv6.conf.all.accept_redirects is configured (Automated)
-echo "net.ipv6.conf.all.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
+echo "net.ipv6.conf.all.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv6.conf
 ### 3.3.2.4 Ensure net.ipv6.conf.default.accept_redirects is configured (Automated)
-echo "net.ipv6.conf.default.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
+echo "net.ipv6.conf.default.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv6.conf
 ### 3.3.1.16 Ensure net.ipv4.conf.all.log_martians is configured (Automated)
 ### 3.3.1.17 Ensure net.ipv4.conf.default.log_martians is configured (Automated)
 echo "net.ipv4.conf.all.log_martians = 1" >> /etc/sysctl.d/dh-ipv4.conf
@@ -313,14 +313,14 @@ echo "net.ipv4.conf.default.rp_filter = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.2.6 Ensure net.ipv6.conf.default.accept_source_route is configured (Automated)
 echo "net.ipv4.conf.all.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv4.conf
 echo "net.ipv4.conf.default.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv4.conf
-echo "net.ipv6.conf.all.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
-echo "net.ipv6.conf.default.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
+echo "net.ipv6.conf.all.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv6.conf
+echo "net.ipv6.conf.default.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv6.conf
 ### 3.3.1.18 Ensure net.ipv4.tcp_syncookies is configured (Automated) - Default
 echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.2.7 Ensure net.ipv6.conf.all.accept_ra is configured (Automated)
 ### 3.3.2.8 Ensure net.ipv6.conf.default.accept_ra is configured (Automated)
-echo "net.ipv6.conf.all.accept_ra = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
-echo "net.ipv6.conf.default.accept_ra = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
+echo "net.ipv6.conf.all.accept_ra = 0" >> /etc/sysctl.d/dh-ipv6.conf
+echo "net.ipv6.conf.default.accept_ra = 0" >> /etc/sysctl.d/dh-ipv6.conf
 
 ## 4 Firewall Configuration
 ### 4.1 Configure UncomplicatedFirewall - We use iptables as fw, skipping config of ufw
@@ -813,8 +813,8 @@ blacklist cfg80211
 EOF
 
 # disable ipv6 autoconf
-echo "net.ipv6.conf.all.autoconf = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
-echo "net.ipv6.conf.default.autoconf = 0" >> /etc/sysctl.d/dh-ipv6-hardening.conf
+echo "net.ipv6.conf.all.autoconf = 0" >> /etc/sysctl.d/dh-ipv6.conf
+echo "net.ipv6.conf.default.autoconf = 0" >> /etc/sysctl.d/dh-ipv6.conf
 
 # minimal use of swap
 echo "vm.swappiness = 1" > /etc/sysctl.d/dh-swappiness.conf
