@@ -22,7 +22,7 @@ COLO\t10.200.0.0/24\tR1\t200\tnat
 #$ router.colo.test\t10.200.0.1\tos=debian;pkg=router,resolver,ntp;addr=10.100.0.1,10.0.2.17
 #$ vault1.colo.test\t10.200.0.61\tos=debian;pkg=vault;expose=443:443,8200:8200
 #$ jumpgate1.colo.test\t10.200.0.69\tos=debian;pkg=base;expose=2022:22
-DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;client=colo-ldaps
+DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;deploy;client=colo-ldaps
 MGMT\t10.10.10.0/24\tR1\t10\tothernet;gw=10.10.10.254
 OUTSIDE\t10.0.2.0/24\t-\t-\tothernet;gw=10.0.2.2
 '''
@@ -98,7 +98,7 @@ def test_not_the_router_yet_emits_nothing(tmp_path):
     try:
         IPPLAN = kept.replace('COLO\t10.200.0.0/24\tR1\t200\tnat',
                               'COLO\t10.200.0.0/24\tR1\t200\tnat;gw=10.200.0.2') \
-                     .replace('DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;client=colo-ldaps',
+                     .replace('DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;deploy;client=colo-ldaps',
                               'DEPLOY\t10.100.0.0/24\tR1\t100\tnat;native;gw=10.100.0.2;client=colo-ldaps')
         params = router_params(build(tmp_path))
         assert params == {}
@@ -131,9 +131,8 @@ def test_bird_from_asn_token(tmp_path):
         bird = params['dhbird']
         assert bird['asn'] == 65200
         assert bird['router_id'] == '10.200.0.1'
-        assert bird['networks4'] == ['10.100.0.0/24', '10.200.0.0/24']
-        assert bird['networks6'] == ['fdd8:1:100::/64',
-                                     'fdd8:1:200::/64']
+        assert bird['networks4'] == ['10.200.0.0/24']  # deploy net site-local
+        assert bird['networks6'] == ['fdd8:1:200::/64']
         assert bird['peers'] == [{'ip': '10.200.0.9', 'asn': 64900}]
     finally:
         IPPLAN = kept
@@ -176,6 +175,9 @@ def test_colovpn_from_wg_net_and_uplink_peer(tmp_path):
     assert fw['open_udp'] == [51820]
     assert fw['open_tcp_scoped'] == {179: ['172.29.16.0/24']}
     assert fw['router']['vpn_networks'] == ['10.201.0.0/24']
+    # routable only: no deploy net (and MGMT's gw= keeps it unrouted
+    # in this fixture)
+    assert fw['router']['vpn_site_networks'] == ['10.200.0.0/24']
     assert fw['router']['vpn_egress_networks'] == ['10.201.0.0/24']
     bird = params['dhbird']
     assert {'ip': '172.29.16.11', 'asn': 65201,

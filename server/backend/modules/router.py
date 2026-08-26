@@ -126,6 +126,20 @@ def forward_rules(host, networks):
                                         r['port'], r['saddr']))
 
 
+def _deploy_flagged(networks):
+    """node_ids of networks carrying the deploy flag: the per-site
+    deployment net is site-LOCAL by decree (user, 2026-08-26) -
+    routed inside its site, never announced, never reachable
+    cross-site."""
+    ids = [nid for nid, _, _, _ in networks]
+    if not ids:
+        return set()
+    return {nid for (nid,) in _query(
+        'SELECT node_id FROM option WHERE name = "deploy" '
+        'AND node_id IN (%s)' % ','.join('?' * len(ids)),
+        tuple(ids))}
+
+
 def _bird(host, params, networks):
     """BIRD from data (P3): pkg=router(asn=N) switches BGP on - no
     asn, no daemon. Announce = every network this router terminates
@@ -137,7 +151,11 @@ def _bird(host, params, networks):
     asn = params.get('asn')
     if not asn:
         return None
-    node_ids = [nid for nid, _, _, _ in networks]
+    # announce only the ROUTABLE networks: deploy-flagged nets are
+    # site-local and never leave
+    flagged = _deploy_flagged(networks)
+    node_ids = [nid for nid, _, _, _ in networks
+                if nid not in flagged]
     nets6 = [v6 for (v6,) in _query(
         'SELECT ipv6_txt FROM network WHERE node_id IN (%s) '
         'AND ipv6_txt IS NOT NULL'
@@ -155,7 +173,8 @@ def _bird(host, params, networks):
     return {
         'asn': int(asn),
         'router_id': metadata.host_ip(host),
-        'networks4': sorted(c for _, _, c, _ in networks),
+        'networks4': sorted(c for nid, _, c, _ in networks
+                            if nid not in flagged),
         'networks6': sorted(nets6),
         'peers': sorted(peers, key=lambda p: p['ip']),
     }
@@ -194,11 +213,16 @@ def _colovpn(host):
         psite = metadata.host_site(peer)
         label = (metadata.get_current_event() if psite == 'event'
                  else psite)
+        # the peer site's ROUTABLE networks: its deploy-flagged nets
+        # are just as site-local as ours
         networks = sorted(
-            c for n2, c, vlan in _query(
-                'SELECT name, ipv4_txt, vlan FROM network '
+            c for nid2, n2, c, vlan in _query(
+                'SELECT node_id, name, ipv4_txt, vlan FROM network '
                 'WHERE ipv4_txt IS NOT NULL')
-            if vlan and n2.split('@', 1)[0].lower() == psite)
+            if vlan and n2.split('@', 1)[0].lower() == psite
+            and not _query(
+                'SELECT 1 FROM option WHERE node_id = ? '
+                'AND name = "deploy"', (nid2,)))
         peers.append({
             'site': label, 'asn': int(pparams.get('asn', 0)),
             'tunnel_ip': tunnel,
@@ -257,6 +281,11 @@ def generate(host, params, manifest):
                               for n in p['networks']})
         if vpn_nets:
             out['dhfirewall']['router']['vpn_networks'] = vpn_nets
+            # the site side of the crossing: routable nets only -
+            # the deploy net never meets another site
+            flagged = _deploy_flagged(networks)
+            out['dhfirewall']['router']['vpn_site_networks'] = sorted(
+                c for nid, _, c, _ in networks if nid not in flagged)
         if egress_nets:
             out['dhfirewall']['router']['vpn_egress_networks'] = \
                 egress_nets
