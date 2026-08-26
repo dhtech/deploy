@@ -126,11 +126,47 @@ def forward_rules(host, networks):
                                         r['port'], r['saddr']))
 
 
+def _bird(host, params, networks):
+    """BIRD from data (P3): pkg=router(asn=N) switches BGP on - no
+    asn, no daemon. Announce = every network this router terminates
+    (v4 + its derived v6); peers = hosts carrying pkg bgp(asn=N)
+    inside those networks (prod's LINK-net convention: the upstream's
+    device is an ipplan host with pkg=-default,bgp). The lab declares
+    no peer yet - the rendered config is announce-only until one
+    appears in the plan."""
+    asn = params.get('asn')
+    if not asn:
+        return None
+    node_ids = [nid for nid, _, _, _ in networks]
+    nets6 = [v6 for (v6,) in _query(
+        'SELECT ipv6_txt FROM network WHERE node_id IN (%s) '
+        'AND ipv6_txt IS NOT NULL'
+        % ','.join('?' * len(node_ids)), tuple(node_ids))]
+    cidrs = [ipaddress.ip_network(c) for _, _, c, _ in networks]
+    peers = []
+    for peer, pparams in metadata.hosts_with_pkg('bgp'):
+        if peer == host:
+            continue
+        ip = metadata.host_ip(peer)
+        if not ip or not any(
+                ipaddress.ip_address(ip) in c for c in cidrs):
+            continue
+        peers.append({'ip': ip, 'asn': int(pparams.get('asn', 0))})
+    return {
+        'asn': int(asn),
+        'router_id': metadata.host_ip(host),
+        'networks4': sorted(c for _, _, c, _ in networks),
+        'networks6': sorted(nets6),
+        'peers': sorted(peers, key=lambda p: p['ip']),
+    }
+
+
 def generate(host, params, manifest):
     networks = router_networks(host)
     if not networks:
         return {}
-    return {
+    bird = _bird(host, params, networks)
+    out = {
         'dhfirewall': {
             'router': {
                 'nat_networks': sorted(
@@ -150,3 +186,6 @@ def generate(host, params, manifest):
             },
         },
     }
+    if bird:
+        out['dhbird'] = bird
+    return out

@@ -35,6 +35,7 @@ MANIFEST = {
         'resolver': {},
         'ntp': {},
         'vault': {'server': ['ldaps']},
+        'bgp': {},
     },
 }
 
@@ -103,6 +104,46 @@ def test_not_the_router_yet_emits_nothing(tmp_path):
         assert params == {}
     finally:
         IPPLAN = kept
+
+
+def test_bird_from_asn_token(tmp_path):
+    """pkg=router(asn=N) switches BIRD on: announce = the routed
+    networks (v4 + derived v6, MGMT's foreign gw excluded), peers
+    from pkg=bgp(asn=M) hosts inside them (the LINK convention)."""
+    global IPPLAN
+    kept = IPPLAN
+    try:
+        IPPLAN = kept.replace(
+            '#@ IPV4-COLO-NET\t10.200.0.0/24',
+            '#@ IPV4-COLO-NET\t10.200.0.0/24\n'
+            '#@ IPV6-COLO-NET\tfdd8:1::/48').replace(
+            '#$ jumpgate1.colo.test\t10.200.0.69\t'
+            'os=debian;pkg=base;expose=2022:22',
+            '#$ jumpgate1.colo.test\t10.200.0.69\t'
+            'os=debian;pkg=base;expose=2022:22\n'
+            '#$ upstream.colo.test\t10.200.0.9\t'
+            'os=ios;pkg=-default,bgp(asn=64900);nodns')
+        db = build(tmp_path)
+        sys.modules['lib.metadata'].DB_FILE = str(db)
+        from modules import router
+        params = router.generate(
+            'router.colo.test', {'asn': '65200'}, MANIFEST)
+        bird = params['dhbird']
+        assert bird['asn'] == 65200
+        assert bird['router_id'] == '10.200.0.1'
+        assert bird['networks4'] == ['10.100.0.0/24', '10.200.0.0/24']
+        assert bird['networks6'] == ['fdd8:1:100::/64',
+                                     'fdd8:1:200::/64']
+        assert bird['peers'] == [{'ip': '10.200.0.9', 'asn': 64900}]
+    finally:
+        IPPLAN = kept
+
+
+def test_no_asn_no_bird(tmp_path):
+    """Without the asn token the router stays daemonless: firewall
+    ruleset only, no dhbird class."""
+    params = router_params(build(tmp_path))
+    assert 'dhbird' not in params
 
 
 def test_interfaces_router_config(tmp_path):
