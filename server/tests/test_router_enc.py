@@ -149,7 +149,8 @@ def test_colovpn_from_wg_net_and_uplink_peer(tmp_path):
     site.mkdir(parents=True)
     event.mkdir(parents=True)
     (site / 'ipplan').write_text(TOOL.reformat(
-        IPPLAN + 'COLOVPN\t172.29.16.0/24\tR1\t-\tothernet;wg=51820\n'))
+        IPPLAN + 'COLOVPN\t172.29.16.0/24\tR1\t-\tothernet;wg=51820;'
+        'wgsrc=0.0.0.0/0\n'))
     (event / 'ipplan').write_text(TOOL.reformat(
         '#@ IPV4-EVENT-NET\t10.201.0.0/24\n'
         'EVENT\t10.201.0.0/24\tR1\t300\tnat\n'

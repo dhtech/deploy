@@ -565,6 +565,18 @@ def validate(model, manifest=None):
                 model.errors.append('line %d: no such package %s'
                                     % (line, pkg))
 
+    # a wg= listener must DECLARE its exposure: at least one wgsrc=
+    # (0.0.0.0/0 spells world-open) - never implicit
+    wg_nets = {nid for nid, name, _ in model.options if name == 'wg'}
+    wgsrc_nets = {nid for nid, name, _ in model.options
+                  if name == 'wgsrc'}
+    for nid in wg_nets - wgsrc_nets:
+        net = nets.get(nid)
+        model.errors.append(
+            'line %d: wg= listener needs an explicit wgsrc= source '
+            'lock (use wgsrc=0.0.0.0/0 for open)'
+            % (net.line if net else 0))
+
     # overlapping network lines (prod counts every covered IP; same
     # effect). Site masters (vlan 0) deliberately span their networks.
     real = [n for n in model.networks if n.vlan != 0]

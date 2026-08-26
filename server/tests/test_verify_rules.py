@@ -188,3 +188,15 @@ def test_banned_paths():
             'a/.svn', 'docs/Desktop.ini', 'x/Thumbs.db',
             'weird*'} <= set(bad)
     assert any('.svn' in p for p in bad)
+
+
+def test_wg_without_wgsrc_rejected(tmp_path):
+    """A wg= listener's exposure is declared, never implicit: no
+    wgsrc= is a build failure."""
+    errors = errors_of(GOOD + 'COLOVPN\t172.29.16.0/24\tR1\t-\t'
+                       'othernet;wg=51820\n', tmp_path)
+    assert any('needs an explicit wgsrc' in e for e in errors)
+    # declared-open passes
+    errors = errors_of(GOOD + 'COLOVPN\t172.29.16.0/24\tR1\t-\t'
+                       'othernet;wg=51820;wgsrc=0.0.0.0/0\n', tmp_path)
+    assert not any('wgsrc' in e for e in errors)

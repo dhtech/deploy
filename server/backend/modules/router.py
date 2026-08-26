@@ -273,21 +273,24 @@ def generate(host, params, manifest):
                        'networks': p['networks']}
                       for p in vpn['peers']],
         }
-        # the wg port: world-open by default (roaming peers, wg
-        # authenticates) - but wgsrc= on the link net LOCKS it to the
-        # declared sources (/32 or wider, v4 and/or v6). BGP is
-        # admitted only on the link net either way.
-        src4 = [s for s in vpn['listen_sources'] if ':' not in s]
-        src6 = [s for s in vpn['listen_sources'] if ':' in s]
-        if src4 or src6:
+        # the wg port's exposure is DECLARED, never implicit (the
+        # compiler enforces wgsrc= wherever wg= appears):
+        # wgsrc=0.0.0.0/0 or ::/0 spells open (roaming peers, wg
+        # authenticates); anything else locks the listener to those
+        # sources (/32 or wider, v4 and/or v6). BGP is admitted only
+        # on the link net either way.
+        if any(s in ('0.0.0.0/0', '::/0', '0.0.0.0')
+               for s in vpn['listen_sources']):
+            out['dhfirewall']['open_udp'] = [vpn['port']]
+        else:
+            src4 = [s for s in vpn['listen_sources'] if ':' not in s]
+            src6 = [s for s in vpn['listen_sources'] if ':' in s]
             if src4:
                 out['dhfirewall']['open_udp_scoped'] = {
                     vpn['port']: src4}
             if src6:
                 out['dhfirewall']['open_udp_scoped6'] = {
                     vpn['port']: src6}
-        else:
-            out['dhfirewall']['open_udp'] = [vpn['port']]
         out['dhfirewall']['open_tcp_scoped'] = {179: [vpn['link_net']]}
         # forward permits between this site and the vpn sites (native,
         # no NAT between sites); egress+masquerade only for peers that
