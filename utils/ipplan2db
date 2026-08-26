@@ -251,6 +251,24 @@ class Parser:
         vlan = self.current_network.vlan
         if '.' in ip:
             ipv4 = ip
+            # a host belongs to the network SECTION it is written
+            # under - an address outside that network is a misfiled
+            # line (parse-time attachment drives v6 derivation and
+            # consumers; the pve-under-OUTSIDE incident). Hard fail:
+            # the pre-commit gate must reject it.
+            try:
+                in_net = (ipaddress.ip_address(ip)
+                          in self.current_network.ipv4)
+            except ValueError:
+                self.fail(lineno, 'unparseable host address %s' % ip)
+                return
+            if not in_net:
+                self.fail(lineno, 'host %s (%s) is outside its network '
+                          'section %s (%s) - move the line under the '
+                          'right network' % (name, ip,
+                                             self.current_network.short_name,
+                                             self.current_network.ipv4))
+                return
             ipv6 = None
             if vlan and self.v6_base:
                 ipv6 = '%s:%d::%d' % (self.v6_base, vlan,

@@ -43,7 +43,12 @@ def test_bad_input_rejected_with_all_errors(tmp_path, manifest):
     gate = load_gate()
     inputs = base_inputs(manifest)
     # a duplicate host name AND a duplicate ip: BOTH must be reported
-    inputs['allevents/colo/colo/ipplan'] += (
+    # inserted INSIDE the COLO section (appending at the end would
+    # land them under MGMT and trip the out-of-section gate instead)
+    inputs['allevents/colo/colo/ipplan'] = inputs[
+        'allevents/colo/colo/ipplan'].replace(
+        '#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)\n',
+        '#$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)\n'
         '#$ web1.test\t10.200.0.90\tpkg=base\n'
         '#$ other.test\t10.200.0.60\tpkg=base\n')
     with pytest.raises(Exception) as excinfo:

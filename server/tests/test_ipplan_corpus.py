@@ -91,3 +91,25 @@ def test_corpus_passes_validation():
     loader = load_ipplan2db()
     model = loader.parse_all(FILES)
     loader.validate(model)
+
+
+def test_host_outside_its_network_section_fails(tmp_path):
+    # the pve-under-OUTSIDE incident: a host line filed under the
+    # wrong network compiles into wrong attachment (no v6, wrong
+    # consumers) - the gate must reject it instead
+    root = tmp_path / 'svn'
+    site = root / 'allevents' / 'colo' / 'colo'
+    site.mkdir(parents=True)
+    (site / 'ipplan').write_text(
+        '#@ IPV4-COLO-NET\t10.200.0.0/24\n'
+        'COLO\t10.200.0.0/24\tR1\t200\tnone\n'
+        'OTHER\t10.9.9.0/24\tR1\t9\tnone\n'
+        '#$ stray.test\t10.200.0.60\tos=debian;pkg=base\n')
+    (root / 'currentevent').write_text(
+        'currentevent=test\napt_freeze=false\nchange_freeze=false\n')
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text('packages:\n  base: {}\n')
+    tool = load_ipplan2db()
+    with pytest.raises(tool.BuildError) as excinfo:
+        tool.build(str(root), [str(mpath)], str(tmp_path / 'i.db'))
+    assert 'outside its network section' in str(excinfo.value)
