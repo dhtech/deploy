@@ -118,7 +118,7 @@ EOF
 ## Additional Process Hardening
 ### 1.5.1 Ensure fs.protected_hardlinks is configured | conf
 ### 1.5.2 Ensure fs.protected_symlinks is configured | conf
-cat >/etc/ax-links.conf << EOF
+cat >/etc/sysctl.d/dh-links.conf << EOF
 # 1.5.1
 fs.protected_hardlinks = 1
 # 1.5.2
@@ -127,13 +127,13 @@ EOF
 ### 1.5.3 Ensure kernel.yama.ptrace_scope is configured (Automated) 
 # Duplicate of 1.5.10 ?
 ### 1.5.4 Ensure fs.suid_dumpable is configured (Automated) 
-cat >/etc/ax-suid.conf << EOF
+cat >/etc/sysctl.d/dh-suid.conf << EOF
 # 1.5.4
 fs.suid_dumpable = 0
 EOF
 
 ### 1.5.5 Ensure kernel.dmesg_restrict is configured (Automated)
-cat >/etc/ax-dmesg.conf << EOF
+cat >/etc/sysctl.d/dh-dmesg.conf << EOF
 # 1.5.5
 kernel.dmesg_restrict = 1
 EOF
@@ -142,7 +142,7 @@ EOF
 ### 1.5.8 Ensure kernel.kptr_restrict is configured (Automated) 
 ### 1.5.9 Ensure kernel.randomize_va_space is configured (Automated) 
 ### 1.5.10 Ensure kernel.yama.ptrace_scope is configured (Automated) 
-cat > /etc/sysctl.d/ax-ptrace.conf << EOF
+cat > /etc/sysctl.d/dh-ptrace.conf << EOF
 # 1.5.8
 kernel.kptr_restrict = 1
 # 1.5.9
@@ -280,47 +280,47 @@ EOF
 ### 3.3.1.5 Ensure net.ipv4.conf.default.send_redirects is configured (Automated) - Default
 ### 3.3.2.1 Ensure net.ipv6.conf.all.forwarding is configured (Automated) - Default
 ### 3.3.2.2 Ensure net.ipv6.conf.default.forwarding is configured (Automated) - Default
-echo "net.ipv4.conf.all.send_redirects = 0" > /etc/sysctl.d/ax-ipv4.conf
-echo "net.ipv4.conf.default.send_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.all.send_redirects = 0" > /etc/sysctl.d/dh-ipv4.conf
+echo "net.ipv4.conf.default.send_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ## Network Parameters (Host and Router)
 ### 3.3.1.6 Ensure net.ipv4.icmp_ignore_bogus_error_responses is configured (Automated)
-echo "net.ipv4.icmp_ignore_bogus_error_responses = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.icmp_ignore_bogus_error_responses = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.7 Ensure net.ipv4.icmp_echo_ignore_broadcasts is configured (Automated)
-echo "net.ipv4.icmp_echo_ignore_broadcasts = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.icmp_echo_ignore_broadcasts = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.8 Ensure net.ipv4.conf.all.accept_redirects is configured (Automated)
-echo "net.ipv4.conf.all.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.all.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.9 Ensure net.ipv4.conf.default.accept_redirects is configured (Automated)
-echo "net.ipv4.conf.default.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.default.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.10 Ensure net.ipv4.conf.all.secure_redirects is configured (Automated)
-echo "net.ipv4.conf.all.secure_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.all.secure_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.11 Ensure net.ipv4.conf.default.secure_redirects is configured (Automated)
-echo "net.ipv4.conf.default.secure_redirects = 0" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.default.secure_redirects = 0" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.2.3 Ensure net.ipv6.conf.all.accept_redirects is configured (Automated)
-echo "net.ipv6.conf.all.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.all.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv6.conf
 ### 3.3.2.4 Ensure net.ipv6.conf.default.accept_redirects is configured (Automated)
-echo "net.ipv6.conf.default.accept_redirects = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.default.accept_redirects = 0" >> /etc/sysctl.d/dh-ipv6.conf
 ### 3.3.1.16 Ensure net.ipv4.conf.all.log_martians is configured (Automated)
 ### 3.3.1.17 Ensure net.ipv4.conf.default.log_martians is configured (Automated)
-echo "net.ipv4.conf.all.log_martians = 1" >> /etc/sysctl.d/ax-ipv4.conf
-echo "net.ipv4.conf.default.log_martians = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.all.log_martians = 1" >> /etc/sysctl.d/dh-ipv4.conf
+echo "net.ipv4.conf.default.log_martians = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.12 Ensure net.ipv4.conf.all.rp_filter is configured (Automated)
 ### 3.3.1.13 Ensure net.ipv4.conf.default.rp_filter is configured (Automated)
-echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/ax-ipv4.conf
-echo "net.ipv4.conf.default.rp_filter = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.conf.all.rp_filter = 1" >> /etc/sysctl.d/dh-ipv4.conf
+echo "net.ipv4.conf.default.rp_filter = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.1.14 Ensure net.ipv4.conf.all.accept_source_route is configured (Automated)
 ### 3.3.1.15 Ensure net.ipv4.conf.default.accept_source_route is configured (Automated)
 ### 3.3.2.5 Ensure net.ipv6.conf.all.accept_source_route is configured (Automated)
 ### 3.3.2.6 Ensure net.ipv6.conf.default.accept_source_route is configured (Automated)
-echo "net.ipv4.conf.all.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv4.conf
-echo "net.ipv4.conf.default.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv4.conf
-echo "net.ipv6.conf.all.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv6.conf
-echo "net.ipv6.conf.default.accept_source_route = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv4.conf.all.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv4.conf
+echo "net.ipv4.conf.default.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv4.conf
+echo "net.ipv6.conf.all.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv6.conf
+echo "net.ipv6.conf.default.accept_source_route = 0" >> /etc/sysctl.d/dh-ipv6.conf
 ### 3.3.1.18 Ensure net.ipv4.tcp_syncookies is configured (Automated) - Default
-echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/ax-ipv4.conf
+echo "net.ipv4.tcp_syncookies = 1" >> /etc/sysctl.d/dh-ipv4.conf
 ### 3.3.2.7 Ensure net.ipv6.conf.all.accept_ra is configured (Automated)
 ### 3.3.2.8 Ensure net.ipv6.conf.default.accept_ra is configured (Automated)
-echo "net.ipv6.conf.all.accept_ra = 0" >> /etc/sysctl.d/ax-ipv6.conf
-echo "net.ipv6.conf.default.accept_ra = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.all.accept_ra = 0" >> /etc/sysctl.d/dh-ipv6.conf
+echo "net.ipv6.conf.default.accept_ra = 0" >> /etc/sysctl.d/dh-ipv6.conf
 
 ## 4 Firewall Configuration
 ### 4.1 Configure UncomplicatedFirewall - We use iptables as fw, skipping config of ufw
@@ -813,14 +813,14 @@ blacklist cfg80211
 EOF
 
 # disable ipv6 autoconf
-echo "net.ipv6.conf.all.autoconf = 0" >> /etc/sysctl.d/ax-ipv6.conf
+echo "net.ipv6.conf.all.autoconf = 0" >> /etc/sysctl.d/dh-ipv6.conf
 
 # minimal use of swap
-echo "vm.swappiness = 1" > /etc/sysctl.d/ax-swappiness.conf
+echo "vm.swappiness = 1" > /etc/sysctl.d/dh-swappiness.conf
 
 # arp config
-echo "net.ipv4.conf.all.arp_filter = 1" > /etc/sysctl.d/ax-arp.conf
-echo "net.ipv4.conf.all.arp_announce = 1" >> /etc/sysctl.d/ax-arp.conf
+echo "net.ipv4.conf.all.arp_filter = 1" > /etc/sysctl.d/dh-arp.conf
+echo "net.ipv4.conf.all.arp_announce = 1" >> /etc/sysctl.d/dh-arp.conf
 
 # always synchronize ntp
 sed -i '2itinker panic 0' /etc/ntpsec/ntp.conf
