@@ -51,7 +51,8 @@ browser
 | `127.0.0.1:8445` | router → doc1:443 (expose=) | Trac + SVN (doc) | live |
 | `127.0.0.1:8447` | router → puppet1:443 (expose=) | **puppetboard** (nginx + LE, tech group) | live |
 | `127.0.0.1:2222` | router → jumpgate1:22 (expose=) | **user ssh entry** (directory logins) | live |
-| `127.0.0.1:8448` | router → prometheus1:443 (expose=) | **prometheus** (+ /alertmanager/; nginx + LE, tech group) | live (hostfwd at next lab restart) |
+| `127.0.0.1:8448` | router → prometheus:443 (expose=) | **prometheus** (+ /alertmanager/; nginx + LE, tech group) | live |
+| `127.0.0.1:8449` | router → grafana:443 (expose=) | **grafana** (nginx + LE; grafana's own directory login, services-team = Admin) | live (hostfwd at next lab restart) |
 
 The DNAT table is DATA: `expose=EXT:INT` on the host's ipplan line;
 the router's ruleset (masquerade, DNAT, forward) is derived from
