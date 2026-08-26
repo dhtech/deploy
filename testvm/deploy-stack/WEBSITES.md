@@ -53,6 +53,7 @@ browser
 | `127.0.0.1:2222` | router → jumpgate1:22 (expose=) | **user ssh entry** (directory logins) | live |
 | `127.0.0.1:8448` | router → prometheus:443 (expose=) | **prometheus** (+ /alertmanager/; nginx + LE, tech group) | live |
 | `127.0.0.1:8449` | router → grafana:443 (expose=) | **grafana** (nginx + LE; grafana's own directory login, services-team = Admin) | live (hostfwd at next lab restart) |
+| `127.0.0.1:8450`–`8459` | router → 10.0.2.17:450–459 | **reserved**: pre-wired for future websites - a new `expose=45x:443` in ipplan needs only the router's DNAT reconverge, no lab restart | at next lab restart |
 
 The DNAT table is DATA: `expose=EXT:INT` on the host's ipplan line;
 the router's ruleset (masquerade, DNAT, forward) is derived from
