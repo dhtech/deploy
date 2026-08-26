@@ -24,12 +24,6 @@ apps:
     kind: github
     repo: prometheus/alertmanager
     asset: 'alertmanager-*.linux-amd64.tar.gz'
-  # puppetdb metrics (last report timestamps etc): feeds the Server
-  # dashboard's "no puppet run" panel; runs on the puppet master
-  puppetdb-exporter:
-    kind: github
-    repo: camptocamp/prometheus-puppetdb-exporter
-    asset: 'prometheus-puppetdb-exporter-*.linux-amd64.tar.gz'
   # mirror-only for now: the MFA portal evaluation (Authelia plan).
   # Upstream ships official .deb release assets; nothing installs
   # this yet - it just exists in the appstore/fileserver.
