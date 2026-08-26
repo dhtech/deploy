@@ -61,6 +61,21 @@ def test_double_space_rejected(tmp_path):
     assert any('use tabs' in e for e in model.errors)
 
 
+def test_trailing_whitespace_rejected(tmp_path):
+    tool = load_ipplan2db()
+    path = tmp_path / 'ipplan'
+    # space before a tab (inside the ip field), prod-style wart
+    path.write_text(tool.reformat(GOOD).replace(
+        '10.200.0.60\t', '10.200.0.60 \t'))
+    model = tool.parse_all([str(path)])
+    assert any('trailing whitespace' in e for e in model.errors)
+    # bare tab at end of line
+    path.write_text(tool.reformat(GOOD).replace(
+        'os=pve;pkg=pve', 'os=pve;pkg=pve\t'))
+    model = tool.parse_all([str(path)])
+    assert any('trailing whitespace' in e for e in model.errors)
+
+
 def test_unknown_flag_rejected(tmp_path):
     errors = errors_of(GOOD.replace('os=debian;pkg=base',
                                     'os=debian;pkg=base;webnmae=x'),

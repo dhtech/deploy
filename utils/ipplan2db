@@ -169,12 +169,16 @@ class Parser:
         if line.startswith(' ') or '\t ' in line:
             self.fail(lineno, 'column starts with a space')
             return
-        # a trailing space INSIDE a field (before its tab) is prod-
-        # tolerated noise; it does not move the next column's start
+        # prod tolerates a trailing space inside a field and a bare
+        # tab at end of line (43 rows in the dhb26 corpus); gen-3
+        # rejects them - reformat scrubs them for free
+        if ' \t' in line or line.endswith((' ', '\t')):
+            self.fail(lineno, 'trailing whitespace in a field')
+            return
         starts = []
         col = 0
         boundary = True
-        for char in line.rstrip('\t'):
+        for char in line:
             if char == '\t':
                 col += 8 - col % 8
                 boundary = True
