@@ -198,11 +198,15 @@ def _colovpn(host):
         return None
     link_id, _, cidr, gateway, port = link
     net = ipaddress.ip_network(cidr)
-    # wgsrc= (repeatable, /32 or wider, v4 or v6): LOCK the listener
-    # to these sources; absent = world-open (free roaming)
-    listen_sources = sorted(v for (v,) in _query(
+    # wgsrc= (repeatable, /32 or wider, v4 or v6): the listener's
+    # DECLARED sources - 0.0.0.0/0 spells open, the compiler refuses
+    # a wg= net without any. Peer sites' declared nat=<ip> egress
+    # addresses join automatically below (user rule 2026-08-26: if
+    # there is a nat, that will be opened); a bare valueless nat
+    # declares no address and adds nothing.
+    listen_sources = {v for (v,) in _query(
         'SELECT value FROM option WHERE node_id = ? '
-        'AND name = "wgsrc"', (link_id,)))
+        'AND name = "wgsrc"', (link_id,))}
     peers = []
     for peer, pparams in metadata.hosts_with_pkg('router'):
         if peer == host or pparams.get('uplink') != 'colo':
@@ -228,6 +232,14 @@ def _colovpn(host):
             and not _query(
                 'SELECT 1 FROM option WHERE node_id = ? '
                 'AND name = "deploy"', (nid2,)))
+        # the peer site's declared nat=<ip> addresses are where its
+        # wg packets come from - they open on the listener
+        listen_sources.update(
+            v for nid2, n2, v in _query(
+                'SELECT o.node_id, n.name, o.value FROM option o, '
+                'network n WHERE o.node_id = n.node_id '
+                'AND o.name = "nat" AND o.value != "1"')
+            if n2.split('@', 1)[0].lower() == psite)
         peers.append({
             'site': label, 'asn': int(pparams.get('asn', 0)),
             'tunnel_ip': tunnel,
@@ -236,7 +248,7 @@ def _colovpn(host):
         })
     return {'address': '%s/%d' % (gateway, net.prefixlen),
             'link_net': cidr, 'port': int(port),
-            'listen_sources': listen_sources,
+            'listen_sources': sorted(listen_sources),
             'peers': sorted(peers, key=lambda p: p['tunnel_ip'])}
 
 

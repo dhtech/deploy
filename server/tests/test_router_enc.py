@@ -198,6 +198,37 @@ def test_colovpn_from_wg_net_and_uplink_peer(tmp_path):
     assert params['dhbird']['default_export'] is False
 
 
+def test_peer_nat_address_opens_automatically(tmp_path):
+    """A vpn peer site's declared nat=<ip> egress address joins the
+    listener sources (if there is a nat, that will be opened - user
+    rule); a bare valueless nat adds nothing."""
+    root = tmp_path / 'svn'
+    site = root / 'allevents' / 'colo' / 'colo'
+    event = root / 'ev' / 'core'
+    site.mkdir(parents=True)
+    event.mkdir(parents=True)
+    (site / 'ipplan').write_text(TOOL.reformat(
+        IPPLAN + 'COLOVPN\t172.29.16.0/24\tR1\t-\tothernet;'
+        'wg=51820;wgsrc=198.51.100.0/24\n'))
+    (event / 'ipplan').write_text(TOOL.reformat(
+        '#@ IPV4-EVENT-NET\t10.201.0.0/24\n'
+        'EVENT\t10.201.0.0/24\tR1\t300\tnat=203.0.113.9\n'
+        '#$ router.ev.test\t10.201.0.1\tos=debian;'
+        'pkg=router(asn=65201,uplink=colo);addr=172.29.16.11\n'))
+    (root / 'currentevent').write_text(
+        'currentevent=ev\napt_freeze=false\nchange_freeze=false\n')
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text(yaml.safe_dump(MANIFEST))
+    db = tmp_path / 'ipplan.db'
+    TOOL.build(str(root), [str(mpath)], str(db))
+    sys.modules['lib.metadata'].DB_FILE = str(db)
+    from modules import router
+    params = router.generate(
+        'router.colo.test', {'asn': '65200'}, MANIFEST)
+    assert params['dhfirewall']['open_udp_scoped'] == {
+        51820: ['198.51.100.0/24', '203.0.113.9']}
+
+
 def test_wgsrc_locks_the_listener(tmp_path):
     """wgsrc= on the link net scopes the wg udp opening to the
     declared sources (/32 or wider, repeatable, v4+v6); without it
