@@ -35,9 +35,9 @@ DEPLOY		10.100.0.0/24	R1		100	nat;native;pkg=servers
 # never deployed. The gateway is the router's MGMT leg (COLO<->MGMT
 # routes through it - the pve directory binds need the return path).
 MGMT		10.10.10.0/24	R1	10	othernet
+#$ pve1.colo.notproduction.net		10.10.10.11	os=pve;pkg=pve;webname=pve1.dh.notproduction.net
+#$ pve2.colo.notproduction.net		10.10.10.12	os=pve;pkg=pve;webname=pve2.dh.notproduction.net
 
 # The slirp/user-net side of the bench: the router's outside leg and
 # the workstation hostfwd targets live here (qemu's gateway at .2).
 OUTSIDE		10.0.2.0/24	-	-	othernet;gw=10.0.2.2
-#$ pve1.colo.notproduction.net		10.10.10.11	os=pve;pkg=pve;webname=pve1.dh.notproduction.net
-#$ pve2.colo.notproduction.net		10.10.10.12	os=pve;pkg=pve;webname=pve2.dh.notproduction.net
