@@ -45,24 +45,27 @@ apps:
     repo: authelia/authelia
     asset: 'authelia_*_amd64.deb'
   # the deploy stack itself, served to the deploy server(s) - built
-  # from the deploy repo pushed to /srv/deploy.git on the master
-  # (kind local until prod GitHub releases exist). deploy-backend =
-  # the CGI tree + frontend + lib; deploy-utils = the operator tools
-  # (deploy-vm, ipplan2db); deployd = the provisioner daemon. Path-
-  # scoped + tree-hash versioned: only commits touching the path
-  # release a new artifact.
+  # straight from the PUBLIC github repo (kind git: the master keeps
+  # a bare mirror on the appdisk; pushing github IS the release).
+  # deploy-backend = the CGI tree + frontend + lib; deploy-utils =
+  # the operator tools (deploy-vm, ipplan2db); deployd = the
+  # provisioner daemon. Path-scoped + tree-hash versioned: only
+  # commits touching the path release a new artifact.
   deploy-backend:
-    kind: local
-    repo: /srv/deploy.git
+    kind: git
+    repo: https://github.com/dhtech/deploy
+    ref: proxmox-revamp
     path: server
     interval: fast
   deploy-utils:
-    kind: local
-    repo: /srv/deploy.git
+    kind: git
+    repo: https://github.com/dhtech/deploy
+    ref: proxmox-revamp
     path: utils
     interval: fast
   deployd:
-    kind: local
-    repo: /srv/deploy.git
+    kind: git
+    repo: https://github.com/dhtech/deploy
+    ref: proxmox-revamp
     path: deployd
     interval: fast
