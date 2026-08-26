@@ -58,6 +58,11 @@ def _monitor_jobs(site, manifest):
         job = {'job_name': pkg, 'scheme': parsed.scheme or 'http',
                'metrics_path': parsed.path or '/metrics',
                'targets': targets}
+        if parsed.query:
+            # multi-target exporters (pve): the url's query becomes
+            # the scrape params
+            job['params'] = {k: v for k, v in
+                             urllib.parse.parse_qs(parsed.query).items()}
         if 'interval' in mon:
             job['interval'] = mon['interval']
         if 'labels' in mon:
