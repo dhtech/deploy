@@ -15,7 +15,8 @@ HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(HERE, '..', 'backend'))
 
 _lib = types.ModuleType('lib')
-sys.path.insert(0, os.path.join(HERE, '..'))
+# libdhdeploy's only home is the ipplan2db sibling checkout
+sys.path.insert(0, os.path.expanduser('~/repos/dh/ipplan2db'))
 _lib.metadata = importlib.import_module('libdhdeploy.metadata')
 _lib.flows = importlib.import_module('libdhdeploy.flows')
 sys.modules['lib'] = _lib

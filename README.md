@@ -38,10 +38,12 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
   `monitor:` idiom (one url line = a site-prometheus scrape job plus
   the scoped firewall opening). `appstore.yaml` pins the application
   artifacts the puppet master mirrors for the fleet.
-- **The compiler and the gate live in their own repo**,
+- **The ipplan toolchain lives in its own repo**,
   [dhtech/ipplan2db](https://github.com/dhtech/ipplan2db) (successor
-  to ipplan2sqlite) - clone it as a sibling checkout; the tests and
-  seed script load it from there.
+  to ipplan2sqlite): compiler, svn gate + publisher + audit, stats
+  page and `libdhdeploy` (metadata/flows - its only home). Machines
+  receive it as one appstore artifact at /opt/ipplan2db; dev and
+  tests use the sibling checkout.
 - **ipplan.db**: the compiled single source of truth. doc1's
   post-commit publishes it per revision; the puppet master syncs and
   serves it; every consumer reads only the db.
@@ -60,7 +62,6 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
 | path | what |
 |---|---|
 | `server/backend/` | deploy web backend: PXE/preseed flow, finish/report, the ENC and its per-pkg modules |
-| `server/libdhdeploy/` | vendored copy of the shared library - its authoritative home is [dhtech/ipplan2db](https://github.com/dhtech/ipplan2db) (byte-parity-guarded) |
 | `server/frontend/` | the deploy status site (fleet panel, develop tab) |
 | `server/tests/` | pytest suite - includes the prod-ipplan corpus (byte-for-byte parity with the gen-2 engine) and gate-rule proofs |
 | `utils/deploy-vm`, `deploy-bay` | provisioning helpers (create VMs on pve, bay handling) |

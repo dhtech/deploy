@@ -12,7 +12,6 @@ PUPPET = os.path.expanduser('~/repos/dh/local/puppet/modules/dhenc/files')
 
 PAIRS = [
     ('backend/enc.py', 'enc.py'),
-    ('libdhdeploy/metadata.py', 'lib/metadata.py'),
 ] + [('backend/modules/%s.py' % m, 'modules/%s.py' % m)
      for m in ('__init__', 'deploy', 'jumpgate', 'lam', 'ldap', 'login',
                'managed', 'node',
