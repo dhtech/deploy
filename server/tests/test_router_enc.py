@@ -139,6 +139,62 @@ def test_bird_from_asn_token(tmp_path):
         IPPLAN = kept
 
 
+def test_colovpn_from_wg_net_and_uplink_peer(tmp_path):
+    """P5: a wg= link net + an uplink=colo event router = the wg
+    listener (address .1, roaming peer with its site nets) plus the
+    bgp peer, the 179 scoping, and the vpn forward permits. The
+    egress=colo token flips default export and masquerade."""
+    root = tmp_path / 'svn'
+    site = root / 'allevents' / 'colo' / 'colo'
+    event = root / 'ev' / 'core'
+    site.mkdir(parents=True)
+    event.mkdir(parents=True)
+    (site / 'ipplan').write_text(TOOL.reformat(
+        IPPLAN + 'COLOVPN\t172.29.16.0/24\tR1\t-\tothernet;wg=51820\n'))
+    (event / 'ipplan').write_text(TOOL.reformat(
+        '#@ IPV4-EVENT-NET\t10.201.0.0/24\n'
+        'EVENT\t10.201.0.0/24\tR1\t300\tnat\n'
+        '#$ router.ev.test\t10.201.0.1\tos=debian;'
+        'pkg=router(asn=65201,uplink=colo,egress=colo);'
+        'addr=172.29.16.11\n'))
+    (root / 'currentevent').write_text(
+        'currentevent=ev\napt_freeze=false\nchange_freeze=false\n')
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text(yaml.safe_dump(MANIFEST))
+    db = tmp_path / 'ipplan.db'
+    TOOL.build(str(root), [str(mpath)], str(db))
+    sys.modules['lib.metadata'].DB_FILE = str(db)
+    from modules import router
+    params = router.generate(
+        'router.colo.test', {'asn': '65200'}, MANIFEST)
+    vpn = params['dhcolovpn']
+    assert vpn['address'] == '172.29.16.1/24'
+    assert vpn['port'] == 51820
+    assert vpn['peers'] == [{'site': 'ev', 'tunnel_ip': '172.29.16.11',
+                             'networks': ['10.201.0.0/24']}]
+    fw = params['dhfirewall']
+    assert fw['open_udp'] == [51820]
+    assert fw['open_tcp_scoped'] == {179: ['172.29.16.0/24']}
+    assert fw['router']['vpn_networks'] == ['10.201.0.0/24']
+    assert fw['router']['vpn_egress_networks'] == ['10.201.0.0/24']
+    bird = params['dhbird']
+    assert {'ip': '172.29.16.11', 'asn': 65201,
+            'export_default': True} in bird['peers']
+    assert bird['default_export'] is True
+    # egress=local: no default, no masquerade - prefixes only
+    (event / 'ipplan').write_text(TOOL.reformat(
+        '#@ IPV4-EVENT-NET\t10.201.0.0/24\n'
+        'EVENT\t10.201.0.0/24\tR1\t300\tnat\n'
+        '#$ router.ev.test\t10.201.0.1\tos=debian;'
+        'pkg=router(asn=65201,uplink=colo,egress=local);'
+        'addr=172.29.16.11\n'))
+    TOOL.build(str(root), [str(mpath)], str(db))
+    params = router.generate(
+        'router.colo.test', {'asn': '65200'}, MANIFEST)
+    assert 'vpn_egress_networks' not in params['dhfirewall']['router']
+    assert params['dhbird']['default_export'] is False
+
+
 def test_no_asn_no_bird(tmp_path):
     """Without the asn token the router stays daemonless: firewall
     ruleset only, no dhbird class."""

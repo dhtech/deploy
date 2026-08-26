@@ -7,3 +7,4 @@
 
 #Name		#Net		#Terminator	#VLAN	#Options
 EVENT						10.201.0.0/24		R1		300	gw=10.201.0.2
+#$ router.test.notproduction.net		10.201.0.1					os=debian;pkg=router(asn=65201,uplink=colo,egress=local);addr=172.29.16.11

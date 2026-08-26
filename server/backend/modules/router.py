@@ -161,11 +161,61 @@ def _bird(host, params, networks):
     }
 
 
+def _colovpn(host):
+    """The site-to-site WireGuard listener (P5): a site network
+    carrying wg=<port> is the tunnel link net - the router terminates
+    it as wg0 at the net's computed gateway. Peers = other sites'
+    routers declaring uplink=colo; each one's tunnel address is the
+    addr= leg that falls inside the link net, and its site networks
+    ride along (wg crypto ACL, BGP, firewall). egress=colo on the
+    peer means colo also exports a default and masquerades for it."""
+    site = metadata.host_site(host)
+    link = next((r for r in _query(
+        'SELECT n.name, n.ipv4_txt, n.ipv4_gateway_txt, o.value '
+        'FROM network n, option o WHERE o.node_id = n.node_id '
+        'AND o.name = "wg"')
+        if r[0].split('@', 1)[0].lower() == site), None)
+    if link is None:
+        return None
+    _, cidr, gateway, port = link
+    net = ipaddress.ip_network(cidr)
+    peers = []
+    for peer, pparams in metadata.hosts_with_pkg('router'):
+        if peer == host or pparams.get('uplink') != 'colo':
+            continue
+        tunnel = next(
+            (a for (a,) in _query(
+                'SELECT o.value FROM option o, host h WHERE '
+                'o.node_id = h.node_id AND o.name = "addr" '
+                'AND h.name = ?', (peer,))
+             if ipaddress.ip_address(a) in net), None)
+        if tunnel is None:
+            continue
+        psite = metadata.host_site(peer)
+        label = (metadata.get_current_event() if psite == 'event'
+                 else psite)
+        networks = sorted(
+            c for n2, c, vlan in _query(
+                'SELECT name, ipv4_txt, vlan FROM network '
+                'WHERE ipv4_txt IS NOT NULL')
+            if vlan and n2.split('@', 1)[0].lower() == psite)
+        peers.append({
+            'site': label, 'asn': int(pparams.get('asn', 0)),
+            'tunnel_ip': tunnel,
+            'egress': pparams.get('egress', 'local'),
+            'networks': networks,
+        })
+    return {'address': '%s/%d' % (gateway, net.prefixlen),
+            'link_net': cidr, 'port': int(port),
+            'peers': sorted(peers, key=lambda p: p['tunnel_ip'])}
+
+
 def generate(host, params, manifest):
     networks = router_networks(host)
     if not networks:
         return {}
     bird = _bird(host, params, networks)
+    vpn = _colovpn(host)
     out = {
         'dhfirewall': {
             'router': {
@@ -186,6 +236,38 @@ def generate(host, params, manifest):
             },
         },
     }
+    if vpn:
+        out['dhcolovpn'] = {
+            'address': vpn['address'], 'port': vpn['port'],
+            'peers': [{'site': p['site'], 'tunnel_ip': p['tunnel_ip'],
+                       'networks': p['networks']}
+                      for p in vpn['peers']],
+        }
+        # the wg port is world-open (roaming peers, wg authenticates);
+        # BGP is admitted only on the link net
+        out['dhfirewall']['open_udp'] = [vpn['port']]
+        out['dhfirewall']['open_tcp_scoped'] = {179: [vpn['link_net']]}
+        # forward permits between this site and the vpn sites (native,
+        # no NAT between sites); egress+masquerade only for peers that
+        # declared egress=colo
+        vpn_nets = sorted({n for p in vpn['peers']
+                           for n in p['networks']})
+        egress_nets = sorted({n for p in vpn['peers']
+                              if p['egress'] == 'colo'
+                              for n in p['networks']})
+        if vpn_nets:
+            out['dhfirewall']['router']['vpn_networks'] = vpn_nets
+        if egress_nets:
+            out['dhfirewall']['router']['vpn_egress_networks'] = \
+                egress_nets
     if bird:
+        if vpn:
+            for p in vpn['peers']:
+                bird['peers'].append({
+                    'ip': p['tunnel_ip'], 'asn': p['asn'],
+                    'export_default': p['egress'] == 'colo'})
+            bird['peers'].sort(key=lambda p: p['ip'])
+            bird['default_export'] = any(
+                p.get('export_default') for p in bird['peers'])
         out['dhbird'] = bird
     return out
