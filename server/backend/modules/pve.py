@@ -22,6 +22,9 @@ def generate(host, params, manifest):
     }
     webname = metadata.host_option(host, 'webname')
     if webname:
+        # the exporter talks to the local API by the certificate's
+        # name (LE cert -> verify_ssl true)
+        out['dhpveexporter'] = {'api_url_host': webname}
         out['dhpve']['cert_name'] = webname
         # WebAuthn rp id: the parent domain, so credentials work on
         # every pve web name (pve1/pve2 both end in it)

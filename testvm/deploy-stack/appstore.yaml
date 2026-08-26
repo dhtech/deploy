@@ -24,6 +24,12 @@ apps:
     kind: github
     repo: prometheus/alertmanager
     asset: 'alertmanager-*.linux-amd64.tar.gz'
+  # per-node proxmox metrics (VMs, storage, cluster) - runs on the
+  # pve hosts themselves, read-only PVEAuditor token
+  pve-exporter:
+    kind: pip
+    packages:
+      - prometheus-pve-exporter
   # mirror-only for now: the MFA portal evaluation (Authelia plan).
   # Upstream ships official .deb release assets; nothing installs
   # this yet - it just exists in the appstore/fileserver.
