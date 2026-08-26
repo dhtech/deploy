@@ -32,5 +32,9 @@ def generate(host, params, manifest):
             # same site's prometheus - never another site's
             'site': site,
             'prometheus_server': _prometheus.site_prometheus(site),
+            # dashboard archive: per-site dir; event sites use the
+            # current event name (prod's per-event lineage)
+            'archive_dir': (metadata.get_current_event()
+                            if site == 'event' else site),
         }
     return out

@@ -78,6 +78,7 @@ def test_grafana_single_site_datasource(mon_ipplan, mon_manifest):
     assert g['prometheus_server'] == 'prometheus.test'
     assert g['site'] == 'colo'
     assert g['svc_name'] == 'grafana'
+    assert g['archive_dir'] == 'colo'
     assert g['root_url'] == 'https://grafana.colo.example/'
     assert result['dhnginx::grafana'] == {
         'server_name': 'grafana.colo.example'}
