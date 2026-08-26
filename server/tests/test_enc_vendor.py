@@ -15,6 +15,7 @@ PAIRS = [
     ('libdhdeploy/metadata.py', 'lib/metadata.py'),
 ] + [('backend/modules/%s.py' % m, 'modules/%s.py' % m)
      for m in ('__init__', 'deploy', 'jumpgate', 'lam', 'ldap', 'login',
+               'managed', 'node',
                'grafana', 'prometheus', 'puppetserver', 'pve', 'router', 'trac',
                'vault', 'web')]
 

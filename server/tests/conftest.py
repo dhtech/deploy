@@ -26,14 +26,14 @@ sys.modules['lib.flows'] = _lib.flows
 IPPLAN_COLO = '''\
 #@ IPV4-COLO-NET\t10.200.0.0/24
 COLO\t10.200.0.0/24\tR1\t200\tgw=10.200.0.2
-#$ deploy.test\t10.200.0.2\tpkg=jumpgate
+#$ deploy.test\t10.200.0.2\tos=debian;pkg=jumpgate
 #$ web1.test\t10.200.0.60\tos=debian;pkg=base,web(port=80)
 #$ vault1.test\t10.200.0.61\tos=debian;pkg=vault,-login;webname=vault.dh.example
 #$ puppet1.test\t10.200.0.62\tos=debian;pkg=puppetserver
-#$ directory1.test\t10.200.0.63\tpkg=lam
-#$ ldap1-master.test\t10.200.0.65\tpkg=ldap(role=master,id=1)
-#$ ldap2-master.test\t10.200.0.66\tpkg=ldap(role=master,id=2)
-#$ ldap1.test\t10.200.0.67\tpkg=ldap
+#$ directory1.test\t10.200.0.63\tos=debian;pkg=lam
+#$ ldap1-master.test\t10.200.0.65\tos=debian;pkg=ldap(role=master,id=1)
+#$ ldap2-master.test\t10.200.0.66\tos=debian;pkg=ldap(role=master,id=2)
+#$ ldap1.test\t10.200.0.67\tos=debian;pkg=ldap
 MGMT\t10.10.10.0/24\tR1\t10\tgw=10.10.10.1
 #$ pve1.test\t10.10.10.1\tpkg=pve;webname=pve.dh.example
 '''
@@ -41,7 +41,7 @@ MGMT\t10.10.10.0/24\tR1\t10\tgw=10.10.10.1
 IPPLAN_EVENT = '''\
 #@ IPV4-EVENT-NET\t10.201.0.0/24
 EVENT\t10.201.0.0/24\tR1\t300\tgw=10.201.0.2
-#$ evtbox1.test\t10.201.0.60\tpkg=login
+#$ evtbox1.test\t10.201.0.60\tos=debian;pkg=login
 '''
 
 
@@ -81,12 +81,15 @@ def manifest():
     return {
         'globals': {'acme': {'email': 'a@example', 'server': 'https://acme'}},
         'flows': ['ldaprepl', 'ldapwrite'],
-        'default': {'debian': ['login']},
+        'default': {'debian': ['login', 'node', 'managed'],
+                    'pve': ['login', 'node', 'managed']},
         'services': {
             'ldaps': {'destport': ['636/tcp']},
         },
         'packages': {
             'base': {'puppet': {'classes': ['dhfirewall']}},
+            'node': {},
+            'managed': {},
             'jumpgate': {},
             'web': {'puppet': {'classes': ['dhfirewall']}},
             'login': {'client': ['ldaps'],

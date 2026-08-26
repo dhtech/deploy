@@ -25,11 +25,14 @@ def test_ldap_slave_defaults(ipplan, manifest):
     assert classes['dhldap::server']['role'] == 'slave'
     assert 'server_id' not in classes['dhldap::server']
     # flows: a slave serves the declared ldaps clients of its OWN site
-    # (web1+puppet1 get login via the debian DEFAULT, vault/pve declare
-    # it; pve1 sits on the mgmt net outside the site CIDR, the flow
-    # still finds it; evtbox1 is another site - no)
+    # (every debian host carries login via the DEFAULT list - all
+    # fixture hosts declare os= now, so that is the whole colo fleet
+    # except the slave itself; pve1 sits on the mgmt net outside the
+    # site CIDR, the flow still finds it; evtbox1 is another site - no)
     assert classes['dhfirewall']['open_tcp_scoped'] == {
-        636: ['10.10.10.1', '10.200.0.60', '10.200.0.61', '10.200.0.62']}
+        636: ['10.10.10.1', '10.200.0.2', '10.200.0.60', '10.200.0.61',
+              '10.200.0.62', '10.200.0.63', '10.200.0.65',
+              '10.200.0.66']}
 
 
 def test_web_port_from_pkg_arg(ipplan, manifest):
@@ -135,17 +138,10 @@ def test_merge_lists_union_scalars_override():
     assert 'b' in target
 
 
-def test_known_but_pkgless_host_gets_safe_floor(ipplan, manifest):
-    # a host that IS in ipplan but carries no pkgs still converges:
-    # locked-down firewall + the ipplan consumer (ENC-granted, never
-    # from the possibly-lagging db itself). UNKNOWN certnames never
-    # reach classify - main() hard-fails them (anomalies must be
-    # seen, not floored; user call)
-    result = enc.classify('nosuch.test', manifest)
-    assert result['dhfirewall'] == {'jumpgates': ['10.200.0.2']}
-    assert result['dhipplan'] == {}
-    assert result['dhguest'] == {}
-    # no host carries pkg deploy in this fixture -> no cache proxy
-    assert 'dhaptcache' not in result
-    # no prometheus host in this fixture -> no exporter baseline
-    assert 'dhnodeexporter' not in result
+def test_pkgless_host_gets_empty_classification(ipplan, manifest):
+    # the enc imposes NOTHING (user principle): a host without pkg
+    # data gets an empty classification - baselines only exist as
+    # DEFAULT packages, which materialize from os= at db build.
+    # UNKNOWN certnames never reach classify - main() hard-fails them
+    # (anomalies must be seen, not floored)
+    assert enc.classify('nosuch.test', manifest) == {}

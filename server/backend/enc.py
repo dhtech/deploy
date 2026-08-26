@@ -49,6 +49,12 @@ def merge_params(target, extra):
 
 
 def classify(hostname, manifest):
+    """Everything a host gets derives from DATA - its ipplan pkgs
+    and the manifest (fleet baselines are DEFAULT packages with
+    their own generator modules). The global enc imposes nothing:
+    dispatch, the flow-engine merge, the world: grammar, and the
+    site jumpgates rule - a host without pkgs gets an empty
+    classification."""
     classes = {}
     for pkg, params in metadata.pkgs_with_params(hostname):
         pkg_spec = manifest.get('packages', {}).get(pkg) or {}
@@ -82,86 +88,12 @@ def classify(hostname, manifest):
         merge_params(classes, {'dhfirewall': {
             'open_udp_scoped': scoped['udp']}})
 
-    # apt auto-updates: colo machines only, and the event change
-    # freeze (meta_data) switches them off fleet-wide
-    site = metadata.host_site(hostname)
-    if site:
-        freeze = metadata.get_meta('change_freeze', 'false') == 'true'
-        merge_params(classes, {'dhautoupdate': {
-            'enabled': site == 'colo' and not freeze}})
-
-    if not classes:
-        classes = {'dhfirewall': {}}
-    # every managed host consumes the ipplan db: granted HERE, never
-    # from the db itself - a host whose served db lags (an operator
-    # pin to an old revision) must still keep receiving updates, or
-    # it freezes on the pinned build even after the override clears
-    classes.setdefault('dhipplan', {})
-    # fleet baseline: the qemu guest agent (udev-activated; covers
-    # pre-pipeline VMs the hardening never touched)
-    classes.setdefault('dhguest', {})
-    # fleet baseline: apt through the deploy server's cache (the
-    # installed system, not just the installer) - except the cache
-    # host itself
-    deploys = metadata.hosts_with_pkg('deploy')
-    if deploys and not any(h == hostname for h, _ in deploys):
-        # the class is ALWAYS in the catalog (so a host that leaves
-        # the servers scope gets the file removed); the proxy value
-        # only inside a pkg=servers network - the cache port is
-        # scoped to exactly those networks
-        if _in_servers_network(hostname):
-            classes.setdefault('dhaptcache', {
-                'proxy': 'http://%s:3142' % metadata.host_ip(
-                    deploys[0][0])})
-        else:
-            classes.setdefault('dhaptcache', {})
-    # fleet baseline: node metrics, once the host's OWN SITE has a
-    # prometheus (monitoring is site-local - another site's prometheus
-    # never scrapes here); 9100 opens ONLY to that site prometheus -
-    # and only where dhfirewall is ours (pve manages its own firewall)
-    site = metadata.host_site(hostname)
-    proms = [h for h, _ in metadata.hosts_with_pkg('prometheus')
-             if metadata.host_site(h) == site]
-    if proms:
-        classes.setdefault('dhnodeexporter', {})
-        if 'dhfirewall' in classes:
-            prom_ips = sorted(metadata.host_ip(h) for h in proms)
-            merge_params(classes, {'dhfirewall': {'open_tcp_scoped': {
-                9100: prom_ips}}})
-            # manifest monitor: specs (prod idiom): a monitored pkg's
-            # metrics port opens ONLY to the site prometheus - the
-            # firewall mirror of the scrape job generated over there
-            from modules import prometheus as _prometheus
-            for pkg, _ in metadata.pkgs_with_params(hostname):
-                mon = ((manifest.get('packages') or {}).get(pkg)
-                       or {}).get('monitor')
-                if mon:
-                    merge_params(classes, {'dhfirewall': {
-                        'open_tcp_scoped': {
-                            _prometheus.monitor_port(mon['url']):
-                                prom_ips}}})
     if 'dhfirewall' in classes:
         jumpgates = [metadata.host_ip(h)
                      for h, _ in metadata.hosts_with_pkg('jumpgate')]
         if jumpgates:
             classes['dhfirewall'].setdefault('jumpgates', jumpgates)
     return classes
-
-
-def _in_servers_network(hostname):
-    import ipaddress
-    import sqlite3
-    ip = metadata.host_ip(hostname)
-    if not ip:
-        return False
-    conn = sqlite3.connect(metadata.DB_FILE)
-    rows = conn.execute(
-        'SELECT n.ipv4_txt FROM network n, option o '
-        'WHERE o.node_id = n.node_id AND o.name = "pkg" '
-        'AND o.value = "servers"').fetchall()
-    conn.close()
-    addr = ipaddress.ip_address(ip)
-    return any(addr in ipaddress.ip_network(r[0]) for r in rows if r[0])
 
 
 def main():
