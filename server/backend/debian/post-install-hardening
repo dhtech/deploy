@@ -247,8 +247,8 @@ chmod og-rwx /etc/cron.d
 
 ## Network Configuration
 ### 3.1.1 Ensure system is checked to determine if IPv6 is enabled (Manual)
-echo "net.ipv6.conf.all.disable_ipv6 = 1" > /etc/sysctl.d/ax-ipv6.conf
-echo "net.ipv6.conf.default.disable_ipv6 = 1 " >> /etc/sysctl.d/ax-ipv6.conf
+# 3.1.1 waived: the site is dual-stack (BGP router plan P2) - IPv6
+# stays enabled; addressing comes from ipplan via the installer
 ### 3.1.2 Ensure wireless interfaces are disabled (Automated) - Default
 ### 3.1.3 Ensure bluetooth devices are disabled (Automated) - Default
 ### 3.2.1 Ensure atm kernel module is not available (Automated)

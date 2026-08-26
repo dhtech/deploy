@@ -13,6 +13,8 @@ def generate(host, params, manifest):
         # manifest, never from the db itself - a host whose served db
         # lags (an operator pin) must still keep receiving updates
         'dhipplan': {},
+        # dual-stack fleet: the hardening's v6 kill switch is retired
+        'dhnet': {},
         # the guest agent (virt-fact aware; udev-activated - covers
         # pre-pipeline VMs the hardening never touched)
         'dhguest': {},
