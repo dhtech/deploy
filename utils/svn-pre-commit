@@ -149,11 +149,14 @@ def main():
         return 0
 
     changed = svnlook('changed', repo, flag, txn)
-    paths = [parts[1] for parts in
-             (line.split(None, 1) for line in changed.splitlines())
-             if len(parts) == 2]
+    entries = [parts for parts in
+               (line.split(None, 1) for line in changed.splitlines())
+               if len(parts) == 2]
+    paths = [path for _, path in entries]
 
-    bad = banned_paths(paths)
+    # deletions are exempt: banned junk must always be removable
+    bad = banned_paths(path for status, path in entries
+                       if not status.startswith('D'))
     if bad:
         for path in bad:
             print('banned file: %s' % path, file=sys.stderr)
