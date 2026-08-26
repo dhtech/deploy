@@ -53,7 +53,7 @@ browser
 | `127.0.0.1:8448` | router → prometheus:443 (expose=) | **prometheus** (+ /alertmanager/; nginx + LE, tech group) | live |
 | `127.0.0.1:8449` | router → grafana:443 (expose=) | **grafana** (nginx + LE; grafana's own directory login, services-team = Admin) | live (hostfwd at next lab restart) |
 | `127.0.0.1:8450`–`8459` | router → 10.0.2.17:450–459 | **reserved**: pre-wired for future websites - a new `expose=45x:443` in ipplan needs only the router's DNAT reconverge, no lab restart | at next lab restart |
-| `127.0.0.1:8768` | the deploy server:8080 (direct) | deploy status page | live |
+| `127.0.0.1:8460` | the deploy server:8080 (direct) | deploy status page | at next lab restart (8768 until then) |
 
 The DNAT table is DATA: `expose=EXT:INT` on the host's ipplan line;
 the router's ruleset (masquerade, DNAT, forward) is derived from
@@ -61,7 +61,7 @@ ipplan by the ENC (router.py) - nothing is hand-kept anymore.
 
 Live URLs:
 
-- Deploy status: <http://localhost:8768>
+- Deploy status: <http://localhost:8460> (8768 until the next lab restart)
 - Proxmox: <https://localhost:8006> (root / Linux PAM)
 - OpenBao (puppet-CA listener): <https://localhost:8200/ui>
 - Puppetboard: <https://puppet.dh.notproduction.net:8447> (hosts entry
