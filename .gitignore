@@ -7,3 +7,5 @@
 # worklog lives in the private puppet repo (symlinked here).
 testvm/proxmox-ve/WORKLOG.md
 testvm/deploy-stack/manifest.yaml
+# the PROD manifest reference copy - never public
+testvm/manifest.txt
