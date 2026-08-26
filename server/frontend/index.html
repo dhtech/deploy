@@ -233,9 +233,12 @@
               <td>Let's Encrypt</td></tr>
           <tr><td>Grafana (directory login: services-team admin)</td>
               <td><a href="https://grafana.colo.notproduction.net:8449/">grafana.colo.notproduction.net:8449</a></td>
-              <td>Let's Encrypt (8449 after next bench restart)</td></tr>
+              <td>Let's Encrypt</td></tr>
         </tbody>
       </table>
+      <p>Ports <code>8450</code>–<code>8459</code> are pre-wired to the router
+      (450–459): a new website needs only an <code>expose=45x:443</code> in
+      ipplan and a router reconverge — no lab restart.</p>
 
       <h4>The ipplan database</h4>
       <p>Every commit to the <code>dh</code> svn repository that
