@@ -90,6 +90,38 @@ def test_node_exporter_admits_same_site_prometheus_only(mon_ipplan,
     assert 'dhnodeexporter' not in other
 
 
+def test_v6_mirror_scoped_and_jumpgates(tmp_path, monkeypatch,
+                                        mon_manifest):
+    """P4 parity: with a v6 master declared, the monitor mirror and
+    the jumpgates rule carry the derived v6 addresses too."""
+    root = tmp_path / 'svn'
+    site = root / 'allevents' / 'colo' / 'colo'
+    event = root / 'test' / 'core'
+    site.mkdir(parents=True)
+    event.mkdir(parents=True)
+    tool = load_ipplan2db()
+    text = IPPLAN_COLO_MON.replace(
+        '#@ IPV4-COLO-NET\t10.200.0.0/24',
+        '#@ IPV4-COLO-NET\t10.200.0.0/24\n'
+        '#@ IPV6-COLO-NET\tfdd8:1::/48')
+    (site / 'ipplan').write_text(tool.reformat(text))
+    (event / 'ipplan').write_text(tool.reformat(IPPLAN_EVENT))
+    (root / 'currentevent').write_text(
+        'currentevent=test\napt_freeze=false\nchange_freeze=false\n')
+    mpath = tmp_path / 'manifest.yaml'
+    mpath.write_text(yaml.safe_dump(mon_manifest))
+    db = tmp_path / 'ipplan.db'
+    monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE',
+                        str(db))
+    tool.build(str(root), [str(mpath)], str(db))
+    result = enc.classify('web1.test', mon_manifest)
+    fw = result['dhfirewall']
+    assert fw['open_tcp_scoped6'][9100] == ['fdd8:1:200::70']
+    assert fw['jumpgates6'] == ['fdd8:1:200::2']
+    # v4 untouched by the mirror
+    assert fw['open_tcp_scoped'][9100] == ['10.200.0.70']
+
+
 def test_grafana_single_site_datasource(mon_ipplan, mon_manifest):
     result = enc.classify('grafana.test', mon_manifest)
     g = result['dhgrafana']

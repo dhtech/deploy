@@ -84,6 +84,31 @@ def test_udp_scoped_rules_for_hosts(tmp_path):
     assert '10.100.0.0/24' not in srcs    # DEPLOY declares no ntp
 
 
+def test_v6_mirror_rules(tmp_path):
+    """With a v6 master declared, firewall_rules_to6 mirrors v4:
+    host clients as derived addresses, network clients as derived
+    CIDRs - and stays empty for a v4-only plan."""
+    global IPPLAN
+    kept = IPPLAN
+    db = build(tmp_path)
+    sys.modules['lib.metadata'].DB_FILE = str(db)
+    assert sys.modules['lib.metadata'].firewall_rules_to6(
+        'router.colo.test') == {}
+    try:
+        IPPLAN = kept.replace(
+            '#@ IPV4-COLO-NET\t10.200.0.0/24',
+            '#@ IPV4-COLO-NET\t10.200.0.0/24\n'
+            '#@ IPV6-COLO-NET\tfdd8:1::/48')
+        db = build(tmp_path)
+        sys.modules['lib.metadata'].DB_FILE = str(db)
+        rules6 = sys.modules['lib.metadata'].firewall_rules_to6(
+            'router.colo.test')
+        assert 'fdd8:1:100::/64' in rules6['udp'][53]   # DEPLOY cidr
+        assert 'fdd8:1:200::60' in rules6['udp'][123]   # web1 host
+    finally:
+        IPPLAN = kept
+
+
 def test_tcp_only_hosts_unchanged_shape(tmp_path):
     """No udp key when a host's flows are tcp-only (ENC regression
     guard: existing hosts' params keep their exact shape)."""

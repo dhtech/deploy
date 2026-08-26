@@ -87,12 +87,26 @@ def classify(hostname, manifest):
     if scoped.get('udp'):
         merge_params(classes, {'dhfirewall': {
             'open_udp_scoped': scoped['udp']}})
+    # the v6 mirror (P4 parity): rules exist whenever both flow ends
+    # carry a derived v6 - dual-stack arrives as data, not config
+    scoped6 = metadata.firewall_rules_to6(hostname)
+    if scoped6.get('tcp'):
+        merge_params(classes, {'dhfirewall': {
+            'open_tcp_scoped6': scoped6['tcp']}})
+    if scoped6.get('udp'):
+        merge_params(classes, {'dhfirewall': {
+            'open_udp_scoped6': scoped6['udp']}})
 
     if 'dhfirewall' in classes:
-        jumpgates = [metadata.host_ip(h)
-                     for h, _ in metadata.hosts_with_pkg('jumpgate')]
-        if jumpgates:
-            classes['dhfirewall'].setdefault('jumpgates', jumpgates)
+        gates = [(metadata.host_ip(h), metadata.host_ip6(h))
+                 for h, _ in metadata.hosts_with_pkg('jumpgate')]
+        if gates:
+            classes['dhfirewall'].setdefault(
+                'jumpgates', [v4 for v4, _ in gates if v4])
+            jumpgates6 = [v6 for _, v6 in gates if v6]
+            if jumpgates6:
+                classes['dhfirewall'].setdefault('jumpgates6',
+                                                 jumpgates6)
     return classes
 
 

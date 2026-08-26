@@ -359,6 +359,17 @@ def host_ip(hostname):
     return res[0] if res else None
 
 
+def host_ip6(hostname):
+    """The host's derived v6 address; None until its site declares a
+    v6 master in the plan."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT ipv6_addr_txt FROM host WHERE name = ?', (hostname,))
+    res = c.fetchone()
+    conn.close()
+    return res[0] if res else None
+
+
 def get_manifest():
     """The manifest, reassembled from the database. The yaml file is a
     BUILD input (svn later): utils/ipplan2db compiles it in, and
@@ -418,6 +429,30 @@ def firewall_rules_to(hostname):
             'SELECT from_ipv4, service_dst_ports '
             'FROM firewall_rule_ip_level '
             'WHERE to_node_name = ? AND is_ipv4 = 1', (hostname,)):
+        if not ip:
+            continue
+        for proto, plist in ports_by_proto(
+                ports.split(',') if ports else []).items():
+            for port in plist:
+                rules[proto][port].add(ip)
+    conn.close()
+    return {proto: {port: sorted(ips) for port, ips in m.items()}
+            for proto, m in rules.items() if m}
+
+
+def firewall_rules_to6(hostname):
+    """The v6 mirror of firewall_rules_to: the is_ipv6 rules the
+    build always computed (both flow ends carry a derived v6) but
+    render dropped until now. Sources are host addresses or network
+    CIDRs; empty until the site declares a v6 master."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    rules = {'tcp': collections.defaultdict(set),
+             'udp': collections.defaultdict(set)}
+    for ip, ports in c.execute(
+            'SELECT from_ipv6, service_dst_ports '
+            'FROM firewall_rule_ip_level '
+            'WHERE to_node_name = ? AND is_ipv6 = 1', (hostname,)):
         if not ip:
             continue
         for proto, plist in ports_by_proto(
