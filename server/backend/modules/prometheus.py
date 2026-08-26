@@ -22,19 +22,48 @@ def generate(host, params, manifest):
             'external_url': 'https://%s/' % webname,
             # scrape targets FROM ipplan: every SAME-SITE host is a
             # node target the moment it exists in the plan
-            'node_targets': _node_targets(site)}
-        grafana = _site_grafana(site)
-        if grafana:
-            # the site grafana's own metrics (it admits only us)
-            out['dhprometheus']['grafana_target'] = '%s:3000' % grafana
+            'node_targets': _node_targets(site),
+            # prod's manifest monitor: idiom - services declare their
+            # own scraping, jobs materialize per site
+            'scrape_jobs': _monitor_jobs(site, manifest)}
     return out
 
 
-def _site_grafana(site):
-    for h, _ in metadata.hosts_with_pkg('grafana'):
-        if metadata.host_site(h) == site:
-            return h
-    return None
+def monitor_port(url):
+    """The port a monitor: url scrapes ({host} placeholder allowed)."""
+    import urllib.parse
+    parsed = urllib.parse.urlparse(url.replace('{host}', 'H'))
+    return parsed.port or (443 if parsed.scheme == 'https' else 80)
+
+
+def _monitor_jobs(site, manifest):
+    """Prod's model: any package may declare
+    monitor: {url: 'http://{host}:3000/metrics'} (optional interval,
+    labels) - every SAME-SITE host carrying the pkg becomes a target
+    of a job named after the pkg. The consumer host's firewall opening
+    comes from the enc baseline (scoped to this site's prometheus)."""
+    import urllib.parse
+    jobs = []
+    for pkg, spec in sorted((manifest.get('packages') or {}).items()):
+        mon = (spec or {}).get('monitor')
+        if not mon:
+            continue
+        parsed = urllib.parse.urlparse(mon['url'].replace('{host}', 'H'))
+        port = monitor_port(mon['url'])
+        targets = sorted(
+            '%s:%d' % (h, port) for h, _ in metadata.hosts_with_pkg(pkg)
+            if metadata.host_site(h) == site)
+        if not targets:
+            continue
+        job = {'job_name': pkg, 'scheme': parsed.scheme or 'http',
+               'metrics_path': parsed.path or '/metrics',
+               'targets': targets}
+        if 'interval' in mon:
+            job['interval'] = mon['interval']
+        if 'labels' in mon:
+            job['labels'] = mon['labels']
+        jobs.append(job)
+    return jobs
 
 
 def site_prometheus(site):

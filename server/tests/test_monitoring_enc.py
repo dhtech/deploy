@@ -31,6 +31,7 @@ def mon_manifest(manifest):
         'puppet': {'classes': ['dhfirewall', 'dhprometheus']}}
     manifest['packages']['grafana'] = {
         'client': ['prometheus'],
+        'monitor': {'url': 'http://{host}:3000/metrics'},
         'puppet': {'classes': ['dhfirewall', 'dhgrafana']}}
     return manifest
 
@@ -56,8 +57,10 @@ def mon_ipplan(tmp_path, monkeypatch, mon_manifest):
 
 def test_prometheus_scrapes_own_site_only(mon_ipplan, mon_manifest):
     result = enc.classify('prometheus.test', mon_manifest)
-    # the site grafana's own metrics ride along
-    assert result['dhprometheus']['grafana_target'] == 'grafana.test:3000'
+    # manifest monitor: specs become site-scoped scrape jobs
+    jobs = {j['job_name']: j for j in result['dhprometheus']['scrape_jobs']}
+    assert jobs['grafana']['targets'] == ['grafana.test:3000']
+    assert jobs['grafana']['metrics_path'] == '/metrics'
     targets = result['dhprometheus']['node_targets']
     assert 'web1.test:9100' in targets
     assert 'prometheus.test:9100' in targets
@@ -85,7 +88,7 @@ def test_grafana_single_site_datasource(mon_ipplan, mon_manifest):
     assert result['dhnginx::grafana'] == {
         'server_name': 'grafana.colo.example'}
     assert result['dhacme::cert']['cert_name'] == 'grafana.colo.example'
-    # 3000 admits only the site prometheus
+    # the monitor: port admits only the site prometheus (generic)
     assert result['dhfirewall']['open_tcp_scoped'][3000] == ['10.200.0.70']
 
 

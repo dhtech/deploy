@@ -17,11 +17,6 @@ def generate(host, params, manifest):
     webname = metadata.host_option(host, 'webname')
     if webname:
         out['dhfirewall'] = {'open_tcp': [443]}
-        prom = _prometheus.site_prometheus(site)
-        if prom:
-            # grafana's own /metrics (3000): only the site prometheus
-            out['dhfirewall']['open_tcp_scoped'] = {
-                3000: [metadata.host_ip(prom)]}
         out['dhacme::cert'] = {'cert_name': webname,
                                'vault_addr': _ldap.vault_addr()}
         out['dhnginx::grafana'] = {'server_name': webname}

@@ -125,8 +125,21 @@ def classify(hostname, manifest):
     if proms:
         classes.setdefault('dhnodeexporter', {})
         if 'dhfirewall' in classes:
+            prom_ips = sorted(metadata.host_ip(h) for h in proms)
             merge_params(classes, {'dhfirewall': {'open_tcp_scoped': {
-                9100: sorted(metadata.host_ip(h) for h in proms)}}})
+                9100: prom_ips}}})
+            # manifest monitor: specs (prod idiom): a monitored pkg's
+            # metrics port opens ONLY to the site prometheus - the
+            # firewall mirror of the scrape job generated over there
+            from modules import prometheus as _prometheus
+            for pkg, _ in metadata.pkgs_with_params(hostname):
+                mon = ((manifest.get('packages') or {}).get(pkg)
+                       or {}).get('monitor')
+                if mon:
+                    merge_params(classes, {'dhfirewall': {
+                        'open_tcp_scoped': {
+                            _prometheus.monitor_port(mon['url']):
+                                prom_ips}}})
     if 'dhfirewall' in classes:
         jumpgates = [metadata.host_ip(h)
                      for h, _ in metadata.hosts_with_pkg('jumpgate')]
