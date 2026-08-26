@@ -37,9 +37,13 @@ def _ssh_targets(site, manifest):
     if not ports.get('tcp'):
         return []
     port = ports['tcp'][0]
+    # the deploy server carries pkg jumpgate only as the allow-list
+    # marker (jumpgate.py's carve-out keeps it off the dhssh port) -
+    # probe only the hosts that actually serve the world entry
+    deploys = {h for h, _ in metadata.hosts_with_pkg('deploy')}
     return sorted('%s:%d' % (h, port)
                   for h, _ in metadata.hosts_with_pkg('jumpgate')
-                  if metadata.host_site(h) == site)
+                  if metadata.host_site(h) == site and h not in deploys)
 
 
 def monitor_port(url):

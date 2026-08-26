@@ -72,8 +72,10 @@ def test_prometheus_scrapes_own_site_only(mon_ipplan, mon_manifest):
     assert 'prometheus.test:9100' in targets
     # the EVENT site host is another site's problem
     assert 'evtbox1.test:9100' not in targets
-    # jumpgate ssh banner probes (dhssh port)
-    assert result['dhprometheus']['ssh_targets'] == ['deploy.test:2022']
+    # jumpgate ssh banner probes (dhssh port); deploy.test carries
+    # pkg jumpgate only as the allow-list marker (carve-out) - the
+    # fixture has no other jumpgate, so the probe list is empty
+    assert result['dhprometheus']['ssh_targets'] == []
     # auth: only over https (prod semantics)
     assert jobs['grafana'].get('auth') is None
 
