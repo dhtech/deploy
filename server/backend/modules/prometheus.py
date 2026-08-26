@@ -20,13 +20,26 @@ def generate(host, params, manifest):
         site = metadata.host_site(host)
         out['dhprometheus'] = {
             'external_url': 'https://%s/' % webname,
-            # scrape targets FROM ipplan: every SAME-SITE host is a
-            # node target the moment it exists in the plan
-            'node_targets': _node_targets(site),
             # prod's manifest monitor: idiom - services declare their
-            # own scraping, jobs materialize per site
-            'scrape_jobs': _monitor_jobs(site, manifest)}
+            # own scraping, jobs materialize per site (the node job
+            # rides the same idiom via the node DEFAULT pkg)
+            'scrape_jobs': _monitor_jobs(site, manifest),
+            # ssh banner probes of the site jumpgates (port from the
+            # dhssh service - the world entry)
+            'ssh_targets': _ssh_targets(site, manifest)}
     return out
+
+
+def _ssh_targets(site, manifest):
+    ports = metadata.ports_by_proto(
+        (manifest.get('services', {}).get('dhssh') or {})
+        .get('destport') or [])
+    if not ports.get('tcp'):
+        return []
+    port = ports['tcp'][0]
+    return sorted('%s:%d' % (h, port)
+                  for h, _ in metadata.hosts_with_pkg('jumpgate')
+                  if metadata.host_site(h) == site)
 
 
 def monitor_port(url):
@@ -67,8 +80,21 @@ def _monitor_jobs(site, manifest):
             job['interval'] = mon['interval']
         if 'labels' in mon:
             job['labels'] = mon['labels']
+        # prod semantics: authenticated scraping only over https (the
+        # credential must never ride plaintext)
+        if mon.get('auth') and job['scheme'] == 'https':
+            job['auth'] = True
         jobs.append(job)
     return jobs
+
+
+def site_prometheus(site):
+    """The site's prometheus host, or None - the per-site singleton
+    every monitoring consumer (grafana, the 9100 baseline) keys on."""
+    for h, _ in metadata.hosts_with_pkg('prometheus'):
+        if metadata.host_site(h) == site:
+            return h
+    return None
 
 
 def site_prometheus(site):

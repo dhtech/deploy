@@ -22,14 +22,16 @@ def generate(host, params, manifest):
     if metadata._get_os(host) == 'pve':
         return out
     prom_ips = sorted(metadata.host_ip(h) for h in proms)
-    scoped = {9100: prom_ips}
+    scoped = {}
     # manifest monitor: specs (prod idiom): a monitored pkg's metrics
     # port opens ONLY to the site prometheus - the firewall mirror of
-    # the scrape job generated over there
+    # the scrape job generated over there. 9100 arrives through the
+    # node pkg's own monitor: spec like everything else.
     for pkg, _ in metadata.pkgs_with_params(host):
         mon = ((manifest.get('packages') or {}).get(pkg)
                or {}).get('monitor')
         if mon:
             scoped[_prometheus.monitor_port(mon['url'])] = prom_ips
-    out['dhfirewall'] = {'open_tcp_scoped': scoped}
+    if scoped:
+        out['dhfirewall'] = {'open_tcp_scoped': scoped}
     return out

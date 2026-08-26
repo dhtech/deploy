@@ -26,6 +26,11 @@ IPPLAN_COLO_MON = IPPLAN_COLO.replace(
 @pytest.fixture
 def mon_manifest(manifest):
     manifest['services']['prometheus'] = {'destport': ['9090/tcp']}
+    manifest['services']['dhssh'] = {'destport': ['2022/tcp']}
+    manifest['packages']['node'] = {
+        'monitor': {'url': 'http://{host}:9100/metrics'}}
+    manifest['packages']['secure'] = {
+        'monitor': {'url': 'https://{host}:8443/metrics', 'auth': True}}
     manifest['packages']['prometheus'] = {
         'server': ['prometheus'],
         'puppet': {'classes': ['dhfirewall', 'dhprometheus']}}
@@ -61,11 +66,16 @@ def test_prometheus_scrapes_own_site_only(mon_ipplan, mon_manifest):
     jobs = {j['job_name']: j for j in result['dhprometheus']['scrape_jobs']}
     assert jobs['grafana']['targets'] == ['grafana.test:3000']
     assert jobs['grafana']['metrics_path'] == '/metrics'
-    targets = result['dhprometheus']['node_targets']
+    # the node job rides the same idiom via the node DEFAULT pkg
+    targets = jobs['node']['targets']
     assert 'web1.test:9100' in targets
     assert 'prometheus.test:9100' in targets
     # the EVENT site host is another site's problem
     assert 'evtbox1.test:9100' not in targets
+    # jumpgate ssh banner probes (dhssh port)
+    assert result['dhprometheus']['ssh_targets'] == ['deploy.test:2022']
+    # auth: only over https (prod semantics)
+    assert jobs['grafana'].get('auth') is None
 
 
 def test_node_exporter_admits_same_site_prometheus_only(mon_ipplan,
