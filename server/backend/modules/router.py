@@ -58,6 +58,16 @@ def router_networks(host):
     return out
 
 
+def _site_networks6():
+    import sqlite3
+    conn = sqlite3.connect(metadata.DB_FILE)
+    rows = conn.execute(
+        'SELECT DISTINCT ipv6_txt FROM network '
+        'WHERE vlan = 0 AND ipv6_txt IS NOT NULL').fetchall()
+    conn.close()
+    return sorted(r[0] for r in rows)
+
+
 def dnat_entries(net_ids):
     """expose=EXT:INT rows on hosts inside the routed networks:
     [{'port': EXT, 'to': 'ip:INT'}], sorted by external port."""
@@ -131,6 +141,10 @@ def generate(host, params, manifest):
                 # the flow pairs below are the future strict mode
                 'site_networks': sorted(
                     cidr for _, _, cidr, _ in networks),
+                # the v6 site supernet (the master /48) - the intra-
+                # site permissive forward's v6 mirror; empty until the
+                # plan declares IPV6-<SITE>-NET
+                'site_networks6': _site_networks6(),
                 'dnat': dnat_entries([nid for nid, _, _, _ in networks]),
                 'forward': forward_rules(host, networks),
             },

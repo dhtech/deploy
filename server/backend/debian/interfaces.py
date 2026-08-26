@@ -44,9 +44,10 @@ def router_legs(hostname):
     networks = []
     rows = c.execute(
         'SELECT node_id, name, ipv4_txt, ipv4_netmask_txt, vlan, '
-        'ipv4_gateway_txt FROM network WHERE ipv4_txt IS NOT NULL'
+        'ipv4_gateway_txt, ipv6_gateway_txt, ipv6_txt '
+        'FROM network WHERE ipv4_txt IS NOT NULL'
     ).fetchall()   # fetch first: the opts query below reuses the cursor
-    for node_id, name, cidr, netmask, vlan, gw in rows:
+    for node_id, name, cidr, netmask, vlan, gw, gw6, net6 in rows:
         if name.endswith('@DREAMHACK'):
             continue
         opts = {n for (n,) in c.execute(
@@ -54,18 +55,23 @@ def router_legs(hostname):
         try:
             networks.append((ipaddress.ip_network(cidr), netmask,
                              vlan or 0, 'native' in opts,
-                             'othernet' in opts, gw))
+                             'othernet' in opts, gw, gw6, net6))
         except ValueError:
             continue
     conn.close()
     legs = []
     for addr in addrs:
         ip = ipaddress.ip_address(addr)
-        for net, netmask, vlan, native, othernet, gw in networks:
+        for net, netmask, vlan, native, othernet, gw, gw6, net6 in networks:
             if ip in net:
                 legs.append({'address': addr, 'netmask': netmask,
                              'vlan': vlan, 'native': native,
-                             'othernet': othernet, 'gateway': gw})
+                             'othernet': othernet, 'gateway': gw,
+                             # the router IS the v6 gateway (::1): its
+                             # leg address is the network's gateway
+                             'address6': gw6,
+                             'prefixlen6': (net6.split('/')[1]
+                                            if net6 else None)})
                 break
     return legs
 
@@ -95,6 +101,10 @@ def router_config(hostname, ifs):
         # the default route lives on the outside leg only
         if not leg['vlan'] and not leg['native'] and leg['gateway']:
             out.append('\tgateway %s' % leg['gateway'])
+        if leg.get('address6'):
+            out.append('\niface %s inet6 static' % iface)
+            out.append('\taddress %s/%s' % (leg['address6'],
+                                             leg['prefixlen6'] or '64'))
     return '\n'.join(out) + '\n'
 
 
