@@ -30,6 +30,13 @@ apps:
     kind: pip
     packages:
       - prometheus-pve-exporter
+  # BGP session/prefix metrics from bird (router plan P6): flat
+  # release tarball with one static binary, unpacked by
+  # dhbirdexporter on the router
+  bird-exporter:
+    kind: github
+    repo: czerwonk/bird_exporter
+    asset: 'bird_exporter_*_linux_amd64.tar.gz'
   # mirror-only for now: the MFA portal evaluation (Authelia plan).
   # Upstream ships official .deb release assets; nothing installs
   # this yet - it just exists in the appstore/fileserver.
