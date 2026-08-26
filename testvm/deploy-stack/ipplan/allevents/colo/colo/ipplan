@@ -39,5 +39,5 @@ MGMT		10.10.10.0/24	R1	10	othernet
 # The slirp/user-net side of the bench: the router's outside leg and
 # the workstation hostfwd targets live here (qemu's gateway at .2).
 OUTSIDE		10.0.2.0/24	-	-	othernet;gw=10.0.2.2
-#$ pve1.colo.notproduction.net		10.10.10.2	os=pve;pkg=pve;webname=pve1.dh.notproduction.net
-#$ pve2.colo.notproduction.net		10.10.10.3	os=pve;pkg=pve;webname=pve2.dh.notproduction.net
+#$ pve1.colo.notproduction.net		10.10.10.11	os=pve;pkg=pve;webname=pve1.dh.notproduction.net
+#$ pve2.colo.notproduction.net		10.10.10.12	os=pve;pkg=pve;webname=pve2.dh.notproduction.net
