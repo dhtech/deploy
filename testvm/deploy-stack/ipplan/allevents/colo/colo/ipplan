@@ -11,7 +11,7 @@
 
 #Name		#Net		#Terminator	#VLAN	#Options
 COLO		10.200.0.0/24	R1		200	nat;pkg=servers
-#$ router.colo.notproduction.net	10.200.0.1	os=debian;pkg=router,resolver,ntp;addr=10.100.0.1,10.0.2.17,10.10.10.254
+#$ router.colo.notproduction.net	10.200.0.1	os=debian;pkg=router,resolver,ntp;addr=10.100.0.1,10.0.2.17,10.10.10.1
 #$ deploy.colo.notproduction.net	10.200.0.2	os=debian;pkg=jumpgate,deploy;webname=deploy.colo.notproduction.net
 #$ web1.colo.notproduction.net		10.200.0.60	os=debian;pkg=base,web(port=80)
 #$ vault1.colo.notproduction.net	10.200.0.61	os=debian;pkg=vault;expose=443:443,8200:8200;webname=vault.dh.notproduction.net
@@ -34,10 +34,10 @@ DEPLOY		10.100.0.0/24	R1		100	nat;native;pkg=servers
 # colo network with foreign addresses). Puppet-enrolled by hand,
 # never deployed. The gateway is the router's MGMT leg (COLO<->MGMT
 # routes through it - the pve directory binds need the return path).
-MGMT		10.10.10.0/24	R1	10	othernet;gw=10.10.10.254
+MGMT		10.10.10.0/24	R1	10	othernet
 
 # The slirp/user-net side of the bench: the router's outside leg and
 # the workstation hostfwd targets live here (qemu's gateway at .2).
 OUTSIDE		10.0.2.0/24	-	-	othernet;gw=10.0.2.2
-#$ pve1.colo.notproduction.net		10.10.10.1	os=pve;pkg=pve;webname=pve1.dh.notproduction.net
+#$ pve1.colo.notproduction.net		10.10.10.2	os=pve;pkg=pve;webname=pve1.dh.notproduction.net
 #$ pve2.colo.notproduction.net		10.10.10.3	os=pve;pkg=pve;webname=pve2.dh.notproduction.net
