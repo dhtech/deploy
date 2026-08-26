@@ -54,10 +54,12 @@ apps:
   # the ipplan compiler + svn gate: its own public repo (the
   # gen-3 ipplan2sqlite). Whole-repo artifact; the deploy server
   # gets /opt/ipplan2db + a /usr/local/bin symlink.
+  # source of truth is the bare repo on the master FOR NOW (push
+  # there = release); at prod this flips to kind git + the public
+  # github.com/dhtech/ipplan2db - one stanza change
   ipplan2db:
-    kind: git
-    repo: https://github.com/dhtech/ipplan2db
-    ref: main
+    kind: local
+    repo: /srv/repos/ipplan2db.git
     interval: fast
   deploy-backend:
     kind: git
