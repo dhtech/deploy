@@ -107,7 +107,19 @@ STATIC_GROUPS = [
      'Group + team leaders (gl-team and tl-team nested)',
      ('cn=gl-team,ou=groups,' + EVENT,
       'cn=tl-team,ou=groups,' + EVENT)),
+    # the colo half of the old combined services-mail (user split)
+    ('colo-mail', 'ou=groups,dc=colo,dc=dreamhack,dc=se', '10102',
+     'Colo team mail', ('cn=colo-team,ou=groups,dc=colo,'
+                        'dc=dreamhack,dc=se',)),
 ]
+# member references removed from specific groups (the services-mail
+# split: its colo half lives in colo-mail now)
+REMOVE_MEMBERS = {   # keys and values lowercase
+    'cn=services-mail,ou=groups,dc=colo,dc=dreamhack,dc=se': {
+        'cn=services-colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se',
+        'cn=colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se',
+    },
+}
 
 
 def resolve_members(dn, groups_by_dn, seen=None):
@@ -346,6 +358,11 @@ def transform(stream, out):
         members_out = 0
         for attr, value, is_b64 in attrs:
             if attr.lower() == 'member':
+                if value.lower() in {m.lower() for m in
+                                     REMOVE_MEMBERS.get(dn.lower(),
+                                                        set())}:
+                    pruned_members += 1
+                    continue
                 value = successor.get(value.lower(), value)
                 if value.lower() not in kept_dns:
                     pruned_members += 1

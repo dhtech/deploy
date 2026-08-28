@@ -241,6 +241,13 @@ cn: tgl
 gidNumber: 10048
 member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
 
+dn: cn=services-mail,ou=groups,dc=colo,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: services-mail
+gidNumber: 10011
+member: cn=services-colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se
+
 dn: cn=gl-mail,ou=groups,dc=colo,dc=dreamhack,dc=se
 objectClass: groupOfNames
 objectClass: posixGroup
@@ -292,6 +299,13 @@ def test_canonical_teams(capsys):
     glmail = entries['cn=gl-mail,ou=groups,dc=colo,dc=dreamhack,dc=se']
     assert 'member: cn=gl-team,ou=groups,' + ev in glmail
     assert not any('cn=gl,' in l for l in glmail)
+    # the services-mail split: its colo half is gone (colo-mail owns
+    # it); colo-mail is synthesized with colo-team nested
+    smail = entries['cn=services-mail,ou=groups,dc=colo,dc=dreamhack,dc=se']
+    assert not any('colo-team' in l for l in smail if l.startswith('member'))
+    cmail = entries['cn=colo-mail,ou=groups,dc=colo,dc=dreamhack,dc=se']
+    assert 'gidNumber: 10102' in cmail
+    assert 'member: cn=colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se' in cmail
     # tgl is retired outright; tgl-team is its structural successor:
     # the gl-team and tl-team GROUPS as nested members
     assert not any(dn.startswith('cn=tgl,') for dn in entries)
