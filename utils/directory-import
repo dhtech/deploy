@@ -49,6 +49,56 @@ SEEDED_RE = re.compile(
     re.IGNORECASE)
 
 
+# THE CANONICAL TEAMS (user decree 2026-08-28): the prod team zoo is
+# replaced by these 8. Members map from the old groups (source cns;
+# nested *-gl-team memberships resolve to people); gidNumbers are
+# FRESH - prod's gids deliberately do not carry over. The old source
+# groups are dropped; every other group imports untouched.
+EVENT = 'dc=event,dc=dreamhack,dc=se'
+TEAMS = [
+    # (cn, parent, gid, description, source group cns)
+    ('access-team', 'ou=groups,ou=access,' + EVENT, 20001,
+     'Access team', ('access-participants-team', 'access-wifi-team')),
+    ('core-team', 'ou=groups,ou=core,' + EVENT, 20002,
+     'Core team', ('core-team',)),
+    ('logistics-team', 'ou=groups,ou=logistics,' + EVENT, 20003,
+     'Logistics team', ('logistics-team',)),
+    ('services-team', 'ou=groups,ou=services,' + EVENT, 20004,
+     'Services team', ('services-team',)),
+    ('resource-team', 'ou=groups,ou=resources,' + EVENT, 20005,
+     'Resource team', ('resources-team',)),
+    ('gl-team', 'ou=groups,' + EVENT, 20006,
+     'Group leaders', ('gl', 'access-participants-gl-team',
+                       'access-wifi-gl-team', 'core-gl-team',
+                       'logistics-gl-team', 'services-gl-team')),
+    ('tl-team', 'ou=groups,' + EVENT, 20007,
+     'Team leaders', ('tl-team',)),
+    ('colo-team', 'ou=groups,dc=colo,dc=dreamhack,dc=se', 20008,
+     'Colo team (standing, off-event)', ('services-colo-team',)),
+]
+TEAM_SOURCE_CNS = {cn for *_, sources in TEAMS for cn in sources}
+# the merged access dept has no OU in prod - scaffold it
+TEAM_NEW_OUS = ('ou=access,' + EVENT, 'ou=groups,ou=access,' + EVENT)
+
+
+def resolve_members(dn, groups_by_dn, seen=None):
+    """The people behind a group: member DNs, nested groups (prod's
+    cn=gl holds the *-gl-team GROUPS) expanded recursively."""
+    seen = seen or set()
+    if dn in seen or dn not in groups_by_dn:
+        return set()
+    seen.add(dn)
+    people = set()
+    for a, v, _b in groups_by_dn[dn]:
+        if a.lower() != 'member':
+            continue
+        if v.lower() in groups_by_dn:
+            people |= resolve_members(v.lower(), groups_by_dn, seen)
+        else:
+            people.add(v)
+    return people
+
+
 def parse(stream):
     """Yield (dn, [(attr, value, is_b64)]) per entry.
 
@@ -157,6 +207,42 @@ def transform(stream, out):
                       if a.lower() != 'objectclass' and keep_attr(a)]
         entries.append((dn, new_attrs))
         kept_dns.add(low)
+
+    # THE TEAMS: index every group, expand the sources to people,
+    # drop the source entries, synthesize the canonical 8 (+ the
+    # access OU scaffolding)
+    groups_by_dn = {
+        dn.lower(): attrs for dn, attrs in entries
+        if any(a.lower() == 'objectclass' and v == 'groupOfNames'
+               for a, v, b in attrs)}
+    source_dns = {dn.lower() for dn in groups_by_dn
+                  if dn.split(',')[0][3:] in TEAM_SOURCE_CNS}
+    team_members = {}
+    for cn, parent, gid, desc, sources in TEAMS:
+        people = set()
+        for sdn in source_dns:
+            if sdn.split(',')[0][3:] in sources:
+                people |= resolve_members(sdn, groups_by_dn)
+        team_members[cn] = people
+    entries = [(dn, attrs) for dn, attrs in entries
+               if dn.lower() not in source_dns]
+    kept_dns -= source_dns
+    for ou_dn in TEAM_NEW_OUS:
+        entries.append((ou_dn, [
+            ('objectClass', 'organizationalUnit', False),
+            ('ou', ou_dn.split(',')[0][3:], False)]))
+        kept_dns.add(ou_dn.lower())
+    for cn, parent, gid, desc, sources in TEAMS:
+        dn = 'cn=%s,%s' % (cn, parent)
+        attrs = [('objectClass', 'groupOfNames', False),
+                 ('objectClass', 'posixGroup', False),
+                 ('cn', cn, False),
+                 ('gidNumber', str(gid), False),
+                 ('description', desc, False)]
+        attrs += [('member', m, False)
+                  for m in sorted(team_members[cn])]
+        entries.append((dn, attrs))
+        kept_dns.add(dn.lower())
 
     # parents before children: slapcat order does not guarantee it
     entries.sort(key=lambda e: e[0].count(','))

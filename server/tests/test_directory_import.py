@@ -157,3 +157,106 @@ def test_parents_written_before_children():
     text = out.getvalue()
     assert text.index('ou=deep,dc=event') < text.index('ou=groups,ou=deep')
     assert text.index('ou=groups,ou=deep') < text.index('cn=g,ou=groups')
+
+
+TEAM_DUMP = """dn: dc=dreamhack,dc=se
+objectClass: dcObject
+dc: dreamhack
+
+dn: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
+objectClass: inetOrgPerson
+objectClass: posixAccount
+uid: alice
+cn: Alice
+sn: A
+uidNumber: 5001
+gidNumber: 5001
+homeDirectory: /home/alice
+loginShell: /bin/bash
+
+dn: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se
+objectClass: inetOrgPerson
+objectClass: posixAccount
+uid: bob
+cn: Bob
+sn: B
+uidNumber: 5002
+gidNumber: 5002
+homeDirectory: /home/bob
+loginShell: /bin/bash
+
+dn: cn=access-participants-team,ou=groups,ou=access-participants,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: access-participants-team
+gidNumber: 10001
+member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
+
+dn: cn=access-wifi-team,ou=groups,ou=access-wifi,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: access-wifi-team
+gidNumber: 10002
+member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se
+
+dn: cn=core-gl-team,ou=groups,ou=core,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: core-gl-team
+gidNumber: 10003
+member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
+
+dn: cn=gl,ou=groups,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: gl
+gidNumber: 10046
+member: cn=core-gl-team,ou=groups,ou=core,dc=event,dc=dreamhack,dc=se
+
+dn: cn=services-colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: services-colo-team
+gidNumber: 10004
+member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se
+
+dn: cn=tech,ou=groups,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: tech
+gidNumber: 10047
+member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
+"""
+
+
+def test_canonical_teams(capsys):
+    """The 8 canonical teams replace the prod team zoo: access merged
+    from both access-* teams, gl-team resolves nested gl-team groups
+    to PEOPLE, colo-team renames services-colo-team, gids are fresh
+    (prod's never carry over), non-team groups import untouched."""
+    out = io.StringIO()
+    di.transform(io.StringIO(TEAM_DUMP), out)
+    text = out.getvalue()
+    entries = {}
+    for block in text.strip().split('\n\n'):
+        lines = block.split('\n')
+        entries[lines[0][4:]] = lines[1:]
+    ev = 'dc=event,dc=dreamhack,dc=se'
+    access = entries['cn=access-team,ou=groups,ou=access,' + ev]
+    assert 'gidNumber: 20001' in access
+    assert 'member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se' in access
+    assert 'member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se' in access
+    gl = entries['cn=gl-team,ou=groups,' + ev]
+    assert 'gidNumber: 20006' in gl
+    # nested: gl held the core-gl-team GROUP - resolved to alice
+    assert 'member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se' in gl
+    colo = entries['cn=colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se']
+    assert 'gidNumber: 20008' in colo
+    assert 'member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se' in colo
+    # the access dept OU is scaffolded
+    assert 'ou=access,' + ev in entries
+    # old team groups are gone; fresh gids only (no 10xxx on teams)
+    assert not any('services-colo-team' in dn or 'access-wifi-team' in dn
+                   or dn.startswith('cn=gl,') for dn in entries)
+    # non-team groups untouched, prod gid intact
+    assert 'gidNumber: 10047' in entries['cn=tech,ou=groups,' + ev]
