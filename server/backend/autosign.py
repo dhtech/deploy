@@ -6,14 +6,15 @@
 import os
 import urllib.parse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
 hostname = query_string.get('hostname', [''])[0]
 token = query_string.get('token', [''])[0]
 
-r = metadata.connection()
+r = runtime.connection()
 expected = r.get('enroll-' + hostname)
 
 print('Content-Type: text/plain')

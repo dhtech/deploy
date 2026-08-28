@@ -51,7 +51,8 @@ import os
 import socket
 import yaml
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 
 def vault(host):
@@ -64,7 +65,7 @@ def vault(host):
 
 # Move the secrets out of the directory that is kept in SVN
 config = yaml.safe_load(file('/etc/deploy.yaml'))
-client, _ = metadata.find(os.environ['REMOTE_ADDR'])
+client, _ = runtime.find(os.environ['REMOTE_ADDR'])
 
 # Only enable crypto disks on event machines
 is_event = client.domain == 'EVENT'

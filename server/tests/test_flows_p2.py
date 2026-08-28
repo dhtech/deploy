@@ -53,8 +53,8 @@ def build(tmp_path):
 
 
 def rules_to(db, hostname):
-    sys.modules['lib.metadata'].DB_FILE = str(db)
-    return sys.modules['lib.metadata'].firewall_rules_to(hostname)
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
+    return sys.modules['ipplanlib.metadata'].firewall_rules_to(hostname)
 
 
 def test_network_client_gets_cidr_scoped_rule(tmp_path):
@@ -91,8 +91,8 @@ def test_v6_mirror_rules(tmp_path):
     global IPPLAN
     kept = IPPLAN
     db = build(tmp_path)
-    sys.modules['lib.metadata'].DB_FILE = str(db)
-    assert sys.modules['lib.metadata'].firewall_rules_to6(
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
+    assert sys.modules['ipplanlib.metadata'].firewall_rules_to6(
         'router.colo.test') == {}
     try:
         IPPLAN = kept.replace(
@@ -100,8 +100,8 @@ def test_v6_mirror_rules(tmp_path):
             '#@ IPV4-COLO-NET\t10.200.0.0/24\n'
             '#@ IPV6-COLO-NET\tfdd8:1::/48')
         db = build(tmp_path)
-        sys.modules['lib.metadata'].DB_FILE = str(db)
-        rules6 = sys.modules['lib.metadata'].firewall_rules_to6(
+        sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
+        rules6 = sys.modules['ipplanlib.metadata'].firewall_rules_to6(
             'router.colo.test')
         assert 'fdd8:1:100::/64' in rules6['udp'][53]   # DEPLOY cidr
         assert 'fdd8:1:200::60' in rules6['udp'][123]   # web1 host

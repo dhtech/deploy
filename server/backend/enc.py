@@ -22,7 +22,7 @@ import urllib.parse
 
 import yaml
 
-from lib import metadata
+from ipplanlib import metadata
 
 
 def merge_params(target, extra):

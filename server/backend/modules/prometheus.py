@@ -4,7 +4,7 @@
 # pattern). Monitoring is site-local: this prometheus scrapes only its
 # own site's hosts - cross-site visibility is the other site's problem.
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 

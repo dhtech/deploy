@@ -3,14 +3,15 @@
 import os
 import urlparse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 
 query_string = urlparse.parse_qs(os.environ['QUERY_STRING'])
 ip = query_string['ip'][0]
-#client = metadata.lookup_ip(ip)
-client, cm = metadata.find(ip)
-network = metadata.network(client, cm)
+#client = runtime.lookup_ip(ip)
+client, cm = runtime.find(ip)
+network = runtime.network(client, cm)
 
 print ''
 with open('esxi/boot.cfg') as file:

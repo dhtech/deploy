@@ -16,7 +16,8 @@ import sqlite3
 import sys
 import urllib.parse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 HEADER = (
     """# This file describes the network interfaces available on your system
@@ -186,8 +187,8 @@ def main():
     try:
         # identity: fqdn only (beta) - must name a host row in ipplan;
         # anomalies answer 403 and are SEEN in the logs
-        hostname = metadata.request_host(query_string)
-    except metadata.IdentityError as error:
+        hostname = runtime.request_host(query_string)
+    except runtime.IdentityError as error:
         print('Status: 403')
         print('')
         print(error)
@@ -198,8 +199,8 @@ def main():
         print(router_config(hostname, ifs or ['eth0', 'eth1']))
         return
 
-    client, cm = metadata.find(hostname, first_if)
-    network = metadata.network(client, cm)
+    client, cm = runtime.find(hostname, first_if)
+    network = runtime.network(client, cm)
     if not network:
         sys.exit(1)
 

@@ -4,7 +4,7 @@
 # derives from ipplan + manifest data; this pkg in the default: list
 # IS the data that grants these).
 
-from lib import metadata
+from ipplanlib import metadata
 
 
 def generate(host, params, manifest):

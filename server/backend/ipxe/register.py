@@ -7,7 +7,8 @@ import syslog
 import time
 import urllib.parse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 
 def verify_vm_identity(r, hostname, uuid):
@@ -37,7 +38,7 @@ def verify_vm_identity(r, hostname, uuid):
 
 
 def handle(hostname, contents):
-    r = metadata.connection()
+    r = runtime.connection()
 
     denial = verify_vm_identity(r, hostname,
                                 contents.get('uuid', [''])[0])
@@ -80,8 +81,8 @@ query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
 try:
     # identity: fqdn only (beta) - must name a host row in ipplan
-    hostname = metadata.request_host(query_string)
-except metadata.IdentityError as error:
+    hostname = runtime.request_host(query_string)
+except runtime.IdentityError as error:
     print('Status: 403')
     print('')
     print(error)

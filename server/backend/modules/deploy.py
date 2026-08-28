@@ -2,7 +2,7 @@
 # everything derivable comes from the db (the resolver is the deploy
 # host itself: it runs the site dnsmasq).
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 

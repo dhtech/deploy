@@ -4,7 +4,7 @@
 # other jumpgates (and thereby the lab's masquerade source) are never
 # banned - that would lock everyone out.
 
-from lib import metadata
+from ipplanlib import metadata
 
 
 def generate(host, params, manifest):

@@ -14,7 +14,7 @@
 import ipaddress
 import sqlite3
 
-from lib import metadata
+from ipplanlib import metadata
 
 
 def _query(sql, args=()):

@@ -1,12 +1,10 @@
-# Test wiring: the CGIs import "lib.metadata" (deployment layout under
-# /var/www/deploy); map that to server/libdhdeploy and put server/backend
-# on the path so "modules.<pkg>" resolves like in production.
+# Test wiring: server/backend on the path so "modules.<pkg>" and
+# "runtime" resolve like in production (/var/www/deploy), ipplanlib
+# from the sibling toolchain checkout.
 
-import importlib
 import importlib.util
 import os
 import sys
-import types
 
 import pytest
 import yaml
@@ -14,14 +12,9 @@ import yaml
 HERE = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(HERE, '..', 'backend'))
 
-_lib = types.ModuleType('lib')
-# libdhdeploy's only home is the ipplan2db sibling checkout
+# ipplanlib's only home is the ipplan2db sibling checkout
 sys.path.insert(0, os.path.expanduser('~/repos/dh/ipplan2db'))
-_lib.metadata = importlib.import_module('libdhdeploy.metadata')
-_lib.flows = importlib.import_module('libdhdeploy.flows')
-sys.modules['lib'] = _lib
-sys.modules['lib.metadata'] = _lib.metadata
-sys.modules['lib.flows'] = _lib.flows
+from ipplanlib import metadata as _metadata  # noqa: E402,F401
 
 
 IPPLAN_COLO = '''\
@@ -80,7 +73,7 @@ def ipplan(tmp_path, monkeypatch, manifest):
     mpath = tmp_path / 'manifest.yaml'
     mpath.write_text(yaml.safe_dump(manifest))
     db = tmp_path / 'ipplan.db'
-    monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE', str(db))
+    monkeypatch.setattr(sys.modules['ipplanlib.metadata'], 'DB_FILE', str(db))
     tool.build(str(root), [str(mpath)], str(db))
     return db
 

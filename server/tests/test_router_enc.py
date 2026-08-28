@@ -55,7 +55,7 @@ def build(tmp_path):
 
 
 def router_params(db):
-    sys.modules['lib.metadata'].DB_FILE = str(db)
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
     from modules import router
     return router.generate('router.colo.test', {}, MANIFEST)
 
@@ -124,7 +124,7 @@ def test_bird_from_asn_token(tmp_path):
             '#$ upstream.colo.test\t10.200.0.9\t'
             'os=ios;pkg=-default,bgp(asn=64900);nodns')
         db = build(tmp_path)
-        sys.modules['lib.metadata'].DB_FILE = str(db)
+        sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
         from modules import router
         params = router.generate(
             'router.colo.test', {'asn': '65200'}, MANIFEST)
@@ -163,7 +163,7 @@ def test_colovpn_from_wg_net_and_uplink_peer(tmp_path):
     mpath.write_text(yaml.safe_dump(MANIFEST))
     db = tmp_path / 'ipplan.db'
     TOOL.build(str(root), [str(mpath)], str(db))
-    sys.modules['lib.metadata'].DB_FILE = str(db)
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
     from modules import router
     params = router.generate(
         'router.colo.test', {'asn': '65200'}, MANIFEST)
@@ -221,7 +221,7 @@ def test_peer_nat_address_opens_automatically(tmp_path):
     mpath.write_text(yaml.safe_dump(MANIFEST))
     db = tmp_path / 'ipplan.db'
     TOOL.build(str(root), [str(mpath)], str(db))
-    sys.modules['lib.metadata'].DB_FILE = str(db)
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
     from modules import router
     params = router.generate(
         'router.colo.test', {'asn': '65200'}, MANIFEST)
@@ -245,7 +245,7 @@ def test_wgsrc_locks_the_listener(tmp_path):
     mpath.write_text(yaml.safe_dump(MANIFEST))
     db = tmp_path / 'ipplan.db'
     TOOL.build(str(root), [str(mpath)], str(db))
-    sys.modules['lib.metadata'].DB_FILE = str(db)
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
     from modules import router
     params = router.generate(
         'router.colo.test', {'asn': '65200'}, MANIFEST)
@@ -271,7 +271,7 @@ def test_interfaces_router_config(tmp_path):
     import importlib.util
     import os
     db = build(tmp_path)
-    sys.modules['lib.metadata'].DB_FILE = str(db)
+    sys.modules['ipplanlib.metadata'].DB_FILE = str(db)
     tool = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         '..', 'backend', 'debian', 'interfaces.py')
     spec = importlib.util.spec_from_loader(

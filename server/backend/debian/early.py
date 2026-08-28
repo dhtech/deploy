@@ -10,28 +10,29 @@ import secrets
 import string
 import urllib.parse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
 try:
     # identity: fqdn only (beta) - must name a host row in ipplan;
     # anomalies answer 403 and are SEEN in the logs
-    hostname = metadata.request_host(query_string)
-except metadata.IdentityError as error:
+    hostname = runtime.request_host(query_string)
+except runtime.IdentityError as error:
     print('Status: 403')
     print('')
     print(error)
     sys.exit(0)
 
-client, cm = metadata.find(hostname)
-config = metadata.config()
+client, cm = runtime.find(hostname)
+config = runtime.config()
 
 # The installer runs on the deployment VLAN with a DHCP address; record
 # the mapping so the syslog receiver can identify it by source IP.
 remote = os.environ.get('REMOTE_ADDR', '')
 if remote and remote != client.ip:
-    metadata.connection().setex('install-ip-' + remote, 3600, client.hostname)
+    runtime.connection().setex('install-ip-' + remote, 3600, client.hostname)
 
 # No look-alike characters (gen-2 parity)
 alphabet = ''.join(c for c in string.ascii_letters + string.digits
@@ -39,16 +40,16 @@ alphabet = ''.join(c for c in string.ascii_letters + string.digits
 root_pw = ''.join(secrets.choice(alphabet) for _ in range(16))
 
 is_event = client.domain == 'EVENT'
-vault_path = metadata.vault_login_path(client)
+vault_path = runtime.vault_login_path(client)
 admin_pw = ''.join(secrets.choice(alphabet) for _ in range(16))
-metadata.vault_write(vault_path, root_password=root_pw,
+runtime.vault_write(vault_path, root_password=root_pw,
                      dhtech_password=admin_pw)
 
 passphrase = None
 if is_event:
     luks_path = vault_path.replace('/login:', '/luks:')
     passphrase = ''.join(secrets.choice(alphabet) for _ in range(32))
-    metadata.vault_write(luks_path, passphrase=passphrase)
+    runtime.vault_write(luks_path, passphrase=passphrase)
 
 print('')
 print('#!/bin/sh')

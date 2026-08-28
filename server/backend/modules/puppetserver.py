@@ -5,7 +5,7 @@
 
 import json
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 

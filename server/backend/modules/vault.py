@@ -1,7 +1,7 @@
 # ENC generator for pkg "vault": OpenBao + its public website. The
 # website name is the host's ipplan webname option.
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 

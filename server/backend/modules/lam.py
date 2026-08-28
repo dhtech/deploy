@@ -2,7 +2,7 @@
 # Manager) with an LE website; manages the directory on the masters
 # (URI list from ipplan).
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 

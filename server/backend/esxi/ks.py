@@ -2,13 +2,14 @@
 import os
 import yaml
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 # Move the secrets out of the directory that is kept in SVN
 config = yaml.safe_load(file('/etc/deploy.yaml'))
 
-client, cm = metadata.find(os.environ['REMOTE_ADDR'])
-network = metadata.network(client, cm)
+client, cm = runtime.find(os.environ['REMOTE_ADDR'])
+network = runtime.network(client, cm)
 
 if not network:
   # No network info, default to manual installation

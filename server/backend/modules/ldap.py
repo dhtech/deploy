@@ -4,7 +4,7 @@
 # they come from the manifest's client/server flow specs (the ldap and
 # ldap(role=master) entries) via the flow engine.
 
-from lib import metadata
+from ipplanlib import metadata
 
 
 def generate(host, params, manifest):

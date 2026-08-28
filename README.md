@@ -42,8 +42,9 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
   [dhtech/ipplan2db](https://github.com/dhtech/ipplan2db) (successor
   to ipplan2sqlite): compiler, svn gate + publisher + audit, stats
   page and `libdhdeploy` (metadata/flows - its only home). Machines
-  receive it as one appstore artifact at /opt/ipplan2db; dev and
-  tests use the sibling checkout.
+  receive it as one appstore artifact at /opt/ipplan2db (package name:
+  `ipplanlib` - the pure plan-reading API); dev and tests use the
+  sibling checkout.
 - **ipplan.db**: the compiled single source of truth. doc1's
   post-commit publishes it per revision; the puppet master syncs and
   serves it; every consumer reads only the db.
@@ -61,7 +62,7 @@ ipplan + manifest.yaml   --->  ipplan.db  --->  ENC  ---> catalogs
 
 | path | what |
 |---|---|
-| `server/backend/` | deploy web backend: PXE/preseed flow, finish/report, the ENC and its per-pkg modules |
+| `server/backend/` | deploy web backend: PXE/preseed flow, finish/report, runtime.py (redis/bao provisioning state), the ENC and its per-pkg modules |
 | `server/frontend/` | the deploy status site (fleet panel, develop tab) |
 | `server/tests/` | pytest suite - includes the prod-ipplan corpus (byte-for-byte parity with the gen-2 engine) and gate-rule proofs |
 | `utils/deploy-vm`, `deploy-bay` | provisioning helpers (create VMs on pve, bay handling) |

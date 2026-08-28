@@ -2,7 +2,7 @@
 # svn shares the host; apache terminates both, with directory login
 # straight against the site's ldap slaves.
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 

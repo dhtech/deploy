@@ -8,11 +8,12 @@
 import os
 import urllib.parse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 query_string = urllib.parse.parse_qs(os.environ.get('QUERY_STRING', ''))
 hostname = query_string['hostname'][0]
-network = metadata.installation_network(hostname)
+network = runtime.installation_network(hostname)
 
 print('')
 print('#!ipxe')

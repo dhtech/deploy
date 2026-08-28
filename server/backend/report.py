@@ -10,7 +10,8 @@ import json
 import re
 import sys
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 # Puppet posts Ruby-tagged YAML (not safe_load-able); we only need two
 # scalar fields, so pull them out with regexes.
@@ -28,7 +29,7 @@ if not host_m or not status_m:
 host = host_m.group(1)
 status = status_m.group(1)
 
-r = metadata.connection()
+r = runtime.connection()
 key = 'host-' + host
 raw_rec = r.get(key)
 if raw_rec is None or status not in ('changed', 'unchanged'):

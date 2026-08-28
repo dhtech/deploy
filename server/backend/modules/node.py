@@ -4,7 +4,7 @@
 # local: no site prometheus, no exporter; 9100 (and every manifest
 # monitor: port the host serves) opens ONLY to that prometheus.
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import prometheus as _prometheus
 

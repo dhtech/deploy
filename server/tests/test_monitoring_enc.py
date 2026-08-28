@@ -56,7 +56,7 @@ def mon_ipplan(tmp_path, monkeypatch, mon_manifest):
     mpath = tmp_path / 'manifest.yaml'
     mpath.write_text(yaml.safe_dump(mon_manifest))
     db = tmp_path / 'ipplan.db'
-    monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE', str(db))
+    monkeypatch.setattr(sys.modules['ipplanlib.metadata'], 'DB_FILE', str(db))
     tool.build(str(root), [str(mpath)], str(db))
     return db
 
@@ -111,7 +111,7 @@ def test_v6_mirror_scoped_and_jumpgates(tmp_path, monkeypatch,
     mpath = tmp_path / 'manifest.yaml'
     mpath.write_text(yaml.safe_dump(mon_manifest))
     db = tmp_path / 'ipplan.db'
-    monkeypatch.setattr(sys.modules['lib.metadata'], 'DB_FILE',
+    monkeypatch.setattr(sys.modules['ipplanlib.metadata'], 'DB_FILE',
                         str(db))
     tool.build(str(root), [str(mpath)], str(db))
     result = enc.classify('web1.test', mon_manifest)

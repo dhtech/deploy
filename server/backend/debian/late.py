@@ -9,23 +9,24 @@ import sys
 import secrets
 import urllib.parse
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 query_string = urllib.parse.parse_qs(
     os.environ.get('QUERY_STRING', ''), keep_blank_values=True)
 try:
     # identity: fqdn only (beta) - must name a host row in ipplan;
     # anomalies answer 403 and are SEEN in the logs
-    hostname = metadata.request_host(query_string)
-except metadata.IdentityError as error:
+    hostname = runtime.request_host(query_string)
+except runtime.IdentityError as error:
     print('Status: 403')
     print('')
     print(error)
     sys.exit(0)
 
-client, cm = metadata.find(hostname)
-config = metadata.config()
-base = metadata.base_url()
+client, cm = runtime.find(hostname)
+config = runtime.config()
+base = runtime.base_url()
 
 # jumpgates come from ipplan.db (pkg jumpgate), the same source the
 # steady-state firewall uses - one truth from the first boot onward
@@ -93,7 +94,7 @@ if ssh_port != 22:
 # One-time enrollment token: puppet1's autosign policy validates it
 # against us (autosign.py) on the first agent run.
 enroll_token = secrets.token_hex(16)
-metadata.connection().setex('enroll-' + client.hostname, 86400, enroll_token)
+runtime.connection().setex('enroll-' + client.hostname, 86400, enroll_token)
 print('mkdir -p /target/etc/puppet')
 print('cat > /target/etc/puppet/csr_attributes.yaml <<__EOF__')
 print('custom_attributes:')
@@ -147,7 +148,7 @@ __EOF__
 fi''')
 
 # --- admin user: operator access (CIS hardening denies root SSH) ---
-admin_pw = metadata.vault_read(metadata.vault_login_path(client)).get(
+admin_pw = runtime.vault_read(runtime.vault_login_path(client)).get(
     'dhtech_password', '')
 print('in-target useradd -m -s /bin/bash -G sudo dhtech || true')
 print('mkdir -p /target/home/dhtech/.ssh')

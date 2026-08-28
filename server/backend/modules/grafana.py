@@ -5,7 +5,7 @@
 # login), and a single provisioned datasource: the same site's
 # prometheus, named prometheus_<site> so dashboards port to prod.
 
-from lib import metadata
+from ipplanlib import metadata
 
 from . import ldap as _ldap
 from . import prometheus as _prometheus

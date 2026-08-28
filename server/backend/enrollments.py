@@ -7,11 +7,12 @@
 # (learned the hard way: the cleaner revoked freshly-signed certs).
 # Names and ages only - tokens are never exposed.
 
-from lib import metadata
+import runtime
+from ipplanlib import metadata
 
 TOKEN_TTL = 86400  # matches the setex in the debian late script
 
-r = metadata.connection()
+r = runtime.connection()
 print('Content-Type: text/plain')
 print('')
 for key in sorted(r.keys('enroll-*')):
