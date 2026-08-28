@@ -96,9 +96,14 @@ TEAM_NEW_OUS = ('ou=access,' + EVENT, 'ou=groups,ou=access,' + EVENT)
 # the old access dept husks die; whatever else lives in them (the
 # radius groups) moves into the merged dept (user, 2026-08-28)
 HUSK_OUS = ('ou=access-participants,' + EVENT, 'ou=access-wifi,' + EVENT)
-# groups retired outright, members NOT carried anywhere (user):
-# old tgl is superseded by the STRUCTURAL tgl-team below
-DROP_GROUPS = ('cn=tgl,ou=groups,' + EVENT,)
+# groups retired outright (user): dn -> successor for references
+# (None = references prune). tgl's heir is the structural tgl-team;
+# current-tech-mail dies outright (dhtech-mail IS current now)
+DROP_GROUPS = {
+    'cn=tgl,ou=groups,' + EVENT:
+        'cn=tgl-team,ou=groups,' + EVENT,
+    'cn=current-tech-mail,ou=groups,dc=colo,dc=dreamhack,dc=se': None,
+}
 # structural groups: fixed membership BY DEFINITION (nested group
 # DNs - sssd's rfc2307bis flattens them); synthesized on every run,
 # a dump's own copy is replaced
@@ -118,6 +123,12 @@ REMOVE_MEMBERS = {   # keys and values lowercase
     'cn=services-mail,ou=groups,dc=colo,dc=dreamhack,dc=se': {
         'cn=services-colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se',
         'cn=colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se',
+    },
+    # dhtech-mail reaches CURRENT tech only (user): the alumni and
+    # dhhq nests leave
+    'cn=dhtech-mail,ou=groups,dc=colo,dc=dreamhack,dc=se': {
+        'cn=alumni-team,ou=groups,dc=tech,dc=dreamhack,dc=se',
+        'cn=dhhq-team,ou=groups,dc=tech,dc=dreamhack,dc=se',
     },
 }
 
@@ -292,8 +303,9 @@ def transform(stream, out):
         for sdn in source_dns:
             if sdn.split(',')[0][3:] in sources:
                 successor[sdn] = new_dn
-    for d in DROP_GROUPS:   # tgl -> its structural heir
-        successor[d.lower()] = 'cn=tgl-team,ou=groups,' + EVENT
+    for d, heir in DROP_GROUPS.items():
+        if heir:
+            successor[d.lower()] = heir
     dropped = source_dns | {d.lower() for d in DROP_GROUPS}
     dropped |= {('cn=%s,%s' % (cn, parent)).lower()
                 for cn, parent, _g, _d, _m in STATIC_GROUPS}

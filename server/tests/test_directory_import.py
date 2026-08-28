@@ -306,6 +306,9 @@ def test_canonical_teams(capsys):
     cmail = entries['cn=colo-mail,ou=groups,dc=colo,dc=dreamhack,dc=se']
     assert 'gidNumber: 10102' in cmail
     assert 'member: cn=colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se' in cmail
+    # current-tech-mail is retired; dhtech-mail reaches CURRENT tech
+    # only (no alumni/dhhq nests)
+    assert not any('current-tech-mail' in dn for dn in entries)
     # tgl is retired outright; tgl-team is its structural successor:
     # the gl-team and tl-team GROUPS as nested members
     assert not any(dn.startswith('cn=tgl,') for dn in entries)
