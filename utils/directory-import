@@ -271,6 +271,17 @@ def transform(stream, out):
             best = (None, default_gid)
         team_members[cn] = people
         team_gids[cn] = best[1]
+    # references to replaced groups REMAP to the successor (mail
+    # alias groups nest team groups - pruning them would silently
+    # empty aliases like gl-mail)
+    successor = {}
+    for cn, parent, desc, sources, _g in TEAMS:
+        new_dn = 'cn=%s,%s' % (cn, parent)
+        for sdn in source_dns:
+            if sdn.split(',')[0][3:] in sources:
+                successor[sdn] = new_dn
+    for d in DROP_GROUPS:   # tgl -> its structural heir
+        successor[d.lower()] = 'cn=tgl-team,ou=groups,' + EVENT
     dropped = source_dns | {d.lower() for d in DROP_GROUPS}
     dropped |= {('cn=%s,%s' % (cn, parent)).lower()
                 for cn, parent, _g, _d, _m in STATIC_GROUPS}
@@ -335,6 +346,7 @@ def transform(stream, out):
         members_out = 0
         for attr, value, is_b64 in attrs:
             if attr.lower() == 'member':
+                value = successor.get(value.lower(), value)
                 if value.lower() not in kept_dns:
                     pruned_members += 1
                     continue

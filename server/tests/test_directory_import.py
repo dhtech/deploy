@@ -241,6 +241,13 @@ cn: tgl
 gidNumber: 10048
 member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
 
+dn: cn=gl-mail,ou=groups,dc=colo,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: gl-mail
+gidNumber: 10049
+member: cn=gl,ou=groups,dc=event,dc=dreamhack,dc=se
+
 dn: cn=tech,ou=groups,dc=event,dc=dreamhack,dc=se
 objectClass: groupOfNames
 objectClass: posixGroup
@@ -281,6 +288,10 @@ def test_canonical_teams(capsys):
     assert 'gidNumber: 10020' in radius
     assert not any('access-participants' in dn or 'access-wifi' in dn
                    for dn in entries)
+    # mail alias groups nesting replaced teams REMAP to the successor
+    glmail = entries['cn=gl-mail,ou=groups,dc=colo,dc=dreamhack,dc=se']
+    assert 'member: cn=gl-team,ou=groups,' + ev in glmail
+    assert not any('cn=gl,' in l for l in glmail)
     # tgl is retired outright; tgl-team is its structural successor:
     # the gl-team and tl-team GROUPS as nested members
     assert not any(dn.startswith('cn=tgl,') for dn in entries)
