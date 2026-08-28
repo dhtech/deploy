@@ -52,7 +52,7 @@ fi
 if [ ! -f /etc/ipplan.db ]; then
 python3 "$repo/../ipplan2db/ipplan2db" --ipplan-root "$stack/ipplan" \
     --manifest "$stack/manifest.yaml" --manifest "$stack/appstore.yaml" \
-    /etc/ipplan.db
+    --db /etc/ipplan.db
 fi
 rm -f /etc/manifest  # gen-3: provision reads only the db
 chmod 644 /etc/ipplan.db
