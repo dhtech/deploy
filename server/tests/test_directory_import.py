@@ -199,6 +199,13 @@ cn: access-wifi-team
 gidNumber: 10002
 member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se
 
+dn: cn=radius-access-access,ou=groups,ou=access-participants,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: radius-access-access
+gidNumber: 10020
+member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
+
 dn: cn=core-gl-team,ou=groups,ou=core,dc=event,dc=dreamhack,dc=se
 objectClass: groupOfNames
 objectClass: posixGroup
@@ -255,6 +262,11 @@ def test_canonical_teams(capsys):
     assert 'member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se' in colo
     # the access dept OU is scaffolded
     assert 'ou=access,' + ev in entries
+    # husk OUs die; their radius group moves into the merged dept
+    radius = entries['cn=radius-access-access,ou=groups,ou=access,' + ev]
+    assert 'gidNumber: 10020' in radius
+    assert not any('access-participants' in dn or 'access-wifi' in dn
+                   for dn in entries)
     # old team groups are gone; fresh gids only (no 10xxx on teams)
     assert not any('services-colo-team' in dn or 'access-wifi-team' in dn
                    or dn.startswith('cn=gl,') for dn in entries)

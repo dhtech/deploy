@@ -82,6 +82,9 @@ TEAMS = [
 TEAM_SOURCE_CNS = {cn for *_, sources in TEAMS for cn in sources}
 # the merged access dept has no OU in prod - scaffold it
 TEAM_NEW_OUS = ('ou=access,' + EVENT, 'ou=groups,ou=access,' + EVENT)
+# the old access dept husks die; whatever else lives in them (the
+# radius groups) moves into the merged dept (user, 2026-08-28)
+HUSK_OUS = ('ou=access-participants,' + EVENT, 'ou=access-wifi,' + EVENT)
 
 
 def resolve_members(dn, groups_by_dn, seen=None):
@@ -246,6 +249,22 @@ def transform(stream, out):
     entries = [(dn, attrs) for dn, attrs in entries
                if dn.lower() not in source_dns]
     kept_dns -= source_dns
+    if team_gids:
+        relocated = []
+        for dn, attrs in entries:
+            low = dn.lower()
+            if any(low.endswith(h) for h in HUSK_OUS):
+                if low.startswith('ou='):
+                    kept_dns.discard(low)
+                    continue   # the husk OU chain itself dies
+                new_dn = '%s,ou=groups,ou=access,%s' % (
+                    dn.split(',', 1)[0], EVENT)
+                kept_dns.discard(low)
+                kept_dns.add(new_dn.lower())
+                relocated.append((new_dn, attrs))
+            else:
+                relocated.append((dn, attrs))
+        entries = relocated
     for ou_dn in (TEAM_NEW_OUS if team_gids else ()):
         entries.append((ou_dn, [
             ('objectClass', 'organizationalUnit', False),
