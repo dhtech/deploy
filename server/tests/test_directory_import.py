@@ -243,15 +243,15 @@ def test_canonical_teams(capsys):
         entries[lines[0][4:]] = lines[1:]
     ev = 'dc=event,dc=dreamhack,dc=se'
     access = entries['cn=access-team,ou=groups,ou=access,' + ev]
-    assert 'gidNumber: 20001' in access
+    assert 'gidNumber: 10001' in access  # participants' gid (primary)
     assert 'member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se' in access
     assert 'member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se' in access
     gl = entries['cn=gl-team,ou=groups,' + ev]
-    assert 'gidNumber: 20006' in gl
+    assert 'gidNumber: 10046' in gl      # prod cn=gl's gid
     # nested: gl held the core-gl-team GROUP - resolved to alice
     assert 'member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se' in gl
     colo = entries['cn=colo-team,ou=groups,dc=colo,dc=dreamhack,dc=se']
-    assert 'gidNumber: 20008' in colo
+    assert 'gidNumber: 10004' in colo    # services-colo-team's gid
     assert 'member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se' in colo
     # the access dept OU is scaffolded
     assert 'ou=access,' + ev in entries

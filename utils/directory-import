@@ -51,29 +51,32 @@ SEEDED_RE = re.compile(
 
 # THE CANONICAL TEAMS (user decree 2026-08-28): the prod team zoo is
 # replaced by these 8. Members map from the old groups (source cns;
-# nested *-gl-team memberships resolve to people); gidNumbers are
-# FRESH - prod's gids deliberately do not carry over. The old source
-# groups are dropped; every other group imports untouched.
+# nested *-gl-team memberships resolve to people); each team REUSES
+# its PRIMARY source's gidNumber (first cn in sources - user call,
+# reverting an earlier fresh-gid scheme). For the resource-team the
+# primary is prod's ou=resources copy (the dept one), not the stray
+# event-level duplicate. The old source groups are dropped; every
+# other group imports untouched.
 EVENT = 'dc=event,dc=dreamhack,dc=se'
 TEAMS = [
-    # (cn, parent, gid, description, source group cns)
-    ('access-team', 'ou=groups,ou=access,' + EVENT, 20001,
+    # (cn, parent, description, source group cns - FIRST is primary)
+    ('access-team', 'ou=groups,ou=access,' + EVENT,
      'Access team', ('access-participants-team', 'access-wifi-team')),
-    ('core-team', 'ou=groups,ou=core,' + EVENT, 20002,
+    ('core-team', 'ou=groups,ou=core,' + EVENT,
      'Core team', ('core-team',)),
-    ('logistics-team', 'ou=groups,ou=logistics,' + EVENT, 20003,
+    ('logistics-team', 'ou=groups,ou=logistics,' + EVENT,
      'Logistics team', ('logistics-team',)),
-    ('services-team', 'ou=groups,ou=services,' + EVENT, 20004,
+    ('services-team', 'ou=groups,ou=services,' + EVENT,
      'Services team', ('services-team',)),
-    ('resource-team', 'ou=groups,ou=resources,' + EVENT, 20005,
+    ('resource-team', 'ou=groups,ou=resources,' + EVENT,
      'Resource team', ('resources-team',)),
-    ('gl-team', 'ou=groups,' + EVENT, 20006,
+    ('gl-team', 'ou=groups,' + EVENT,
      'Group leaders', ('gl', 'access-participants-gl-team',
                        'access-wifi-gl-team', 'core-gl-team',
                        'logistics-gl-team', 'services-gl-team')),
-    ('tl-team', 'ou=groups,' + EVENT, 20007,
+    ('tl-team', 'ou=groups,' + EVENT,
      'Team leaders', ('tl-team',)),
-    ('colo-team', 'ou=groups,dc=colo,dc=dreamhack,dc=se', 20008,
+    ('colo-team', 'ou=groups,dc=colo,dc=dreamhack,dc=se',
      'Colo team (standing, off-event)', ('services-colo-team',)),
 ]
 TEAM_SOURCE_CNS = {cn for *_, sources in TEAMS for cn in sources}
@@ -218,26 +221,44 @@ def transform(stream, out):
     source_dns = {dn.lower() for dn in groups_by_dn
                   if dn.split(',')[0][3:] in TEAM_SOURCE_CNS}
     team_members = {}
-    for cn, parent, gid, desc, sources in TEAMS:
+    team_gids = {}
+    for cn, parent, desc, sources in TEAMS:
         people = set()
+        # (source rank, prefer-dept-OU) -> gid: the most-primary
+        # PRESENT source donates the gid; among same-cn duplicates
+        # (prod's resources-team) the dept-OU copy wins
+        best = None
         for sdn in source_dns:
-            if sdn.split(',')[0][3:] in sources:
-                people |= resolve_members(sdn, groups_by_dn)
+            scn = sdn.split(',')[0][3:]
+            if scn not in sources:
+                continue
+            people |= resolve_members(sdn, groups_by_dn)
+            rank = (sources.index(scn),
+                    -sdn.split(',dc=', 1)[0].count(',ou='))
+            for a, v, _b in groups_by_dn[sdn]:
+                if a.lower() == 'gidnumber' and (best is None
+                                                 or rank < best[0]):
+                    best = (rank, v)
+        if best is None:
+            continue   # no source in this dump: nothing to build
         team_members[cn] = people
+        team_gids[cn] = best[1]
     entries = [(dn, attrs) for dn, attrs in entries
                if dn.lower() not in source_dns]
     kept_dns -= source_dns
-    for ou_dn in TEAM_NEW_OUS:
+    for ou_dn in (TEAM_NEW_OUS if team_gids else ()):
         entries.append((ou_dn, [
             ('objectClass', 'organizationalUnit', False),
             ('ou', ou_dn.split(',')[0][3:], False)]))
         kept_dns.add(ou_dn.lower())
-    for cn, parent, gid, desc, sources in TEAMS:
+    for cn, parent, desc, sources in TEAMS:
+        if cn not in team_gids:
+            continue
         dn = 'cn=%s,%s' % (cn, parent)
         attrs = [('objectClass', 'groupOfNames', False),
                  ('objectClass', 'posixGroup', False),
                  ('cn', cn, False),
-                 ('gidNumber', str(gid), False),
+                 ('gidNumber', team_gids[cn], False),
                  ('description', desc, False)]
         attrs += [('member', m, False)
                   for m in sorted(team_members[cn])]
