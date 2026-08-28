@@ -97,8 +97,17 @@ TEAM_NEW_OUS = ('ou=access,' + EVENT, 'ou=groups,ou=access,' + EVENT)
 # radius groups) moves into the merged dept (user, 2026-08-28)
 HUSK_OUS = ('ou=access-participants,' + EVENT, 'ou=access-wifi,' + EVENT)
 # groups retired outright, members NOT carried anywhere (user):
-# tgl's meaning is superseded by gl-team/tl-team
+# old tgl is superseded by the STRUCTURAL tgl-team below
 DROP_GROUPS = ('cn=tgl,ou=groups,' + EVENT,)
+# structural groups: fixed membership BY DEFINITION (nested group
+# DNs - sssd's rfc2307bis flattens them); synthesized on every run,
+# a dump's own copy is replaced
+STATIC_GROUPS = [
+    ('tgl-team', 'ou=groups,' + EVENT, '10101',
+     'Group + team leaders (gl-team and tl-team nested)',
+     ('cn=gl-team,ou=groups,' + EVENT,
+      'cn=tl-team,ou=groups,' + EVENT)),
+]
 
 
 def resolve_members(dn, groups_by_dn, seen=None):
@@ -263,6 +272,8 @@ def transform(stream, out):
         team_members[cn] = people
         team_gids[cn] = best[1]
     dropped = source_dns | {d.lower() for d in DROP_GROUPS}
+    dropped |= {('cn=%s,%s' % (cn, parent)).lower()
+                for cn, parent, _g, _d, _m in STATIC_GROUPS}
     entries = [(dn, attrs) for dn, attrs in entries
                if dn.lower() not in dropped]
     kept_dns -= dropped
@@ -287,6 +298,17 @@ def transform(stream, out):
             ('objectClass', 'organizationalUnit', False),
             ('ou', ou_dn.split(',')[0][3:], False)]))
         kept_dns.add(ou_dn.lower())
+    if team_gids:
+        for cn, parent, gid, desc, member_dns in STATIC_GROUPS:
+            dn = 'cn=%s,%s' % (cn, parent)
+            attrs = [('objectClass', 'groupOfNames', False),
+                     ('objectClass', 'posixGroup', False),
+                     ('cn', cn, False),
+                     ('gidNumber', gid, False),
+                     ('description', desc, False)]
+            attrs += [('member', m, False) for m in member_dns]
+            entries.append((dn, attrs))
+            kept_dns.add(dn.lower())
     for cn, parent, desc, sources, default_gid in TEAMS:
         if cn not in team_gids:
             continue
