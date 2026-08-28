@@ -227,6 +227,13 @@ cn: services-colo-team
 gidNumber: 10004
 member: uid=bob,ou=people,dc=tech,dc=dreamhack,dc=se
 
+dn: cn=tgl,ou=groups,dc=event,dc=dreamhack,dc=se
+objectClass: groupOfNames
+objectClass: posixGroup
+cn: tgl
+gidNumber: 10048
+member: uid=alice,ou=people,dc=tech,dc=dreamhack,dc=se
+
 dn: cn=tech,ou=groups,dc=event,dc=dreamhack,dc=se
 objectClass: groupOfNames
 objectClass: posixGroup
@@ -267,6 +274,8 @@ def test_canonical_teams(capsys):
     assert 'gidNumber: 10020' in radius
     assert not any('access-participants' in dn or 'access-wifi' in dn
                    for dn in entries)
+    # tgl is retired outright
+    assert not any(dn.startswith('cn=tgl,') for dn in entries)
     # old team groups are gone; fresh gids only (no 10xxx on teams)
     assert not any('services-colo-team' in dn or 'access-wifi-team' in dn
                    or dn.startswith('cn=gl,') for dn in entries)

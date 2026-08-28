@@ -96,6 +96,9 @@ TEAM_NEW_OUS = ('ou=access,' + EVENT, 'ou=groups,ou=access,' + EVENT)
 # the old access dept husks die; whatever else lives in them (the
 # radius groups) moves into the merged dept (user, 2026-08-28)
 HUSK_OUS = ('ou=access-participants,' + EVENT, 'ou=access-wifi,' + EVENT)
+# groups retired outright, members NOT carried anywhere (user):
+# tgl's meaning is superseded by gl-team/tl-team
+DROP_GROUPS = ('cn=tgl,ou=groups,' + EVENT,)
 
 
 def resolve_members(dn, groups_by_dn, seen=None):
@@ -259,9 +262,10 @@ def transform(stream, out):
             best = (None, default_gid)
         team_members[cn] = people
         team_gids[cn] = best[1]
+    dropped = source_dns | {d.lower() for d in DROP_GROUPS}
     entries = [(dn, attrs) for dn, attrs in entries
-               if dn.lower() not in source_dns]
-    kept_dns -= source_dns
+               if dn.lower() not in dropped]
+    kept_dns -= dropped
     if team_gids:
         relocated = []
         for dn, attrs in entries:
