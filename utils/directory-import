@@ -59,27 +59,38 @@ SEEDED_RE = re.compile(
 # other group imports untouched.
 EVENT = 'dc=event,dc=dreamhack,dc=se'
 TEAMS = [
-    # (cn, parent, description, source group cns - FIRST is primary)
+    # (cn, parent, description, source cns - FIRST is primary,
+    #  default gid when no source is in the dump - None = skip)
     ('access-team', 'ou=groups,ou=access,' + EVENT,
-     'Access team', ('access-participants-team', 'access-wifi-team')),
+     'Access team', ('access-participants-team', 'access-wifi-team'),
+     None),
     ('core-team', 'ou=groups,ou=core,' + EVENT,
-     'Core team', ('core-team',)),
+     'Core team', ('core-team',), None),
     ('logistics-team', 'ou=groups,ou=logistics,' + EVENT,
-     'Logistics team', ('logistics-team',)),
+     'Logistics team', ('logistics-team',), None),
     ('services-team', 'ou=groups,ou=services,' + EVENT,
-     'Services team', ('services-team',)),
+     'Services team', ('services-team',), None),
     ('resource-team', 'ou=groups,ou=resources,' + EVENT,
-     'Resource team', ('resources-team',)),
+     'Resource team', ('resources-team',), None),
     ('gl-team', 'ou=groups,' + EVENT,
      'Group leaders', ('gl', 'access-participants-gl-team',
                        'access-wifi-gl-team', 'core-gl-team',
-                       'logistics-gl-team', 'services-gl-team')),
+                       'logistics-gl-team', 'services-gl-team',
+                       'colo-gl-team'), None),
     ('tl-team', 'ou=groups,' + EVENT,
-     'Team leaders', ('tl-team',)),
+     'Team leaders', ('tl-team',), None),
     ('colo-team', 'ou=groups,dc=colo,dc=dreamhack,dc=se',
-     'Colo team (standing, off-event)', ('services-colo-team',)),
+     'Colo team (standing, off-event)', ('services-colo-team',),
+     None),
+    # colo's GL group (user, 2026-08-28): the colo counterpart of the
+    # dept gl groups - round-trips its own members on re-imports,
+    # created empty (fresh gid 10100 - clear of the dump's
+    # 10001-10079 range) when the dump lacks it
+    ('colo-gl-team', 'ou=groups,dc=colo,dc=dreamhack,dc=se',
+     'Colo group leaders', ('colo-gl-team',), '10100'),
 ]
-TEAM_SOURCE_CNS = {cn for *_, sources in TEAMS for cn in sources}
+TEAM_SOURCE_CNS = {scn for _c, _p, _d, sources, _g in TEAMS
+                   for scn in sources}
 # the merged access dept has no OU in prod - scaffold it
 TEAM_NEW_OUS = ('ou=access,' + EVENT, 'ou=groups,ou=access,' + EVENT)
 # the old access dept husks die; whatever else lives in them (the
@@ -225,7 +236,7 @@ def transform(stream, out):
                   if dn.split(',')[0][3:] in TEAM_SOURCE_CNS}
     team_members = {}
     team_gids = {}
-    for cn, parent, desc, sources in TEAMS:
+    for cn, parent, desc, sources, default_gid in TEAMS:
         people = set()
         # (source rank, prefer-dept-OU) -> gid: the most-primary
         # PRESENT source donates the gid; among same-cn duplicates
@@ -243,7 +254,9 @@ def transform(stream, out):
                                                  or rank < best[0]):
                     best = (rank, v)
         if best is None:
-            continue   # no source in this dump: nothing to build
+            if default_gid is None:
+                continue   # no source in this dump: nothing to build
+            best = (None, default_gid)
         team_members[cn] = people
         team_gids[cn] = best[1]
     entries = [(dn, attrs) for dn, attrs in entries
@@ -270,7 +283,7 @@ def transform(stream, out):
             ('objectClass', 'organizationalUnit', False),
             ('ou', ou_dn.split(',')[0][3:], False)]))
         kept_dns.add(ou_dn.lower())
-    for cn, parent, desc, sources in TEAMS:
+    for cn, parent, desc, sources, default_gid in TEAMS:
         if cn not in team_gids:
             continue
         dn = 'cn=%s,%s' % (cn, parent)

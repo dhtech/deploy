@@ -270,5 +270,12 @@ def test_canonical_teams(capsys):
     # old team groups are gone; fresh gids only (no 10xxx on teams)
     assert not any('services-colo-team' in dn or 'access-wifi-team' in dn
                    or dn.startswith('cn=gl,') for dn in entries)
+    # colo-gl-team: created empty (self-member placeholder) with the
+    # fixed fresh gid when the dump lacks it; feeds gl-team when a
+    # future dump carries it
+    cgl = entries['cn=colo-gl-team,ou=groups,dc=colo,dc=dreamhack,dc=se']
+    assert 'gidNumber: 10100' in cgl
+    assert ('member: cn=colo-gl-team,ou=groups,dc=colo,dc=dreamhack,dc=se'
+            in cgl)
     # non-team groups untouched, prod gid intact
     assert 'gidNumber: 10047' in entries['cn=tech,ou=groups,' + ev]
